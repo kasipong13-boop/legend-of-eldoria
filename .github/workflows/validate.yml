@@ -1,0 +1,43 @@
+name: Validate Prototype
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  syntax-and-structure:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Verify required prototype files
+        run: |
+          test -f index.html
+          test -f README_TH.txt
+          test -f css/style.css
+          test -f js/data.js
+          test -f js/battle.js
+          test -f js/battle-ui.js
+          test -f js/world.js
+          test -f js/main.js
+          test -f assets/icon.svg
+          test -f assets/apple-touch-icon.png
+
+      - name: Check JavaScript syntax
+        run: |
+          for file in js/*.js; do
+            echo "Checking $file"
+            node --check "$file"
+          done
