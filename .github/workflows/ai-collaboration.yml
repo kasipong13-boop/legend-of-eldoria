@@ -20,6 +20,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
+      - name: Check out repository for read-only inspection
+        uses: actions/checkout@v4
+
       - name: Validate request and call Claude, then OpenAI review
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -28,6 +31,27 @@ jobs:
         run: |
           node <<'NODE'
           const fs = require('node:fs');
+          const path = require('node:path');
+
+          function getProjectTree(root = '.') {
+            const lines = [];
+            const ignored = new Set(['.git', 'node_modules', '.github']);
+            function walk(dir, depth = 0) {
+              if (depth > 3) return;
+              for (const entry of fs.readdirSync(dir, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
+                if (ignored.has(entry.name)) continue;
+                const full = path.join(dir, entry.name);
+                if (entry.isDirectory()) {
+                  lines.push(full + '/');
+                  walk(full, depth + 1);
+                } else {
+                  lines.push(full + ' (' + fs.statSync(full).size + ' bytes)');
+                }
+              }
+            }
+            walk(root);
+            return lines.join('\\n').slice(0, 12000);
+          }
 
           async function postJson(url, headers, body) {
             const response = await fetch(url, {
@@ -71,13 +95,15 @@ jobs:
               throw new Error('Missing ANTHROPIC_API_KEY or OPENAI_API_KEY repository secret.');
             }
 
+            const projectTree = getProjectTree();
             const projectRules = [
               'Project: LEGEND OF ELDORIA, an existing browser RPG prototype.',
               'Preserve Prototype 0.1 gameplay and files unless the task explicitly authorizes a change.',
               'Do not propose direct edits to main. Work must later be reviewed through a pull request.',
               'Protected gameplay files js/data.js and js/battle.js must not be changed without explicit user approval.',
               'Current CI checks required prototype files and JavaScript syntax with Node.js 20.',
-              'This workflow is planning/review only: do not write, execute, or return code patches.'
+              'This workflow is planning/review only: do not write, execute, or return code patches.',
+              'Separate verified repository facts from assumptions. The repository tree below is read-only evidence; do not claim to have run the game or browser tests.'
             ].join('\n');
 
             const claude = await postJson(
@@ -88,7 +114,7 @@ jobs:
               },
               {
                 model: 'claude-sonnet-5-5',
-                max_tokens: 650,
+                max_tokens: 2400,
                 messages: [{
                   role: 'user',
                   content: `${projectRules}\n\nTASK:\n${task}\n\nCreate a concise implementation plan with scope, files likely affected, risks, and tests. Clearly mark assumptions. Do not write code.`
@@ -103,11 +129,11 @@ jobs:
               { authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
               {
                 model: 'gpt-6-astra',
-                max_output_tokens: 650,
+                max_output_tokens: 1800,
                 input: [
                   {
                     role: 'system',
-                    content: 'You are the independent QA reviewer for LEGEND OF ELDORIA. Review the proposed plan only. Do not write code. Identify missing tests, scope creep, regression risks, API cost risks, and whether the plan respects approval gates. Finish with APPROVE PLAN, REVISE PLAN, or BLOCK.'
+                    content: 'You are the independent QA reviewer for LEGEND OF ELDORIA. Review the complete proposed plan only. Do not write code. Check evidence vs assumptions, scope creep, preservation of Prototype 0.1, protected files, tests and measurable acceptance criteria, security, API cost, branch/PR workflow, and explicit human approval gates. If input is incomplete or truncated, say so and BLOCK. Finish with APPROVE PLAN, REVISE PLAN, or BLOCK.'
                   },
                   {
                     role: 'user',
