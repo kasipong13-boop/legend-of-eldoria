@@ -1,0 +1,155 @@
+name: AI Collaboration - Plan and Review
+
+on:
+  workflow_dispatch:
+    inputs:
+      task:
+        description: "Describe one small LEGEND OF ELDORIA task (max 2000 characters)"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: eldoria-ai-plan
+  cancel-in-progress: false
+
+jobs:
+  plan-and-review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Validate request and call Claude, then OpenAI review
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          TASK: ${{ inputs.task }}
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+
+          async function postJson(url, headers, body) {
+            const response = await fetch(url, {
+              method: 'POST',
+              headers: { 'content-type': 'application/json', ...headers },
+              body: JSON.stringify(body),
+              signal: AbortSignal.timeout(90000)
+            });
+            const raw = await response.text();
+            if (!response.ok) {
+              throw new Error(`API request failed (${response.status}): ${raw.slice(0, 1200)}`);
+            }
+            return JSON.parse(raw);
+          }
+
+          function extractClaude(data) {
+            return (data.content || [])
+              .filter(part => part.type === 'text')
+              .map(part => part.text)
+              .join('\n')
+              .trim();
+          }
+
+          function extractOpenAI(data) {
+            if (typeof data.output_text === 'string') return data.output_text.trim();
+            return (data.output || [])
+              .filter(item => item.type === 'message')
+              .flatMap(item => item.content || [])
+              .filter(part => part.type === 'output_text')
+              .map(part => part.text)
+              .join('\n')
+              .trim();
+          }
+
+          (async () => {
+            const task = (process.env.TASK || '').trim();
+            if (!task || task.length > 2000) {
+              throw new Error('Task must contain 1–2000 characters.');
+            }
+            if (!process.env.ANTHROPIC_API_KEY || !process.env.OPENAI_API_KEY) {
+              throw new Error('Missing ANTHROPIC_API_KEY or OPENAI_API_KEY repository secret.');
+            }
+
+            const projectRules = [
+              'Project: LEGEND OF ELDORIA, an existing browser RPG prototype.',
+              'Preserve Prototype 0.1 gameplay and files unless the task explicitly authorizes a change.',
+              'Do not propose direct edits to main. Work must later be reviewed through a pull request.',
+              'Protected gameplay files js/data.js and js/battle.js must not be changed without explicit user approval.',
+              'Current CI checks required prototype files and JavaScript syntax with Node.js 20.',
+              'This workflow is planning/review only: do not write, execute, or return code patches.'
+            ].join('\n');
+
+            const claude = await postJson(
+              'https://api.anthropic.com/v1/messages',
+              {
+                'x-api-key': process.env.ANTHROPIC_API_KEY,
+                'anthropic-version': '2023-06-01'
+              },
+              {
+                model: 'claude-sonnet-5-5',
+                max_tokens: 650,
+                messages: [{
+                  role: 'user',
+                  content: `${projectRules}\n\nTASK:\n${task}\n\nCreate a concise implementation plan with scope, files likely affected, risks, and tests. Clearly mark assumptions. Do not write code.`
+                }]
+              }
+            );
+            const plan = extractClaude(claude);
+            if (!plan) throw new Error('Claude returned no readable plan.');
+
+            const review = await postJson(
+              'https://api.openai.com/v1/responses',
+              { authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
+              {
+                model: 'gpt-6-astra',
+                max_output_tokens: 650,
+                input: [
+                  {
+                    role: 'system',
+                    content: 'You are the independent QA reviewer for LEGEND OF ELDORIA. Review the proposed plan only. Do not write code. Identify missing tests, scope creep, regression risks, API cost risks, and whether the plan respects approval gates. Finish with APPROVE PLAN, REVISE PLAN, or BLOCK.'
+                  },
+                  {
+                    role: 'user',
+                    content: `${projectRules}\n\nUSER TASK:\n${task}\n\nCLAUDE PLAN:\n${plan}`
+                  }
+                ]
+              }
+            );
+            const reviewText = extractOpenAI(review);
+            if (!reviewText) throw new Error('OpenAI returned no readable review.');
+
+            const report = [
+              '# LEGEND OF ELDORIA — AI Plan Review',
+              '',
+              '> Planning only. No game files were changed and no pull request was created.',
+              '',
+              '## Requested task',
+              task,
+              '',
+              '## Claude — implementation plan',
+              plan,
+              '',
+              '## OpenAI — independent review',
+              reviewText,
+              '',
+              '## Next gate',
+              'A human must review this report before any coding workflow is enabled.'
+            ].join('\n');
+
+            fs.writeFileSync('AI-PLAN-REVIEW.md', report + '\n', { encoding: 'utf8', flag: 'w' });
+            console.log('AI planning and review completed. See the uploaded report artifact.');
+          })().catch(error => {
+            console.error(error.message);
+            process.exitCode = 1;
+          });
+          NODE
+
+      - name: Upload AI plan review
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eldoria-ai-plan-review
+          path: AI-PLAN-REVIEW.md
+          if-no-files-found: error
+          retention-days: 7
