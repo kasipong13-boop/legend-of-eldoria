@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Eldoria">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#0d1819">
+  <title>Legend of Eldoria - Prototype 0.1</title>
+  <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="app">
+
+  <!-- TITLE -->
+  <section id="screen-title" class="screen center active">
+    <img class="crest" src="assets/icon.svg" alt="">
+    <h1>Legend of Eldoria</h1>
+    <p class="subtitle">Chronicles of the Dragon Kingdom</p>
+    <button id="btn-start" class="btn primary" type="button">Begin the journey</button>
+    <p class="version">Prototype 0.1: Greenvale Village</p>
+  </section>
+
+  <!-- WORLD (isometric exploration) -->
+  <section id="screen-world" class="screen">
+    <canvas id="world-canvas"></canvas>
+    <div id="hud">
+      <div class="hud-block">
+        <span class="hud-label" id="hud-zone">Greenvale Village</span>
+        <span id="hud-level">Lv 1</span>
+      </div>
+      <div class="hud-block grow">
+        <div class="bar hp small"><span id="hud-hp-fill"></span><b id="hud-hp-text"></b></div>
+        <div class="bar exp small"><span id="hud-exp-fill"></span><b id="hud-exp-text"></b></div>
+      </div>
+      <div class="hud-block right">
+        <span id="hud-gold">0 gold</span>
+        <span id="hud-jelly">0 jelly</span>
+      </div>
+    </div>
+    <div id="toast"></div>
+    <div id="dpad">
+      <button type="button" data-dir="up" aria-label="Move up">&#9650;</button>
+      <button type="button" data-dir="left" aria-label="Move left">&#9664;</button>
+      <button type="button" data-dir="right" aria-label="Move right">&#9654;</button>
+      <button type="button" data-dir="down" aria-label="Move down">&#9660;</button>
+    </div>
+  </section>
+
+  <!-- BATTLE -->
+  <section id="screen-battle" class="screen">
+    <div class="battle-enemy">
+      <div id="enemy-name"></div>
+      <div id="enemy-stage">
+        <div id="enemy-sprite" class="poring"><i class="eye l"></i><i class="eye r"></i><i class="mouth"></i></div>
+      </div>
+      <div class="bar hp"><span id="enemy-hp-fill"></span><b id="enemy-hp-text"></b></div>
+      <div id="enemy-intent"></div>
+    </div>
+
+    <div id="battle-log"></div>
+
+    <div class="battle-player" id="player-panel">
+      <div class="bar hp"><span id="player-hp-fill"></span><b id="player-hp-text"></b></div>
+      <div class="status-row">
+        <span id="player-block" class="chip block">0</span>
+        <span id="player-energy" class="chip energy"></span>
+        <span id="piles" class="piles"></span>
+      </div>
+    </div>
+
+    <div id="hand"></div>
+    <button id="btn-end-turn" class="btn" type="button">End turn</button>
+  </section>
+
+  <!-- RESULT -->
+  <section id="screen-result" class="screen center">
+    <div class="result-card">
+      <h2 id="result-title"></h2>
+      <ul id="result-list"></ul>
+      <button id="btn-result" class="btn primary" type="button">Return to the village</button>
+    </div>
+  </section>
+
+</div>
+
+<noscript><p style="padding:24px;color:#fff">This game needs JavaScript enabled.</p></noscript>
+
+<script src="js/data.js"></script>
+<script src="js/battle.js"></script>
+<script src="js/battle-ui.js"></script>
+<script src="js/world.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
