@@ -117,7 +117,7 @@ jobs:
                 max_tokens: 2400,
                 messages: [{
                   role: 'user',
-                  content: `${projectRules}\n\nTASK:\n${task}\n\nCreate a concise implementation plan with scope, files likely affected, risks, and tests. Clearly mark assumptions. Do not write code.`
+                  content: `${projectRules}\n\nREPOSITORY TREE (read-only):\n${projectTree}\n\nTASK:\n${task}\n\nWrite a complete but economical plan with: (1) verified facts and assumptions, (2) goal and non-goals, (3) ordered implementation steps, (4) exact likely files and why, (5) Prototype 0.1 preservation rules, (6) risks and mitigations, (7) tests with acceptance criteria, (8) approval gates and rollback. Do not write code. Stay under 1,500 words and finish every section; never stop mid-sentence.`
                 }]
               }
             );
@@ -137,7 +137,7 @@ jobs:
                   },
                   {
                     role: 'user',
-                    content: `${projectRules}\n\nUSER TASK:\n${task}\n\nCLAUDE PLAN:\n${plan}`
+                    content: `${projectRules}\n\nREPOSITORY TREE (read-only):\n${projectTree}\n\nUSER TASK:\n${task}\n\nCLAUDE PLAN:\n${plan}\n\nProvide a structured review: verdict; sound points; blocking gaps; required revisions; tests/acceptance criteria; next safe human decision. Keep under 1,200 words.`
                   }
                 ]
               }
