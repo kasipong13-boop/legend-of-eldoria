@@ -5,20 +5,8 @@
   var E = root.ELDORIA;
 
   // # tree (blocked)   H house (blocked)   ~ water (blocked)   = path   . grass
-  var MAP = [
-    '############',
-    '#....#.....#',
-    '#.HH.=.....#',
-    '#.HH.=..~~.#',
-    '#....=..~~.#',
-    '#=====.....#',
-    '#....=.....#',
-    '#.H..=..#..#',
-    '#....=.....#',
-    '#.......#..#',
-    '#..........#',
-    '############'
-  ];
+  var MAP_DATA = E.MapData.get('greenvale');
+  var MAP = MAP_DATA.tiles;
   var ROWS = MAP.length, COLS = MAP[0].length;
   var TW = 64, TH = 32;
   var START = { c: 5, r: 5 };
@@ -65,6 +53,7 @@
   var running = false, lastT = 0, time = 0;
   var hero = { c: START.c, r: START.r, x: START.c, y: START.r, path: [], moving: false };
   var poring = null;
+  var spawnManager = null;
   var held = null;
   var marker = null;
 
@@ -106,7 +95,7 @@
 
   W.start = function () {
     hero.c = START.c; hero.r = START.r; hero.x = START.c; hero.y = START.r; hero.path = [];
-    spawnPoring();
+    initializeSpawnManager();
     W.resume();
   };
   W.resume = function () {
@@ -131,16 +120,27 @@
   W.respawn = function (resetHero) {
     if (resetHero) { hero.c = START.c; hero.r = START.r; hero.x = START.c; hero.y = START.r; }
     hero.path = [];
-    spawnPoring();
+    if (resetHero) { /* keep existing map position reset behavior */ }
+    // Defeated monsters return through their own respawn timers.
+    syncMonsterSpawn();
   };
 
-  function spawnPoring() {
-    var c = [];
-    for (var r = 0; r < ROWS; r++) for (var q = 0; q < COLS; q++) {
-      if (tile(q, r) === '.' && Math.max(Math.abs(q - hero.c), Math.abs(r - hero.r)) >= 4) c.push([q, r]);
+  function initializeSpawnManager() {
+    if (!spawnManager) {
+      spawnManager = E.MonsterSpawn.createManager({ map: MAP_DATA, config: { minPlayerDistance: 4 } });
+      spawnManager.initialize({ c: hero.c, r: hero.r });
     }
-    var p = c.length ? c[Math.floor(Math.random() * c.length)] : [9, 9];
-    poring = { c: p[0], r: p[1], x: p[0], y: p[1], tc: p[0], tr: p[1], wait: 0.6 + Math.random() };
+    syncMonsterSpawn();
+  }
+  function syncMonsterSpawn() {
+    if (!spawnManager) return;
+    var live = spawnManager.getInstances();
+    if (!live.length) { poring = null; return; }
+    var instance = live[0];
+    if (poring && poring.instanceId === instance.id) return;
+    poring = { instanceId: instance.id, c: instance.position.c, r: instance.position.r,
+      x: instance.position.c, y: instance.position.r, tc: instance.position.c,
+      tr: instance.position.r, wait: 0.6 + Math.random() };
   }
 
   /* ---------- input ---------- */
@@ -181,6 +181,12 @@
       else { hero.x += dx / dist * step; hero.y += dy / dist * step; step = 0; }
     }
 
+    // Respawn timers are owned by the map's spawn-slot manager.
+    if (spawnManager) {
+      spawnManager.tick({ c: hero.c, r: hero.r });
+      syncMonsterSpawn();
+    }
+
     // poring wanders
     if (poring) {
       var pdx = poring.tc - poring.x, pdy = poring.tr - poring.y, pd = Math.sqrt(pdx * pdx + pdy * pdy);
@@ -205,6 +211,8 @@
       var ex = hero.x - poring.x, ey = hero.y - poring.y;
       if (Math.sqrt(ex * ex + ey * ey) < 1.15 && W.onEncounter) {
         hero.path = []; held = null;
+        if (spawnManager && poring.instanceId) spawnManager.defeat(poring.instanceId);
+        poring = null;
         running = false;
         W.onEncounter('poring');
       }
@@ -354,5 +362,11 @@
     if (running) requestAnimationFrame(frame);
   }
 
-  W._debug = { MAP: MAP, walk: walk, bfs: bfs, hero: hero, getPoring: function () { return poring; } };
+  W.getSpawnSnapshot = function () { return spawnManager ? spawnManager.snapshot() : null; };
+  W.restoreSpawnSnapshot = function (data) {
+    if (!spawnManager) initializeSpawnManager();
+    try { spawnManager.restore(data); syncMonsterSpawn(); return true; } catch (err) { return false; }
+  };
+  W._debug = { MAP: MAP, walk: walk, bfs: bfs, hero: hero, getPoring: function () { return poring; },
+    getSpawnStatus: function () { return spawnManager ? spawnManager.getStatus() : null; } };
 })(typeof window !== 'undefined' ? window : globalThis);
