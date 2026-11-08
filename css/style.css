@@ -268,3 +268,35 @@ html, body {
   .poring .eye { top: 30px; } .poring .eye.l { left: 30px; } .poring .eye.r { right: 30px; }
   .poring .mouth { left: 42px; top: 46px; }
 }
+
+.title-actions { display:flex; flex-direction:column; gap:12px; width:min(100%, 300px); align-items:stretch; }
+.title-actions [hidden] { display:none !important; }
+#save-status { min-height:1.2em; max-width:300px; }
+
+/* ---------- Save safety overlays ---------- */
+.save-lock {
+  position: fixed; inset: 0; z-index: 1000; display: none;
+  align-items: center; justify-content: center; padding: 24px;
+  background: rgba(3, 9, 10, .88);
+}
+.save-lock.show { display: flex; }
+.save-lock-card {
+  width: min(420px, 100%); padding: 24px; text-align: center;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 16px;
+  box-shadow: 0 18px 60px rgba(0,0,0,.45);
+}
+.save-lock-card h2 { margin: 0 0 12px; font: 700 24px var(--serif); }
+.save-lock-card p { color: var(--dim); line-height: 1.5; }
+.save-lock-card .btn { width: 100%; margin-top: 10px; }
+.recovery-status { max-width: 520px; color: #ffcf83; font-size: 13px; line-height: 1.5; }
+
+
+/* ---------- In-game menu ---------- */
+.menu-button { pointer-events: auto; padding: 6px 10px; min-height: 32px; font-size: 11px; }
+.battle-menu-button { position: absolute; top: calc(var(--safe-t) + 8px); right: 10px; z-index: 12; padding: 7px 12px; }
+.game-menu { position: fixed; inset: 0; z-index: 900; display: flex; align-items: center; justify-content: center; padding: 24px; background: rgba(3,9,10,.82); }
+.game-menu[hidden] { display: none !important; }
+.game-menu-card { width: min(420px,100%); padding: 24px; text-align: center; background: var(--panel); border: 1px solid var(--line); border-radius: 16px; box-shadow: 0 18px 60px rgba(0,0,0,.45); }
+.game-menu-card h2 { margin: 0 0 10px; font: 700 24px var(--serif); }
+.game-menu-card p { color: var(--dim); line-height: 1.5; }
+.game-menu-card .btn { width: 100%; margin-top: 10px; }
