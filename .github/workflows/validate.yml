@@ -46,3 +46,11 @@ jobs:
 
       - name: Run save-system unit tests
         run: node --test tests/save.test.js
+
+      - name: Install browser test dependencies
+        run: |
+          npm install --no-save playwright
+          npx playwright install --with-deps chromium
+
+      - name: Run character creation and continue browser smoke test
+        run: node tests/browser-smoke.cjs
