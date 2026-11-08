@@ -4,7 +4,7 @@
 const fs = require('fs'), os = require('os'), path = require('path');
 let chromium;
 try { ({ chromium } = require('playwright')); } catch (e) { console.log('SKIP  Playwright not installed (optional test)'); process.exit(0); }
-const saveJs = path.resolve(__dirname, '..', '..', '..', 'game', 'js', 'save.js');
+const saveJs = path.resolve(__dirname, '..', '..', '..', 'js', 'save.js');
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'eldoria-br-'));
 const page = path.join(dir, 'page.html');
 fs.writeFileSync(page, `<!doctype html><meta charset="utf-8"><script src="file://${saveJs}"></script>`);
