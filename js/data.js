@@ -39,6 +39,16 @@
         { name: 'Slam',   damage: 6 },
         { name: 'Wobble', damage: 3 }
       ]
+    },
+    forest_wolf: {
+      id: 'forest_wolf', name: 'Forest Wolf', hp: 34, exp: 22, gold: [9, 15],
+      drops: [{ id: 'wolf_fang', name: 'Wolf Fang', chance: 0.35 }],
+      moves: [{ name: 'Bite', damage: 6 }, { name: 'Pounce', damage: 8 }, { name: 'Claw Swipe', damage: 5 }]
+    },
+    ancient_wolf: {
+      id: 'ancient_wolf', name: 'Ancient Wolf', hp: 65, exp: 55, gold: [22, 35],
+      drops: [{ id: 'ancient_fang', name: 'Ancient Fang', chance: 0.5 }],
+      moves: [{ name: 'Ancient Bite', damage: 9 }, { name: 'Moonlit Pounce', damage: 12 }, { name: 'Rending Claw', damage: 8 }]
     }
   };
 

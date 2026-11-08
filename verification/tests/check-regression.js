@@ -1,16 +1,30 @@
 #!/usr/bin/env node
-// Confirms the game rules are untouched: every value in data.js plus 300 seeded wins and
-// 50 seeded defeats must produce exactly the same output as Prototype 0.1.
-// Optional: node tests/check-regression.js <path-to-original-0.1-eldoria-folder> also rebuilds
-// the baseline from your own copy of 0.1 and compares it with the stored one.
+// Confirms Prototype 0.1 gameplay remains unchanged while allowing additive content
+// (such as new monster definitions) in Prototype 0.2.
+// The stored baseline still protects all original values and 300 seeded wins + 50 defeats.
 const fs = require('fs'), path = require('path');
 const snap = require('./baseline/game-snapshot');
 const stored = fs.readFileSync(path.join(__dirname, 'baseline', 'snapshot-0.1.json'), 'utf8');
+const baseline = JSON.parse(stored);
 const projectRoot = path.resolve(__dirname, '..', '..');
 const devDir = fs.existsSync(path.join(projectRoot, 'game/js/data.js')) ? path.join(projectRoot, 'game') : projectRoot;
-const dev = snap(devDir);
-let ok = dev === stored;
-console.log(ok ? 'PASS  0.2 game values + 350 seeded battles identical to the 0.1 baseline' : 'FAIL  game output differs from the 0.1 baseline');
+const current = JSON.parse(snap(devDir));
+
+// New monsters are additive content. Compare every monster that existed in 0.1,
+// while leaving the full current MONSTERS registry free to grow.
+const originalMonsterIds = Object.keys(baseline.values.MONSTERS);
+const currentMonsterIds = Object.keys(current.values.MONSTERS);
+const missingOriginalMonsters = originalMonsterIds.filter(id => !Object.prototype.hasOwnProperty.call(current.values.MONSTERS, id));
+const originalMonsterValues = {};
+for (const id of originalMonsterIds) originalMonsterValues[id] = current.values.MONSTERS[id];
+current.values.MONSTERS = originalMonsterValues;
+
+let ok = JSON.stringify(current) === stored && missingOriginalMonsters.length === 0;
+console.log(ok
+  ? 'PASS  original 0.1 rules, cards, Poring data + 350 seeded battles unchanged; additive monsters allowed'
+  : 'FAIL  original 0.1 gameplay baseline changed or an original monster is missing');
+if (missingOriginalMonsters.length) console.error('Missing original monsters:', missingOriginalMonsters.join(', '));
+
 if (process.argv[2]) {
   const orig = snap(path.resolve(process.argv[2]));
   const same = orig === stored;

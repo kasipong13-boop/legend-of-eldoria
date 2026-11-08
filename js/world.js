@@ -53,6 +53,7 @@
   var running = false, lastT = 0, time = 0;
   var hero = { c: START.c, r: START.r, x: START.c, y: START.r, path: [], moving: false };
   var poring = null;
+  var forestMonsters = [];
   var warpLock = null;
   var spawnManager = null;
   var held = null;
@@ -119,7 +120,7 @@
     warpLock = MAP_DATA.id + ':' + point.c + ',' + point.r;
     hero.c = point.c; hero.r = point.r; hero.x = point.c; hero.y = point.r;
     hero.path = []; hero.moving = false; held = null; marker = null;
-    spawnManager = null; poring = null; initializeSpawnManager();
+    spawnManager = null; poring = null; forestMonsters = []; initializeSpawnManager();
     if (W.onMapChange) W.onMapChange(MAP_DATA.id, MAP_DATA.name);
     return true;
   };
@@ -144,9 +145,8 @@
 
   function initializeSpawnManager() {
     // Forest spawn data is validated, but Wolf runtime/battle integration is a separate phase.
-    if (MAP_DATA.id !== 'greenvale') { spawnManager = null; poring = null; return; }
     if (!spawnManager) {
-      spawnManager = E.MonsterSpawn.createManager({ map: MAP_DATA, config: { minPlayerDistance: 4 } });
+      spawnManager = E.MonsterSpawn.createManager({ map: MAP_DATA, config: { minPlayerDistance: MAP_DATA.id === 'greenvale' ? 4 : 3 } });
       spawnManager.initialize({ c: hero.c, r: hero.r });
     }
     syncMonsterSpawn();
@@ -154,6 +154,11 @@
   function syncMonsterSpawn() {
     if (!spawnManager) return;
     var live = spawnManager.getInstances();
+    if (MAP_DATA.id !== 'greenvale') {
+      forestMonsters = live.map(function (instance) { return { instanceId: instance.id, monsterId: instance.monsterId, rare: instance.rare, c: instance.position.c, r: instance.position.r, x: instance.position.c, y: instance.position.r }; });
+      poring = null; return;
+    }
+    forestMonsters = [];
     if (!live.length) { poring = null; return; }
     var instance = live[0];
     if (poring && poring.instanceId === instance.id) return;
@@ -215,6 +220,18 @@
     if (spawnManager) {
       spawnManager.tick({ c: hero.c, r: hero.r });
       syncMonsterSpawn();
+    }
+
+    // Static Wolf encounters use the map's independent spawn slots.
+    if (forestMonsters.length) {
+      for (var wi = forestMonsters.length - 1; wi >= 0; wi--) {
+        var wolf = forestMonsters[wi], wx = hero.x - wolf.x, wy = hero.y - wolf.y;
+        if (Math.sqrt(wx * wx + wy * wy) < 1.15 && W.onEncounter) {
+          hero.path = []; held = null;
+          if (spawnManager && wolf.instanceId) spawnManager.defeat(wolf.instanceId);
+          forestMonsters.splice(wi, 1); running = false; W.onEncounter(wolf.monsterId); return;
+        }
+      }
     }
 
     // poring wanders
@@ -340,6 +357,20 @@
     ctx.moveTo(p.x + 9, p.y - 14 - bob); ctx.lineTo(p.x + 16, p.y - 30 - bob); ctx.stroke();
   }
 
+  function drawForestWolf(monster) {
+    var p = iso(monster.x, monster.y), rare = monster.rare;
+    shadow(p.x, p.y + 2, 17, 6);
+    ctx.fillStyle = rare ? '#777b83' : '#6d6256';
+    ctx.beginPath(); ctx.ellipse(p.x, p.y - 12, 17, 10, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(p.x + 10, p.y - 21, 8, 8, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = rare ? '#d8e7ff' : '#d6c5a4';
+    ctx.beginPath(); ctx.moveTo(p.x + 6, p.y - 27); ctx.lineTo(p.x + 8, p.y - 38); ctx.lineTo(p.x + 14, p.y - 28); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(p.x + 14, p.y - 27); ctx.lineTo(p.x + 21, p.y - 35); ctx.lineTo(p.x + 20, p.y - 24); ctx.fill();
+    ctx.fillStyle = rare ? '#d9f4ff' : '#e5b34b';
+    ctx.beginPath(); ctx.arc(p.x + 13, p.y - 22, 1.8, 0, Math.PI * 2); ctx.fill();
+    if (rare) { ctx.strokeStyle = '#c7e7ff'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(p.x + 2, p.y - 18, 22, 0, Math.PI * 2); ctx.stroke(); }
+  }
+
   function drawPoring() {
     var p = iso(poring.x, poring.y);
     var sq = Math.sin(time * 4 + poring.c);
@@ -379,8 +410,9 @@
     }
     objs.push({ d: hero.x + hero.y + 0.01, fn: drawHero });
     if (poring) objs.push({ d: poring.x + poring.y, fn: drawPoring });
+    forestMonsters.forEach(function (monster) { objs.push({ d: monster.x + monster.y, fn: drawForestWolf, monster: monster }); });
     objs.sort(function (a, b) { return a.d - b.d; });
-    for (var i = 0; i < objs.length; i++) objs[i].fn(objs[i].c, objs[i].r);
+    for (var i = 0; i < objs.length; i++) { if (objs[i].monster) drawForestWolf(objs[i].monster); else objs[i].fn(objs[i].c, objs[i].r); }
   }
 
   function frame(now) {
