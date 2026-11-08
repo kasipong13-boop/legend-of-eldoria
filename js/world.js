@@ -53,6 +53,7 @@
   var running = false, lastT = 0, time = 0;
   var hero = { c: START.c, r: START.r, x: START.c, y: START.r, path: [], moving: false };
   var poring = null;
+  var warpLock = null;
   var spawnManager = null;
   var held = null;
   var marker = null;
@@ -106,7 +107,7 @@
   W.pause = function () { running = false; held = null; };
 
   // Save/Load integration: expose the settled tile without changing movement rules.
-  W.startPosition = function () { return { c: START.c, r: START.r }; };
+  W.startPosition = function () { var village = E.MapData.get('greenvale'); return { c: village.start.c, r: village.start.r }; };
   W.getMapId = function () { return MAP_DATA.id; };
   W.setMap = function (mapId, position) {
     var next = E.MapData.get(mapId);
@@ -115,6 +116,7 @@
     if (!E.MapData.isWalkable(next, point.c, point.r)) return false;
     MAP_DATA = next; MAP = next.tiles; ROWS = MAP.length; COLS = MAP[0].length;
     START = { c: next.start.c, r: next.start.r };
+    warpLock = MAP_DATA.id + ':' + point.c + ',' + point.r;
     hero.c = point.c; hero.r = point.r; hero.x = point.c; hero.y = point.r;
     hero.path = []; hero.moving = false; held = null; marker = null;
     spawnManager = null; poring = null; initializeSpawnManager();
@@ -198,7 +200,8 @@
 
     // Follow a map warp only after the hero has reached a settled tile.
     if (!hero.moving) {
-      var warp = E.MapData.getWarpAt(MAP_DATA, hero.c, hero.r);
+      if (warpLock && warpLock !== MAP_DATA.id + ':' + hero.c + ',' + hero.r) warpLock = null;
+      var warp = warpLock ? null : E.MapData.getWarpAt(MAP_DATA, hero.c, hero.r);
       if (warp) {
         var target = E.MapData.get(warp.targetMapId);
         var targetSpawn = target && (target.spawnPoints || []).filter(function (p) { return p.id === warp.targetSpawnId; })[0];
