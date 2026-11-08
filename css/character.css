@@ -1,1 +1,23 @@
 .character-screen{background:radial-gradient(circle at 50% 15%,rgba(230,176,75,.16),transparent 55%),#0d1819;padding:20px;overflow-y:auto}.character-panel{width:min(420px,100%);max-height:100%;overflow-y:auto;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:22px;display:flex;flex-direction:column;gap:12px}.character-panel h2{font:700 26px var(--serif);text-align:center;margin:0 0 8px}.character-panel label{display:flex;flex-direction:column;gap:6px;color:var(--dim);font-size:14px}.character-panel input,.character-panel select{width:100%;padding:12px;border-radius:9px;border:1px solid var(--line);background:#0d1819;color:var(--text);font:16px var(--sans)}.character-row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px;border:1px solid var(--line);border-radius:10px;text-align:left}.character-row strong{display:block;color:var(--text)}.character-row small{color:var(--dim)}.character-row button{white-space:nowrap}.storage-warning,#create-error{color:#f0c36b;font-size:13px;text-align:center;min-height:1em;margin:4px 0}.character-empty{color:var(--dim);text-align:center;padding:14px}.character-panel .btn{width:100%}
+.avatar-preview-wrap{display:flex;flex-direction:column;align-items:center;gap:5px;padding:10px;border:1px solid var(--line);border-radius:12px;background:rgba(5,12,13,.35)}
+.preview-caption{font-size:12px;color:var(--dim);letter-spacing:.08em;text-transform:uppercase}
+.avatar-preview{position:relative;width:92px;height:112px;flex:0 0 auto;overflow:hidden;border-radius:12px;background:radial-gradient(circle at 50% 42%,#405b52,#182c2a 72%);border:1px solid rgba(230,176,75,.35)}
+.avatar-body{position:absolute;left:24px;bottom:-8px;width:44px;height:54px;border-radius:18px 18px 8px 8px;background:linear-gradient(90deg,#294f9b,#5689df,#294f9b);border:2px solid #1c315b}
+.avatar-head{position:absolute;left:27px;top:19px;width:38px;height:43px;border-radius:45% 45% 48% 48%;background:#f1c9a0;border:1px solid #b88767}
+.avatar-hair{position:absolute;left:-2px;top:-4px;width:40px;height:17px;border-radius:22px 22px 8px 8px;background:#302018}
+.avatar-hair.hair-style-1{height:22px;border-radius:20px 20px 10px 10px}
+.avatar-hair.hair-style-2{height:14px;border-radius:18px 18px 3px 3px}
+.avatar-hair.hair-style-3{height:19px;border-radius:22px 22px 4px 4px}
+.avatar-hair.hair-style-4{height:23px;border-radius:18px 18px 10px 10px}
+.avatar-hair.hair-style-5{height:16px;border-radius:20px 20px 2px 2px}
+.avatar-eye{position:absolute;top:20px;width:4px;height:4px;border-radius:50%;background:#35251d}
+.avatar-eye.left{left:9px}.avatar-eye.right{right:9px}
+.avatar-female .avatar-head:after{content:"";position:absolute;z-index:-1;left:-5px;top:9px;width:48px;height:38px;border-radius:16px;background:inherit}
+.avatar-small{width:48px;height:58px;border-radius:8px;transform:scale(.92);transform-origin:left center}
+.avatar-small .avatar-body{left:12px;width:24px;height:28px;bottom:-4px}
+.avatar-small .avatar-head{left:14px;top:9px;width:20px;height:23px}
+.avatar-small .avatar-hair{width:22px;height:10px;top:-2px;left:-1px}
+.avatar-small .avatar-eye{top:11px;width:2px;height:2px}
+.avatar-small .avatar-eye.left{left:5px}.avatar-small .avatar-eye.right{right:5px}
+.character-row{justify-content:flex-start}.character-row>div:nth-child(2){flex:1;min-width:0}
+.character-row .avatar-small{margin-right:4px}
