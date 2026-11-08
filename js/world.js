@@ -121,7 +121,8 @@
     if (resetHero) { hero.c = START.c; hero.r = START.r; hero.x = START.c; hero.y = START.r; }
     hero.path = [];
     if (resetHero) { /* keep existing map position reset behavior */ }
-    // Defeated monsters return through their own respawn timers.
+    // Initialize once on first entry; subsequent returns preserve each slot's timer.
+    initializeSpawnManager();
     syncMonsterSpawn();
   };
 
