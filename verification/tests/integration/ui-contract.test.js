@@ -30,3 +30,10 @@ test('All local script references resolve to packaged JavaScript files', () => {
   assert.ok(refs.length >= 5);
   for (const ref of refs) assert.ok(fs.existsSync(path.join(root, ref)), `Missing ${ref}`);
 });
+
+test('Defeat applies the confirmed 10% gold penalty before persisting', () => {
+  assert.match(main, /var goldLost = Math\.floor\(player\.gold \* 0\.10\)/);
+  assert.match(main, /player\.gold -= goldLost/);
+  assert.match(main, /line\(goldLost > 0 \? 'You lost '/);
+  assert.match(main, /player\.gold -= goldLost;[\s\S]*?persist\('battle-defeat'\)/);
+});
