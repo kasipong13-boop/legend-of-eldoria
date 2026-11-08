@@ -2,7 +2,7 @@ name: Validate Prototype
 
 on:
   push:
-    branches: [main]
+    branches: [main, feature/prototype-0.2-character-save]
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -11,7 +11,7 @@ permissions:
   contents: read
 
 jobs:
-  syntax-and-structure:
+  syntax-and-unit-tests:
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
@@ -34,10 +34,15 @@ jobs:
           test -f js/main.js
           test -f assets/icon.svg
           test -f assets/apple-touch-icon.png
+          test -f js/save.js
+          test -f tests/save.test.js
 
       - name: Check JavaScript syntax
         run: |
-          for file in js/*.js; do
+          for file in js/*.js tests/*.js; do
             echo "Checking $file"
             node --check "$file"
           done
+
+      - name: Run save-system unit tests
+        run: node --test tests/save.test.js
