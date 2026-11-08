@@ -27,7 +27,8 @@
     });
     (map && map.spawnPoints || []).forEach(function (point) {
       if (!point.id || !inside(point.at)) errors.push('INVALID_SPAWN_POINT:' + point.id);
-    });\n    (map && map.npcs || []).forEach(function (npc) {
+    });
+    (map && map.npcs || []).forEach(function (npc) {
       if (!npc.id || !inside(npc.at)) errors.push('INVALID_NPC:' + npc.id);
     });
     return { valid: errors.length === 0, errors: errors, width: width, height: height };
