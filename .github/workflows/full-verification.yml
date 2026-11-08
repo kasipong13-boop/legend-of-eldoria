@@ -3,9 +3,6 @@ name: Prototype 0.2.3 browser and full verification
 on:
   pull_request:
     branches: [main]
-  push:
-    branches:
-      - release/prototype-0.2.3-staging
   workflow_dispatch:
 
 permissions:
@@ -15,10 +12,8 @@ jobs:
   full-verification:
     runs-on: ubuntu-latest
     steps:
-      - name: Check out repository
+      - name: Check out pull request source
         uses: actions/checkout@v4
-        with:
-          ref: release/prototype-0.2.3-staging
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
