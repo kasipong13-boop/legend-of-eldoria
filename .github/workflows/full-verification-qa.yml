@@ -1,0 +1,48 @@
+name: Prototype 0.2.3 browser and full verification
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches:
+      - qa/prototype-0.2.3-browser-smoke
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  full-verification:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          ref: release/prototype-0.2.3-staging
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install browser test dependency
+        working-directory: verification
+        run: |
+          npm install --no-save playwright
+          npx playwright install --with-deps chromium
+
+      - name: Run unit, integration and UI contract tests
+        working-directory: verification
+        run: npm test
+
+      - name: Run regression suite
+        working-directory: verification
+        run: npm run regression
+
+      - name: Run mutation suite
+        working-directory: verification
+        run: npm run mutation
+
+      - name: Run real Chromium localStorage reload test
+        working-directory: verification
+        run: npm run browser
