@@ -5,7 +5,7 @@
   function $(id) { return document.getElementById(id); }
 
   var player = {
-    level: 1, exp: 0, gold: 0, jelly: 0,
+    level: 1, exp: 0, gold: 0, jelly: 0, items: { jelly: 0 },
     maxHp: E.RULES.playerMaxHp, hp: E.RULES.playerMaxHp
   };
   var saveSystem = null;
@@ -33,6 +33,7 @@
     player.hp = save.stats.hp;
     player.maxHp = save.stats.maxHp;
     player.gold = save.gold;
+    player.items = JSON.parse(JSON.stringify(save.items));
     player.jelly = save.items.jelly;
     if (save.world && save.world.map && !E.World.setMap(save.world.map, { c: save.world.c, r: save.world.r })) E.World.setMap('greenvale', E.World.startPosition());
     updateHud();
@@ -46,6 +47,7 @@
     target.stats.hp = player.hp;
     target.stats.maxHp = player.maxHp;
     target.gold = player.gold;
+    target.items = JSON.parse(JSON.stringify(player.items || { jelly: player.jelly }));
     target.items.jelly = player.jelly;
     return target;
   }
@@ -105,6 +107,23 @@
     overlay.classList.add('show');
   }
 
+  var ITEM_NAMES = { jelly: 'Poring Jelly', wolf_fang: 'Wolf Fang', ancient_fang: 'Ancient Fang' };
+  function renderInventory() {
+    var host = $('inventory-list');
+    if (!host) return;
+    host.innerHTML = '';
+    var ids = Object.keys(player.items || {}).filter(function (id) { return player.items[id] > 0; }).sort();
+    if (!ids.length) {
+      var empty = document.createElement('p'); empty.className = 'inventory-empty'; empty.textContent = 'Your inventory is empty.'; host.appendChild(empty); return;
+    }
+    ids.forEach(function (id) {
+      var row = document.createElement('div'); row.className = 'inventory-row';
+      var name = document.createElement('span'); name.textContent = ITEM_NAMES[id] || id.replace(/_/g, ' ');
+      var count = document.createElement('strong'); count.textContent = '× ' + player.items[id];
+      row.appendChild(name); row.appendChild(count); host.appendChild(row);
+    });
+  }
+
   function updateHud() {
     var need = E.expToNext(player.level);
     $('hud-level').textContent = 'Lv ' + player.level;
@@ -114,12 +133,16 @@
     $('hud-exp-text').textContent = 'EXP ' + player.exp + ' / ' + need;
     $('hud-gold').textContent = player.gold + ' gold';
     $('hud-jelly').textContent = player.jelly + ' jelly';
+    renderInventory();
   }
 
   function applyRewardToSave(target, reward) {
     target.stats.exp += reward.exp;
     target.gold += reward.gold;
-    reward.drops.forEach(function (d) { if (d.id === 'jelly') target.items.jelly++; });
+    reward.drops.forEach(function (d) {
+      if (!Object.prototype.hasOwnProperty.call(target.items, d.id)) target.items[d.id] = 0;
+      target.items[d.id]++;
+    });
     while (target.stats.exp >= E.expToNext(target.stats.level)) {
       target.stats.exp -= E.expToNext(target.stats.level);
       target.stats.level++;
@@ -240,7 +263,7 @@
       }
       if (rewardSaved) {
         player.exp = currentSave.stats.exp; player.level = currentSave.stats.level;
-        player.gold = currentSave.gold; player.jelly = currentSave.items.jelly;
+        player.gold = currentSave.gold; player.items = JSON.parse(JSON.stringify(currentSave.items)); player.jelly = currentSave.items.jelly;
         player.maxHp = currentSave.stats.maxHp; player.hp = currentSave.stats.hp;
         line('+' + rw.exp + ' EXP'); line('+' + rw.gold + ' gold');
         rw.drops.forEach(function (d) { line('Dropped: ' + d.name, 'loot'); });
@@ -282,6 +305,7 @@
   }
 
   function openGameMenu() {
+    renderInventory();
     if (!active || saveLocked) return;
     $('game-menu').hidden = false;
     $('btn-menu-resume').focus();
