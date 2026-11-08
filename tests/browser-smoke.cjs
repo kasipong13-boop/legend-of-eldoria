@@ -55,7 +55,12 @@ const assert = require('node:assert/strict');
       if (await attacks.count()) {
         await attacks.first().click();
       } else {
-        await page.locator('#btn-end-turn').click();
+        const endTurn = page.locator('#btn-end-turn');
+        if (!(await endTurn.isEnabled())) {
+          await page.waitForFunction(() => document.querySelector('#screen-result').classList.contains('active'), { timeout: 3000 });
+          break;
+        }
+        await endTurn.click();
         turns++;
       }
       await page.waitForTimeout(80);
