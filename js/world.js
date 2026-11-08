@@ -438,8 +438,27 @@
     ctx.translate(vw / 2 - cp.x * scale, vh / 2 + 10 - cp.y * scale);
     ctx.scale(scale, scale);
 
+    // Convert the visible canvas rectangle back to tile coordinates and render only nearby cells.
+    // A four-tile margin keeps tall tree canopies and building edges from popping at screen borders.
+    var corners = [
+      { x: cp.x - vw / (2 * scale), y: cp.y - vh / (2 * scale) },
+      { x: cp.x + vw / (2 * scale), y: cp.y - vh / (2 * scale) },
+      { x: cp.x - vw / (2 * scale), y: cp.y + vh / (2 * scale) },
+      { x: cp.x + vw / (2 * scale), y: cp.y + vh / (2 * scale) }
+    ];
+    var minC = COLS, maxC = 0, minR = ROWS, maxR = 0;
+    corners.forEach(function (point) {
+      var tc = point.x / TW + point.y / TH;
+      var tr = point.y / TH - point.x / TW;
+      minC = Math.min(minC, tc); maxC = Math.max(maxC, tc);
+      minR = Math.min(minR, tr); maxR = Math.max(maxR, tr);
+    });
+    var cStart = Math.max(0, Math.floor(minC) - 4);
+    var cEnd = Math.min(COLS - 1, Math.ceil(maxC) + 4);
+    var rStart = Math.max(0, Math.floor(minR) - 4);
+    var rEnd = Math.min(ROWS - 1, Math.ceil(maxR) + 4);
     var r, c;
-    for (r = 0; r < ROWS; r++) for (c = 0; c < COLS; c++) drawGround(c, r);
+    for (r = rStart; r <= rEnd; r++) for (c = cStart; c <= cEnd; c++) drawGround(c, r);
 
     if (marker) {
       var mp = iso(marker.x, marker.y), k = marker.t / 0.8;
@@ -451,7 +470,7 @@
     (MAP_DATA.warps || []).forEach(drawWarpMarker);
 
     var objs = [];
-    for (r = 0; r < ROWS; r++) for (c = 0; c < COLS; c++) {
+    for (r = rStart; r <= rEnd; r++) for (c = cStart; c <= cEnd; c++) {
       var t = tile(c, r);
       if (t === '#') objs.push({ d: c + r, fn: drawTree, c: c, r: r });
       else if (t === 'H') objs.push({ d: c + r, fn: drawHouse, c: c, r: r });

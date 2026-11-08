@@ -12,6 +12,25 @@ test('both overworld maps have valid rectangular grids and safe starts', () => {
   }
 });
 
+
+test('Greenvale is expanded into a large connected starter capital while preserving legacy save tiles', () => {
+  const map = MapData.get('greenvale');
+  const result = MapData.validate(map);
+  assert.equal(result.valid, true, result.errors.join(','));
+  assert.equal(result.width, 40);
+  assert.equal(result.height, 40);
+  assert.equal(map.tiles.length, 40);
+  assert.ok(map.districts.length >= 7);
+  assert.equal(map.safeZone, true);
+  assert.equal(MapData.isWalkable(map, 5, 5), true);
+  assert.equal(MapData.isWalkable(map, 4, 4), true);
+  assert.equal(MapData.isWalkable(map, 38, 20), true);
+  assert.equal(map.warps[0].at.c, 38);
+  assert.equal(map.warps[0].at.r, 20);
+  assert.ok(map.tiles.some(row => row.includes('~')), 'capital should include river and pond');
+  assert.ok(map.tiles.some(row => row.includes('H')), 'capital should include building footprints');
+});
+
 test('Whispering Forest is a larger open map with distinct exploration zones', () => {
   const map = MapData.get('whispering_forest');
   const result = MapData.validate(map);

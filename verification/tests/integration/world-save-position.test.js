@@ -63,7 +63,7 @@ test('World.setPosition rejects blocked, out-of-bounds, and malformed coordinate
     { c: 2, r: 2 },       // house
     { c: 8, r: 3 },       // water
     { c: -1, r: 5 },
-    { c: 12, r: 5 },
+    { c: 39, r: 5 },       // expanded capital boundary
     { c: 5.5, r: 5 },
     null,
     {}
