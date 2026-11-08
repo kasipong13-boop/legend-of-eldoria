@@ -25,7 +25,9 @@
     (map && map.warps || []).forEach(function (warp) {
       if (!warp.id || !inside(warp.at) || !warp.targetMapId || !warp.targetSpawnId) errors.push('INVALID_WARP:' + warp.id);
     });
-    (map && map.spawnPoints || []).forEach(function (point) {\n      if (!point.id || !inside(point.at)) errors.push('INVALID_SPAWN_POINT:' + point.id);\n    });\n    (map && map.npcs || []).forEach(function (npc) {
+    (map && map.spawnPoints || []).forEach(function (point) {
+      if (!point.id || !inside(point.at)) errors.push('INVALID_SPAWN_POINT:' + point.id);
+    });\n    (map && map.npcs || []).forEach(function (npc) {
       if (!npc.id || !inside(npc.at)) errors.push('INVALID_NPC:' + npc.id);
     });
     return { valid: errors.length === 0, errors: errors, width: width, height: height };
@@ -42,6 +44,7 @@
       ],
       legend: { '#': 'blocked', H: 'building', '~': 'water', '=': 'path', '.': 'grass' },
       npcs: [],
+      spawnPoints: [{ id: 'village_gate', at: { c: 10, r: 9 } }],
       warps: [
         { id: 'greenvale_to_forest', at: { c: 10, r: 9 }, targetMapId: 'whispering_forest', targetSpawnId: 'forest_entrance' }
       ],
@@ -76,6 +79,7 @@
       ],
       legend: { '#': 'blocked_tree_or_cliff', '~': 'water', '=': 'forest_trail', '.': 'forest_floor' },
       npcs: [],
+      spawnPoints: [{ id: 'forest_entrance', at: { c: 1, r: 1 } }],
       warps: [
         { id: 'forest_to_greenvale', at: { c: 1, r: 1 }, targetMapId: 'greenvale', targetSpawnId: 'village_gate' }
       ],
