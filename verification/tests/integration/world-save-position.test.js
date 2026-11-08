@@ -25,8 +25,11 @@ function loadWorld() {
   vm.createContext(context);
   const projectRoot = path.resolve(__dirname, '../../..');
   const gameRoot = fs.existsSync(path.join(projectRoot, 'game/js/world.js')) ? path.join(projectRoot, 'game') : projectRoot;
-  const source = fs.readFileSync(path.join(gameRoot, 'js/world.js'), 'utf8');
-  vm.runInContext(source, context, { filename: 'world.js' });
+  // Load the map/spawn dependencies before the world runtime, matching index.html.
+  ['map-data.js', 'monster-spawn.js', 'world.js'].forEach(file => {
+    const source = fs.readFileSync(path.join(gameRoot, 'js', file), 'utf8');
+    vm.runInContext(source, context, { filename: file });
+  });
   return context.ELDORIA.World;
 }
 
