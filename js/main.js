@@ -40,6 +40,15 @@
     applyCharacter(c);show('screen-world');
     E.World.resume();toast('Tap the ground to walk. Touch the pink Poring to fight.',4500);
   }
+  var hairPalette=['#302018','#65402a','#e4c36b','#a83f32','#426fb7','#43834c','#b9c4cf','#8052a2'];
+  function makeAvatar(profile,small) {
+    var avatar=document.createElement('div');avatar.className='avatar-preview'+(small?' avatar-small':'');avatar.setAttribute('aria-hidden','true');
+    var body=document.createElement('span');body.className='avatar-body';var head=document.createElement('span');head.className='avatar-head';
+    var hair=document.createElement('i');hair.className='avatar-hair';var left=document.createElement('i');left.className='avatar-eye left';var right=document.createElement('i');right.className='avatar-eye right';
+    hair.style.backgroundColor=hairPalette[profile.hairColor]||hairPalette[0];hair.classList.add('hair-style-'+(profile.hairstyle||0));if(profile.gender==='female')avatar.classList.add('avatar-female');
+    head.appendChild(hair);head.appendChild(left);head.appendChild(right);avatar.appendChild(body);avatar.appendChild(head);return avatar;
+  }
+  function updateCreationPreview(){var host=$('creation-avatar');if(!host)return;var profile={gender:$('character-gender').value,hairstyle:Number($('character-hair').value),hairColor:Number($('character-color').value)};var avatar=makeAvatar(profile,false);host.replaceWith(avatar);avatar.id='creation-avatar';avatar.setAttribute('aria-label','Character preview');}
   function renderCharacterList() {
     var host=$('character-list');host.innerHTML='';
     var chars=S.listCharacters();
@@ -50,7 +59,7 @@
       var row=document.createElement('div');row.className='character-row';
       var info=document.createElement('div'),name=document.createElement('strong'),meta=document.createElement('small');
       name.textContent=c.profile.name;meta.textContent='Novice · Lv '+c.stats.level+' · '+c.gold+' Gold';
-      info.appendChild(name);info.appendChild(meta);
+      info.appendChild(makeAvatar(c.profile,true));info.appendChild(name);info.appendChild(meta);
       var btn=document.createElement('button');btn.type='button';btn.className='btn primary';btn.textContent='Play';
       btn.addEventListener('click',function(){enterWorld(c);});
       row.appendChild(info);row.appendChild(btn);host.appendChild(row);
@@ -100,6 +109,8 @@
   $('btn-select-back').addEventListener('click',function(){show('screen-title');});
   $('btn-create-back').addEventListener('click',function(){openSelect();});
   $('btn-create-confirm').addEventListener('click',createCharacter);
+  ['character-gender','character-hair','character-color'].forEach(function(id){$(id).addEventListener('change',updateCreationPreview);});
+  updateCreationPreview();
   $('character-name').addEventListener('keydown',function(e){if(e.key==='Enter')createCharacter();});
   E.World.init($('world-canvas'));
   E.World.onEncounter=function(monsterId){startBattle(monsterId);};
