@@ -272,7 +272,8 @@
 
   function backToVillage(resetHero) {
     // Always move the Poring away after a battle; reset the hero only after defeat.
-    E.World.respawn(!!resetHero);
+    if (resetHero) E.World.setMap('greenvale', E.World.startPosition());
+    E.World.respawn(false);
     player.hp = player.maxHp;
     var saved = persist('return-village');
     if (!saved.ok) return;
