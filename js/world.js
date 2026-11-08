@@ -115,6 +115,12 @@
     if (!running) { running = true; lastT = performance.now(); requestAnimationFrame(frame); }
   };
   W.pause = function () { running = false; held = null; };
+  // Public save API: only stable, completed tile positions are exposed.
+  W.getPosition = function () { return { mapId: 'greenvale-village', x: hero.c, y: hero.r, safe: !hero.moving && hero.path.length === 0 }; };
+  W.setPosition = function (p) {
+    if (!p || p.mapId !== 'greenvale-village' || !Number.isInteger(p.x) || !Number.isInteger(p.y) || !walk(p.x, p.y)) return false;
+    hero.c = hero.x = p.x; hero.r = hero.y = p.y; hero.path = []; spawnPoring(); return true;
+  };
   W.respawn = function (resetHero) {
     if (resetHero) { hero.c = START.c; hero.r = START.r; hero.x = START.c; hero.y = START.r; }
     hero.path = [];
