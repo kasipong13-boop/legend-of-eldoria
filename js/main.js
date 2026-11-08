@@ -313,6 +313,11 @@
   $('btn-continue').addEventListener('click', continueGame);
   E.World.init($('world-canvas'));
   E.World.onEncounter = function (monsterId) { startBattle(monsterId); };
+  E.World.onMapChange = function (mapId, mapName) {
+    $('hud-zone').textContent = mapName;
+    toast('Entered ' + mapName + '.', 3000);
+    persist('map-transition');
+  };
 
   // A small public surface for deterministic integration tests and diagnostics.
   E.GameSave = {
