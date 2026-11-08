@@ -182,3 +182,40 @@ test('probe: works on normal storage, false when storage throws; probe key clean
   const broken = { getItem() { throw new Error('denied'); }, setItem() { throw new Error('denied'); }, removeItem() {}, key() { return null; }, length: 0 };
   assert.equal(sys(broken).probe(), false);
 });
+
+
+/* ---------------- Extensible inventory items ---------------- */
+
+test('INV-1 save validation accepts new monster material IDs without changing legacy jelly saves', () => {
+  const b = memBackend(); const save = newChar(sys(b));
+  assert.deepEqual(save.items, { jelly: 0 }, 'legacy/new character baseline remains compatible');
+  const withMaterials = Save.seal(Object.assign({}, save, { items: { jelly: 2, wolf_fang: 3, ancient_fang: 1 } }));
+  assert.equal(Save.validateSave(withMaterials, save.characterId).ok, true);
+});
+
+test('INV-2 inventory rejects unsafe item IDs and invalid counts', () => {
+  const b = memBackend(); const save = newChar(sys(b));
+  const badId = Save.seal(Object.assign({}, save, { items: { jelly: 0, '../gold': 1 } }));
+  const badCount = Save.seal(Object.assign({}, save, { items: { jelly: 0, wolf_fang: -1 } }));
+  const badType = Save.seal(Object.assign({}, save, { items: { jelly: 0, ancient_fang: 1.5 } }));
+  assert.equal(Save.validateSave(badId, save.characterId).reason, 'items');
+  assert.equal(Save.validateSave(badCount, save.characterId).reason, 'items');
+  assert.equal(Save.validateSave(badType, save.characterId).reason, 'items');
+});
+
+test('INV-3 pending rewards retain and claim Wolf materials exactly once', () => {
+  const b = memBackend(); const s = sys(b); const save = newChar(s);
+  const pendingReward = Save.withPendingReward(save, {
+    exp: 22, gold: 12, drops: [{ id: 'wolf_fang', name: 'Wolf Fang' }]
+  }, 'forest_wolf', '2026-11-08T00:00:00.000Z');
+  assert.equal(pendingReward.ok, true);
+  const staged = s.commit(save, pendingReward.save);
+  assert.equal(staged.ok, true);
+  const claimResult = Save.withClaim(staged.save, (target, reward) => {
+    reward.drops.forEach(drop => { target.items[drop.id] = (target.items[drop.id] || 0) + 1; });
+  });
+  assert.equal(claimResult.ok, true);
+  assert.equal(claimResult.save.items.wolf_fang, 1);
+  assert.equal(claimResult.save.pendingReward, null);
+  assert.equal(Save.withClaim(claimResult.save, () => {}).reason, 'NO_PENDING');
+});
