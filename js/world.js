@@ -174,7 +174,12 @@
       else { hero.x += dx / dist * step; hero.y += dy / dist * step; step = 0; }
     }
 
-    if (!hero.moving && hero.path.length === 0) {\n      var safeKey = hero.c + ',' + hero.r;\n      if (safeKey !== lastSafeTile) { lastSafeTile = safeKey; if (W.onSafeTile) W.onSafeTile(); }\n    }\n\n    if (!hero.moving && hero.path.length === 0) {\n      var safeKey = hero.c + ',' + hero.r;\n      if (safeKey !== lastSafeTile) { lastSafeTile = safeKey; if (W.onSafeTile) W.onSafeTile(); }\n    }\n\n    // poring wanders
+    if (!hero.moving && hero.path.length === 0) {
+      var safeKey = hero.c + ',' + hero.r;
+      if (safeKey !== lastSafeTile) { lastSafeTile = safeKey; if (W.onSafeTile) W.onSafeTile(); }
+    }
+
+    // poring wanders
     if (poring) {
       var pdx = poring.tc - poring.x, pdy = poring.tr - poring.y, pd = Math.sqrt(pdx * pdx + pdy * pdy);
       if (pd > 0.001) {
