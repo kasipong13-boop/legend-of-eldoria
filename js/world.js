@@ -67,6 +67,8 @@
   var poring = null;
   var held = null;
   var marker = null, lastSafeTile = null;
+  var appearance = { gender: 'male', hairstyle: 0, hairColor: 0 };
+  var HAIR = ['#302018','#65402a','#e4c36b','#a83f32','#426fb7','#43834c','#b9c4cf','#8052a2'];
 
   /* ---------- setup ---------- */
   W.init = function (canvas) {
@@ -295,11 +297,20 @@
     ctx.closePath(); ctx.fill();
     ctx.fillStyle = '#e6b04b'; ctx.fillRect(p.x - 8, p.y - 15 - bob, 16, 3);              // belt
     ctx.fillStyle = '#f1c9a0'; ctx.beginPath(); ctx.arc(p.x, p.y - 32 - bob, 8, 0, Math.PI * 2); ctx.fill(); // head
-    ctx.fillStyle = '#5a3a1e'; ctx.beginPath(); ctx.arc(p.x, p.y - 35 - bob, 8, Math.PI, 0); ctx.fill();   // hair
+    var hair = HAIR[appearance.hairColor] || HAIR[0], style = appearance.hairstyle || 0;
+    ctx.fillStyle = hair; ctx.beginPath();
+    if (style % 3 === 0) { ctx.arc(p.x, p.y - 35 - bob, 8, Math.PI, 0); }
+    else if (style % 3 === 1) { ctx.ellipse(p.x, p.y - 34 - bob, 9, 8, 0, Math.PI, Math.PI * 2); }
+    else { ctx.ellipse(p.x, p.y - 35 - bob, 8, 10, 0, Math.PI, Math.PI * 2); }
+    ctx.fill();
+    if (style >= 3) ctx.fillRect(p.x + (style % 2 ? 4 : -8), p.y - 34 - bob, 4, 12);
+    if (appearance.gender === 'female') { ctx.fillRect(p.x - 8, p.y - 30 - bob, 3, 8); ctx.fillRect(p.x + 5, p.y - 30 - bob, 3, 8); }
     ctx.fillStyle = '#2a1d10'; ctx.fillRect(p.x - 3.5, p.y - 32 - bob, 2, 3); ctx.fillRect(p.x + 1.5, p.y - 32 - bob, 2, 3);
     ctx.strokeStyle = '#d7dde6'; ctx.lineWidth = 3; ctx.beginPath();                    // small sword
     ctx.moveTo(p.x + 9, p.y - 14 - bob); ctx.lineTo(p.x + 16, p.y - 30 - bob); ctx.stroke();
   }
+
+  W.setAppearance = function(profile) { if(!profile)return; appearance={gender:profile.gender==='female'?'female':'male',hairstyle:Number.isInteger(profile.hairstyle)?Math.max(0,Math.min(5,profile.hairstyle)):0,hairColor:Number.isInteger(profile.hairColor)?Math.max(0,Math.min(7,profile.hairColor)):0}; };
 
   function drawPoring() {
     var p = iso(poring.x, poring.y);
