@@ -33,6 +33,7 @@
     player.level=c.stats.level;player.exp=c.stats.exp;player.hp=c.stats.hp;player.maxHp=c.stats.maxHp;
     player.gold=c.gold;player.jelly=(c.items&&c.items.jelly)||0;
     if(c.world) E.World.setPosition(c.world);
+    E.World.setAppearance(c.profile);
     updateHud();
   }
   function enterWorld(c) {
