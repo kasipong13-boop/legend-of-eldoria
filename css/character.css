@@ -19,5 +19,5 @@
 .avatar-small .avatar-hair{width:22px;height:10px;top:-2px;left:-1px}
 .avatar-small .avatar-eye{top:11px;width:2px;height:2px}
 .avatar-small .avatar-eye.left{left:5px}.avatar-small .avatar-eye.right{right:5px}
-.character-row{justify-content:flex-start}.character-row>div:nth-child(2){flex:1;min-width:0}
+.character-row{justify-content:flex-start}.character-row>div:first-child{display:grid;grid-template-columns:52px minmax(0,1fr);align-items:center;flex:1;min-width:0;column-gap:8px}.character-row>div:first-child strong,.character-row>div:first-child small{grid-column:2}.character-row>div:first-child .avatar-small{grid-column:1;grid-row:1 / span 2}
 .character-row .avatar-small{margin-right:4px}
