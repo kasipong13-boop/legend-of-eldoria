@@ -60,13 +60,13 @@
     return null;
   }
 
-  var W = E.World = { onEncounter: null };
+  var W = E.World = { onEncounter: null, onSafeTile: null };
   var cv, ctx, dpr = 1, vw = 0, vh = 0, scale = 1;
   var running = false, lastT = 0, time = 0;
   var hero = { c: START.c, r: START.r, x: START.c, y: START.r, path: [], moving: false };
   var poring = null;
   var held = null;
-  var marker = null;
+  var marker = null, lastSafeTile = null;
 
   /* ---------- setup ---------- */
   W.init = function (canvas) {
@@ -174,7 +174,7 @@
       else { hero.x += dx / dist * step; hero.y += dy / dist * step; step = 0; }
     }
 
-    // poring wanders
+    if (!hero.moving && hero.path.length === 0) {\n      var safeKey = hero.c + ',' + hero.r;\n      if (safeKey !== lastSafeTile) { lastSafeTile = safeKey; if (W.onSafeTile) W.onSafeTile(); }\n    }\n\n    // poring wanders
     if (poring) {
       var pdx = poring.tc - poring.x, pdy = poring.tr - poring.y, pd = Math.sqrt(pdx * pdx + pdy * pdy);
       if (pd > 0.001) {
