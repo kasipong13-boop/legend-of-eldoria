@@ -119,7 +119,7 @@
   W.getPosition = function () { return { mapId: 'greenvale-village', x: hero.c, y: hero.r, safe: !hero.moving && hero.path.length === 0 }; };
   W.setPosition = function (p) {
     if (!p || p.mapId !== 'greenvale-village' || !Number.isInteger(p.x) || !Number.isInteger(p.y) || !walk(p.x, p.y)) return false;
-    hero.c = hero.x = p.x; hero.r = hero.y = p.y; hero.path = []; spawnPoring(); return true;
+    hero.c = hero.x = p.x; hero.r = hero.y = p.y; hero.path = []; lastSafeTile = p.x + ',' + p.y; spawnPoring(); return true;
   };
   W.respawn = function (resetHero) {
     if (resetHero) { hero.c = START.c; hero.r = START.r; hero.x = START.c; hero.y = START.r; }
@@ -174,7 +174,7 @@
       else { hero.x += dx / dist * step; hero.y += dy / dist * step; step = 0; }
     }
 
-    if (!hero.moving && hero.path.length === 0) {\n      var safeKey = hero.c + ',' + hero.r;\n      if (safeKey !== lastSafeTile) { lastSafeTile = safeKey; if (W.onSafeTile) W.onSafeTile(); }\n    }\n\n    // poring wanders
+    if (!hero.moving && hero.path.length === 0) {\n      var safeKey = hero.c + ',' + hero.r;\n      if (safeKey !== lastSafeTile) { lastSafeTile = safeKey; if (W.onSafeTile) W.onSafeTile(); }\n    }\n\n    if (!hero.moving && hero.path.length === 0) {\n      var safeKey = hero.c + ',' + hero.r;\n      if (safeKey !== lastSafeTile) { lastSafeTile = safeKey; if (W.onSafeTile) W.onSafeTile(); }\n    }\n\n    // poring wanders
     if (poring) {
       var pdx = poring.tc - poring.x, pdy = poring.tr - poring.y, pd = Math.sqrt(pdx * pdx + pdy * pdy);
       if (pd > 0.001) {
