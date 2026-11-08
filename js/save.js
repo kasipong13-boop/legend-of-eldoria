@@ -285,7 +285,12 @@
     if (!hasExactKeys(s, ['level', 'exp', 'hp', 'maxHp'])) return 'stats';
     if (!isInt(s.level, 1) || !isInt(s.exp, 0) || !isInt(s.maxHp, 1) || !isInt(s.hp, 0, s.maxHp)) return 'stats';
     if (!isInt(o.gold, 0)) return 'gold';
-    if (!hasExactKeys(o.items, ['jelly']) || !isInt(o.items.jelly, 0)) return 'items';
+    if (!o.items || typeof o.items !== 'object' || Array.isArray(o.items) || !Object.prototype.hasOwnProperty.call(o.items, 'jelly')) return 'items';
+    var itemIds = Object.keys(o.items);
+    if (itemIds.length > 1000) return 'items';
+    for (var ii = 0; ii < itemIds.length; ii++) {
+      if (!/^[a-z][a-z0-9_]{0,39}$/.test(itemIds[ii]) || !isInt(o.items[itemIds[ii]], 0)) return 'items';
+    }
     var w = o.world;
     if (!hasExactKeys(w, ['map', 'c', 'r']) || (w.map !== 'greenvale' && w.map !== 'whispering_forest') || !isInt(w.c, 0, 999) || !isInt(w.r, 0, 999)) return 'world';
     if (o.deckId !== 'starter') return 'deckId';
