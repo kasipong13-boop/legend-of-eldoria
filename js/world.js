@@ -340,6 +340,51 @@
     }
   }
 
+  // Visible, pulsing map-exit beacon inspired by classic isometric MMORPG warp points.
+  function drawWarpMarker(warp) {
+    var p = iso(warp.at.c, warp.at.r);
+    var pulse = (Math.sin(time * 4.2) + 1) / 2;
+    var ring = 13 + pulse * 7;
+    var alpha = 0.58 + pulse * 0.38;
+    var targetMap = E.MapData.get(warp.targetMapId);
+    var label = targetMap ? targetMap.name : 'Next Area';
+
+    // Ground glow and animated concentric rings make the exact warp tile easy to spot.
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = 'rgba(255, 211, 92, 0.20)';
+    ctx.beginPath(); ctx.ellipse(p.x, p.y, 23 + pulse * 5, 10 + pulse * 2, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#ffe28a'; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.ellipse(p.x, p.y, ring, ring * 0.48, 0, 0, Math.PI * 2); ctx.stroke();
+    ctx.strokeStyle = 'rgba(255, 244, 190, 0.8)'; ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.ellipse(p.x, p.y, ring * 0.62, ring * 0.30, 0, 0, Math.PI * 2); ctx.stroke();
+
+    // A vertical flicker and floating arrow echo the recognizable warp-point cue.
+    ctx.globalAlpha = 0.45 + pulse * 0.45;
+    ctx.strokeStyle = '#fff0ae'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(p.x, p.y - 8); ctx.lineTo(p.x, p.y - 38 - pulse * 7); ctx.stroke();
+    ctx.fillStyle = '#fff1b5';
+    ctx.beginPath();
+    ctx.moveTo(p.x, p.y - 48 - pulse * 7);
+    ctx.lineTo(p.x - 7, p.y - 37 - pulse * 7);
+    ctx.lineTo(p.x + 7, p.y - 37 - pulse * 7);
+    ctx.closePath(); ctx.fill();
+
+    // Destination label remains legible on both desktop and narrow mobile viewports.
+    ctx.globalAlpha = 0.96;
+    ctx.font = 'bold 11px Arial, sans-serif';
+    var textWidth = ctx.measureText(label).width;
+    var boxWidth = Math.max(88, textWidth + 22);
+    var boxY = p.y - 68 - pulse * 7;
+    ctx.fillStyle = 'rgba(20, 24, 30, 0.88)';
+    ctx.fillRect(p.x - boxWidth / 2, boxY - 13, boxWidth, 20);
+    ctx.strokeStyle = '#e8c66f'; ctx.lineWidth = 1;
+    ctx.strokeRect(p.x - boxWidth / 2, boxY - 13, boxWidth, 20);
+    ctx.fillStyle = '#fff0bd'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(label, p.x, boxY - 3);
+    ctx.restore();
+  }
+
   function drawHero() {
     var p = iso(hero.x, hero.y);
     var bob = hero.moving ? Math.abs(Math.sin(time * 14)) * 3 : 0;
@@ -401,6 +446,9 @@
       ctx.strokeStyle = 'rgba(255,240,170,' + (1 - k) + ')'; ctx.lineWidth = 2;
       ctx.beginPath(); ctx.ellipse(mp.x, mp.y, 8 + 14 * k, 4 + 7 * k, 0, 0, Math.PI * 2); ctx.stroke();
     }
+
+    // Draw every configured exit as a pulsing beacon above the terrain.
+    (MAP_DATA.warps || []).forEach(drawWarpMarker);
 
     var objs = [];
     for (r = 0; r < ROWS; r++) for (c = 0; c < COLS; c++) {
