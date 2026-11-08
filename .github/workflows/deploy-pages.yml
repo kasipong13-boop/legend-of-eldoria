@@ -2,9 +2,6 @@ name: Deploy Prototype 0.2 to GitHub Pages
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - feature/prototype-0.2-character-save
 
 permissions:
   contents: read
