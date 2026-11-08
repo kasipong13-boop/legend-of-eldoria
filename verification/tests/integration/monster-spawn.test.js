@@ -1,8 +1,8 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const MapData = require('../../../../js/map-data.js');
-const MonsterSpawn = require('../../../../js/monster-spawn.js');
+const MapData = require('../../../js/map-data.js');
+const MonsterSpawn = require('../../../js/monster-spawn.js');
 function fixture(){
   let clock=100000, seed=0;
   const map=MapData.get('greenvale');
