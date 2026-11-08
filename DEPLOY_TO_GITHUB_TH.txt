@@ -1,0 +1,51 @@
+LEGEND OF ELDORIA — Prototype 0.2.3
+คู่มืออัปโหลด GitHub Pages
+================================
+
+โครงสร้างสำหรับอัปโหลด
+----------------------
+ให้อัปโหลดไฟล์และโฟลเดอร์ทั้งหมดใน ZIP นี้ไปไว้ที่ Repository Root โดยตรง:
+- index.html
+- css/
+- js/
+- assets/
+- verification/
+- README.md
+- DEPLOY_TO_GITHUB_TH.txt
+- SHA256SUMS.txt
+
+สำคัญ: index.html ต้องอยู่ที่ Root ไม่ใช่อยู่ในโฟลเดอร์ game/ หรือ release/ อีกชั้นหนึ่ง
+
+ขั้นตอน
+-------
+1. สร้าง Repository ใหม่บน GitHub
+2. แตก ZIP นี้ แล้วอัปโหลดเนื้อหาทั้งหมดไปยัง Root ของ Repository
+3. เข้า Settings > Pages
+4. เลือก Deploy from a branch
+5. เลือก Branch: main และ Folder: /(root)
+6. กด Save แล้วรอ GitHub Pages ทำงานเสร็จ
+7. เปิด URL ที่ GitHub Pages แสดงให้
+
+การทดสอบก่อนใช้งาน
+------------------
+ต้องใช้ Node.js 20 ขึ้นไป:
+  cd verification
+  npm test
+  npm run regression
+  npm run mutation
+  npm run browser
+
+Browser test อาจแสดง SKIP หากไม่มี Playwright/Chromium ซึ่งไม่ได้หมายความว่าผ่านการทดสอบบน iPhone หรือ PC จริง
+
+ข้อจำกัด Save
+-------------
+- ข้อมูล Save อยู่ใน localStorage ของ Browser/อุปกรณ์นั้นเท่านั้น
+- Save ไม่ซิงก์ข้าม iPhone, PC หรือ Browser คนละตัว
+- การล้าง Website Data, Private Browsing หรือ Browser ที่จำกัด Storage อาจทำให้บันทึกไม่ได้หรือข้อมูลหาย
+- ก่อนเล่นต่อเนื่อง ให้ใช้ Browser profile เดิมและอย่าล้างข้อมูลเว็บไซต์
+
+สถานะ Release
+-------------
+ชุดนี้จัดโครงสร้างพร้อมอัปโหลด GitHub Pages แบบ Static Site แล้ว
+อย่างไรก็ตาม ต้องทดสอบบน Safari iPhone และ Chrome PC จริงหลัง Deploy โดยเฉพาะ Touch, Layout, Storage และการปิด/เปิดหน้าเว็บ
+อย่าโฆษณาว่าผ่านการทดสอบอุปกรณ์จริงจนกว่าจะทดสอบดังกล่าวเสร็จ

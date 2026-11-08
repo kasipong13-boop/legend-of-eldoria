@@ -1,0 +1,132 @@
+[
+ {
+  "name": "M1 skip Preserve Recovery Source (RS2)",
+  "find": "if (!(B.valid && B.raw === S.rec.raw)) { if (!write(key(id, 'backup'), S.rec.raw, 'RS2')) return incomplete('RS2'); }",
+  "replace": ""
+ },
+ {
+  "name": "M2 write Guard before Backup in commit",
+  "find": "      if (!write(key(id, 'backup'), tRaw, 'W4')) return fail('W4', true);\n      if (!write(key(id, 'guard'), JSON.stringify(guardFor(target)), 'W5')) return fail('W5', true);",
+  "replace": "      if (!write(key(id, 'guard'), JSON.stringify(guardFor(target)), 'W5')) return fail('W5', true);\n      if (!write(key(id, 'backup'), tRaw, 'W4')) return fail('W4', true);"
+ },
+ {
+  "name": "M3 keep a Pending that was already claimed",
+  "find": "if (n.pendingReward && n.pendingReward.seq <= floor)",
+  "replace": "if (false)"
+ },
+ {
+  "name": "M4 copy repair always bumps revision",
+  "find": "if (contentChanged || rolledBack) {",
+  "replace": "if (true) {"
+ },
+ {
+  "name": "M5 Resume always rewrites from W2",
+  "find": "if (M.valid && M.raw === tRaw) return runFrom(id, null, target, tx.oldChecksum, tx.oldRevision, 'W4');",
+  "replace": ""
+ },
+ {
+  "name": "M6 \"creating\" shown as ready",
+  "find": "(r.save.status === 'ready' ? 'ready' : 'creating')",
+  "replace": "'ready'"
+ },
+ {
+  "name": "M7 discard without confirmation",
+  "find": "if (!confirm || confirm.confirmed !== true)",
+  "replace": "if (false)"
+ },
+ {
+  "name": "M8 no read-back verification",
+  "find": "var ok = a !== 'fail' && raw(k) === value;",
+  "replace": "var ok = a !== 'fail';"
+ },
+ {
+  "name": "M9 accept Guard with maxSeqIssued < lastClaimedSeq",
+  "find": "      if (g.maxSeqIssued < g.lastClaimedSeq) return { ok: false, reason: 'maxSeqIssued<lastClaimedSeq' };\n",
+  "replace": ""
+ },
+ {
+  "name": "M10 floor ignores Guard",
+  "find": "var floor = Math.max(s.lastClaimedSeq, gv ? gv.lastClaimedSeq : 0);",
+  "replace": "var floor = s.lastClaimedSeq;"
+ },
+ {
+  "name": "M11 old off-by-one nextRewardSeq formula",
+  "find": "var next = Math.max(s.nextRewardSeq, maxSeqIssued + 1);",
+  "replace": "var next = Math.max(s.nextRewardSeq, maxSeqIssued) + 1;"
+ },
+ {
+  "name": "M12 Math.random fallback for characterId",
+  "find": "if (!c || typeof c.getRandomValues !== 'function') return null;",
+  "replace": "if (!c || typeof c.getRandomValues !== 'function') c = { getRandomValues: function (a) { for (var i = 0; i < a.length; i++) a[i] = Math.floor(Math.random() * 256); return a; } };"
+ },
+ {
+  "name": "M13 scan also restores discarded records",
+  "find": "var CHAR_KEY_RE = /^eldoria\\.char\\.([0-9a-f]{32})\\.(main|backup|guard)$/;",
+  "replace": "var CHAR_KEY_RE = /^eldoria\\.(?:char|discarded)\\.([0-9a-f]{32})\\.(?:\\d+\\.)?(main|backup|guard)$/;"
+ },
+ {
+  "name": "M14 too-long names get truncated",
+  "find": "if (len > NAME_MAX) return { ok: false, reason: 'tooLong', length: len };",
+  "replace": "if (len > NAME_MAX) { s = s.slice(0, NAME_MAX); len = countGraphemes(s); }"
+ },
+ {
+  "name": "M15 revision tie picks Backup",
+  "find": "if (B.valid && (!S || B.obj.revision > S.rec.obj.revision))",
+  "replace": "if (B.valid && (!S || B.obj.revision >= S.rec.obj.revision))"
+ },
+ {
+  "name": "M16 commit skips the stale-save check",
+  "find": "      if (M.obj.checksum !== oldSave.checksum || M.obj.revision !== oldSave.revision) return { ok: false, durable: false, stage: 'W1', reason: 'STALE' };\n",
+  "replace": ""
+ },
+ {
+  "name": "M17 checksum includes its own field",
+  "find": "function checksumOf(obj) { return 'fnv1a32:' + fnv1a32Hex(canonical(without(obj, ['checksum']))); }",
+  "replace": "function checksumOf(obj) { return 'fnv1a32:' + fnv1a32Hex(canonical(obj)); }"
+ },
+ {
+  "name": "M18 listing does not run recovery before showing",
+  "find": "var r = recover(id);\n        var state",
+  "replace": "var r = { status: 'ok', save: JSON.parse(raw(key(id, 'main')) || 'null') || {} };\n        var state"
+ },
+ {
+  "name": "M19 [R-1] resume writes tx.target without re-validating it",
+  "find": "      var bad = checkTarget(target, id, tx.oldRevision);\n      if (bad) return refuse('INVALID_TX:' + bad);\n",
+  "replace": ""
+ },
+ {
+  "name": "M20 [R-1] resume W2 path skips the Guard-ahead check",
+  "find": "        if (guardAhead(id, M.obj)) return refuse('GUARD_AHEAD');\n",
+  "replace": ""
+ },
+ {
+  "name": "M21 [R-1] failed-transaction target not frozen",
+  "find": "return runFrom(id, M.raw, deepFreeze(target), oldSave.checksum, oldSave.revision, 'W2');",
+  "replace": "return runFrom(id, M.raw, target, oldSave.checksum, oldSave.revision, 'W2');"
+ },
+ {
+  "name": "M22 [R-2] spaces tidied BEFORE the control check (old order)",
+  "find": "    var bad = firstForbidden(raw);",
+  "replace": "    raw = raw.replace(/\\s+/g, ' ');\n    var bad = firstForbidden(raw);"
+ },
+ {
+  "name": "M23 [R-2] line/paragraph separators not treated as control",
+  "find": " || cp === 0x2028 || cp === 0x2029) return 'control';",
+  "replace": ") return 'control';"
+ },
+ {
+  "name": "M24 [R-3] Zero Width Joiner allowed again (old list)",
+  "find": "(cp >= 0x200B && cp <= 0x200F) ||     // ZWSP, ZWNJ, ZWJ, LRM, RLM",
+  "replace": "cp === 0x200B || cp === 0x200C || cp === 0x200E || cp === 0x200F ||"
+ },
+ {
+  "name": "M25 [R-3] variation selectors allowed",
+  "find": "(cp >= 0xFE00 && cp <= 0xFE0F) ||     // variation selectors",
+  "replace": ""
+ },
+ {
+  "name": "M26 [R-3] tag characters allowed",
+  "find": "(cp >= 0xE0000 && cp <= 0xE007F) ||   // tag characters",
+  "replace": ""
+ }
+]

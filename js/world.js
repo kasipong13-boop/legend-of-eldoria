@@ -115,6 +115,19 @@
     if (!running) { running = true; lastT = performance.now(); requestAnimationFrame(frame); }
   };
   W.pause = function () { running = false; held = null; };
+
+  // Save/Load integration: expose the settled tile without changing movement rules.
+  W.startPosition = function () { return { c: START.c, r: START.r }; };
+  W.getPosition = function () {
+    return { c: hero.c, r: hero.r };
+  };
+  W.setPosition = function (position) {
+    if (!position || !Number.isInteger(position.c) || !Number.isInteger(position.r) || !walk(position.c, position.r)) return false;
+    hero.c = position.c; hero.r = position.r;
+    hero.x = position.c; hero.y = position.r;
+    hero.path = []; hero.moving = false; held = null; marker = null;
+    return true;
+  };
   W.respawn = function (resetHero) {
     if (resetHero) { hero.c = START.c; hero.r = START.r; hero.x = START.c; hero.y = START.r; }
     hero.path = [];

@@ -1,10 +1,11 @@
 name: Import Prototype 0.2.3 source files
 
 on:
-  pull_request:
+  push:
     branches:
-      - main
-    types: [opened, synchronize, reopened]
+      - release/prototype-0.2.3-staging
+    paths:
+      - ".github/IMPORT-PROTOTYPE-0.2.3.trigger"
   workflow_dispatch:
 
 permissions:

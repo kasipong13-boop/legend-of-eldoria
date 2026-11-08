@@ -1,0 +1,32 @@
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const projectRoot = path.resolve(__dirname, '../../..');
+const root = fs.existsSync(path.join(projectRoot, 'game/index.html')) ? path.join(projectRoot, 'game') : projectRoot;
+const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+const main = fs.readFileSync(path.join(root, 'js/main.js'), 'utf8');
+
+test('World and Battle screens expose an in-game menu', () => {
+  assert.match(html, /id="btn-menu"/);
+  assert.match(html, /id="btn-battle-menu"/);
+  assert.match(html, /id="game-menu"/);
+  assert.match(main, /function openGameMenu\(\)/);
+  assert.match(main, /function returnToTitleFromMenu\(\)/);
+});
+
+test('Return to Title persists before leaving the active game', () => {
+  assert.match(main, /persist\('menu-return-title'\)/);
+  assert.match(main, /if \(!saved\.ok\) return;[\s\S]{0,120}active = false/);
+});
+
+test('A pending victory reward blocks Continue when claim cannot commit', () => {
+  assert.match(main, /function settlePendingReward\(save\)[\s\S]*?if \(!claim\.ok\) return null/);
+  assert.match(main, /if \(!settled\)[\s\S]*?lockGame\('A saved victory reward still needs to be committed/);
+});
+
+test('All local script references resolve to packaged JavaScript files', () => {
+  const refs = [...html.matchAll(/<script src="([^"]+\.js)"><\/script>/g)].map(m => m[1]);
+  assert.ok(refs.length >= 5);
+  for (const ref of refs) assert.ok(fs.existsSync(path.join(root, ref)), `Missing ${ref}`);
+});

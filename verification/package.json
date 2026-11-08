@@ -1,0 +1,17 @@
+{
+  "name": "eldoria-s1-tests",
+  "private": true,
+  "description": "Legend of Eldoria Prototype 0.2 - S1 save system test bundle",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "node tests/run-unit.js && npm run world-test && npm run ui-test",
+    "mutation": "node tests/mutation.js",
+    "regression": "node tests/check-regression.js",
+    "browser": "node tests/browser/save-in-browser.js",
+    "all": "npm test && npm run regression && npm run mutation",
+    "world-test": "node --test tests/integration/*.test.js",
+    "ui-test": "node --test tests/integration/ui-contract.test.js"
+  }
+}

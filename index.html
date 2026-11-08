@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-title" content="Eldoria">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="theme-color" content="#0d1819">
-  <title>Legend of Eldoria - Prototype 0.1</title>
+  <title>Legend of Eldoria - Prototype 0.2</title>
   <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
   <link rel="stylesheet" href="css/style.css">
@@ -21,8 +21,12 @@
     <img class="crest" src="assets/icon.svg" alt="">
     <h1>Legend of Eldoria</h1>
     <p class="subtitle">Chronicles of the Dragon Kingdom</p>
-    <button id="btn-start" class="btn primary" type="button">Begin the journey</button>
-    <p class="version">Prototype 0.1: Greenvale Village</p>
+    <div class="title-actions">
+      <button id="btn-continue" class="btn" type="button" hidden>Continue</button>
+      <button id="btn-start" class="btn primary" type="button">Begin the journey</button>
+    </div>
+    <p id="save-status" class="version" aria-live="polite"></p>
+    <p class="version">Prototype 0.2.3: Greenvale Village</p>
   </section>
 
   <!-- WORLD (isometric exploration) -->
@@ -38,6 +42,7 @@
         <div class="bar exp small"><span id="hud-exp-fill"></span><b id="hud-exp-text"></b></div>
       </div>
       <div class="hud-block right">
+        <button id="btn-menu" class="btn menu-button" type="button">Menu</button>
         <span id="hud-gold">0 gold</span>
         <span id="hud-jelly">0 jelly</span>
       </div>
@@ -75,6 +80,7 @@
 
     <div id="hand"></div>
     <button id="btn-end-turn" class="btn" type="button">End turn</button>
+    <button id="btn-battle-menu" class="btn battle-menu-button" type="button">Menu</button>
   </section>
 
   <!-- RESULT -->
@@ -88,12 +94,22 @@
 
 </div>
 
+<div id="game-menu" class="game-menu" hidden role="dialog" aria-modal="true" aria-labelledby="game-menu-title">
+  <div class="game-menu-card">
+    <h2 id="game-menu-title">Adventure Menu</h2>
+    <p>Returning to the title screen keeps your last saved village progress. An active battle will be abandoned.</p>
+    <button id="btn-menu-resume" class="btn primary" type="button">Resume</button>
+    <button id="btn-menu-title" class="btn" type="button">Save &amp; Return to Title</button>
+  </div>
+</div>
+
 <noscript><p style="padding:24px;color:#fff">This game needs JavaScript enabled.</p></noscript>
 
 <script src="js/data.js"></script>
 <script src="js/battle.js"></script>
 <script src="js/battle-ui.js"></script>
 <script src="js/world.js"></script>
+<script src="js/save.js"></script>
 <script src="js/main.js"></script>
 </body>
 </html>

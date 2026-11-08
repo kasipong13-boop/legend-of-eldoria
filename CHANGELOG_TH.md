@@ -1,0 +1,27 @@
+# บันทึกการเปลี่ยนแปลง — Prototype 0.2.3
+
+## เพิ่ม/ปรับปรุง
+- เพิ่ม In-game Menu ในหน้า World และ Battle
+- เพิ่ม Resume และ Save & Return to Title; ต้องบันทึกสำเร็จก่อนออกจากเกม
+- ป้องกันการ Continue เมื่อ Pending Reward ยัง Claim/Commit ไม่สำเร็จ โดยแสดง Save Lock ให้ Retry
+- เพิ่ม UI contract tests สำหรับเมนู, การบันทึกก่อนกลับ Title, Pending Reward และ script paths
+- ปรับชุด Verification ให้รันได้ทั้งจากโครงสร้างทำงานที่มี `game/` และจาก GitHub repository root
+- อัปเดตหน้า Title เป็น Prototype 0.2.3
+
+## คงเดิม
+- `data.js`, `battle.js`, `battle-ui.js` และกติกาการต่อสู้เดิม
+- Regression snapshot: ค่าของเกมและผลจำลอง 350 battles ตรงกับ Prototype 0.1 baseline
+
+## ผลตรวจ
+- Save Unit/Fuzz/Review/Transaction: 223 ผ่าน
+- World + UI Integration: 7 ผ่าน
+- Regression: ผ่าน 350 seeded battles
+- Mutation: 26/26 ถูกตรวจจับ
+- JavaScript syntax: ผ่าน
+- SHA-256 manifest และ ZIP integrity: ผ่าน
+- Browser automation: SKIP เพราะไม่มี Playwright/Chromium ใน environment
+
+## ข้อจำกัดที่ยังต้องทดสอบหลัง Deploy
+- Safari บน iPhone และ Chrome บน PC จริง (touch, viewport, orientation, localStorage, page lifecycle)
+- Save ใช้ localStorage เฉพาะ browser/device ไม่ซิงก์ข้ามอุปกรณ์
+- Browser test ที่ SKIP ไม่ใช่หลักฐานว่าผ่านการทดสอบอุปกรณ์จริง
