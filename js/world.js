@@ -143,6 +143,8 @@
   };
 
   function initializeSpawnManager() {
+    // Forest spawn data is validated, but Wolf runtime/battle integration is a separate phase.
+    if (MAP_DATA.id !== 'greenvale') { spawnManager = null; poring = null; return; }
     if (!spawnManager) {
       spawnManager = E.MonsterSpawn.createManager({ map: MAP_DATA, config: { minPlayerDistance: 4 } });
       spawnManager.initialize({ c: hero.c, r: hero.r });
