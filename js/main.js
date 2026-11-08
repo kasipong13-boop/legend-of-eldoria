@@ -34,13 +34,13 @@
     player.maxHp = save.stats.maxHp;
     player.gold = save.gold;
     player.jelly = save.items.jelly;
-    if (save.world && save.world.map === 'greenvale') E.World.setPosition({ c: save.world.c, r: save.world.r });
+    if (save.world && save.world.map && !E.World.setMap(save.world.map, { c: save.world.c, r: save.world.r })) E.World.setMap('greenvale', E.World.startPosition());
     updateHud();
   }
 
   function worldSnapshot(target) {
     var p = E.World.getPosition();
-    target.world = { map: 'greenvale', c: p.c, r: p.r };
+    target.world = { map: E.World.getMapId(), c: p.c, r: p.r };
     target.stats.level = player.level;
     target.stats.exp = player.exp;
     target.stats.hp = player.hp;
