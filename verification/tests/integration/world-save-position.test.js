@@ -39,6 +39,17 @@ test('World Save/Load API exposes the original Greenvale start tile', () => {
   assert.deepEqual(JSON.parse(JSON.stringify(world.getPosition())), { c: 5, r: 5 });
 });
 
+test('World.setMap switches to Whispering Forest and restores its spawn position', () => {
+  const world = loadWorld();
+  assert.equal(world.getMapId(), 'greenvale');
+  assert.equal(world.setMap('whispering_forest', { c: 1, r: 1 }), true);
+  assert.equal(world.getMapId(), 'whispering_forest');
+  assert.deepEqual(JSON.parse(JSON.stringify(world.getPosition())), { c: 1, r: 1 });
+  assert.equal(world.setPosition({ c: 0, r: 0 }), false);
+  assert.equal(world.setMap('unknown_map'), false);
+  assert.equal(world.getMapId(), 'whispering_forest');
+});
+
 test('World.setPosition restores a valid walkable tile', () => {
   const world = loadWorld();
   assert.equal(world.setPosition({ c: 4, r: 4 }), true);
