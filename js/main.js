@@ -271,7 +271,8 @@
   }
 
   function backToVillage(resetHero) {
-    if (resetHero) E.World.respawn(true);
+    // Always move the Poring away after a battle; reset the hero only after defeat.
+    E.World.respawn(!!resetHero);
     player.hp = player.maxHp;
     var saved = persist('return-village');
     if (!saved.ok) return;
