@@ -39,7 +39,7 @@
         { name: 'Slam',   damage: 6 },
         { name: 'Wobble', damage: 3 }
       ]
-    }
+    },
     forest_wolf: {
       id: 'forest_wolf', name: 'Forest Wolf', hp: 34, exp: 22, gold: [9, 15],
       drops: [{ id: 'wolf_fang', name: 'Wolf Fang', chance: 0.35 }],
