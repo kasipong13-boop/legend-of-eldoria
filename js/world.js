@@ -8,8 +8,8 @@
   var MAP_DATA = E.MapData.get('greenvale');
   var MAP = MAP_DATA.tiles;
   var ROWS = MAP.length, COLS = MAP[0].length;
+  var START = { c: MAP_DATA.start.c, r: MAP_DATA.start.r };
   var TW = 64, TH = 32;
-  var START = { c: 5, r: 5 };
   var HERO_SPEED = 5.2, PORING_SPEED = 1.5;
 
   var DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]];
@@ -107,6 +107,20 @@
 
   // Save/Load integration: expose the settled tile without changing movement rules.
   W.startPosition = function () { return { c: START.c, r: START.r }; };
+  W.getMapId = function () { return MAP_DATA.id; };
+  W.setMap = function (mapId, position) {
+    var next = E.MapData.get(mapId);
+    if (!next || !E.MapData.validate(next).valid) return false;
+    var point = position || next.start;
+    if (!E.MapData.isWalkable(next, point.c, point.r)) return false;
+    MAP_DATA = next; MAP = next.tiles; ROWS = MAP.length; COLS = MAP[0].length;
+    START = { c: next.start.c, r: next.start.r };
+    hero.c = point.c; hero.r = point.r; hero.x = point.c; hero.y = point.r;
+    hero.path = []; hero.moving = false; held = null; marker = null;
+    spawnManager = null; poring = null; initializeSpawnManager();
+    if (W.onMapChange) W.onMapChange(MAP_DATA.id, MAP_DATA.name);
+    return true;
+  };
   W.getPosition = function () {
     return { c: hero.c, r: hero.r };
   };
@@ -180,6 +194,16 @@
       hero.moving = true;
       if (dist <= step) { hero.x = t.c; hero.y = t.r; hero.c = t.c; hero.r = t.r; hero.path.shift(); step -= dist; }
       else { hero.x += dx / dist * step; hero.y += dy / dist * step; step = 0; }
+    }
+
+    // Follow a map warp only after the hero has reached a settled tile.
+    if (!hero.moving) {
+      var warp = E.MapData.getWarpAt(MAP_DATA, hero.c, hero.r);
+      if (warp) {
+        var target = E.MapData.get(warp.targetMapId);
+        var targetSpawn = target && (target.spawnPoints || []).filter(function (p) { return p.id === warp.targetSpawnId; })[0];
+        if (targetSpawn && W.setMap(warp.targetMapId, targetSpawn.at)) return;
+      }
     }
 
     // Respawn timers are owned by the map's spawn-slot manager.
