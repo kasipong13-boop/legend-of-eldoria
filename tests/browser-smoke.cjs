@@ -41,7 +41,44 @@ const assert = require('node:assert/strict');
     assert.ok(layout.scroll <= layout.width + 1, 'no horizontal page overflow on mobile');
     assert.deepEqual(mobileErrors, [], 'no uncaught mobile browser errors');
     await mobile.close();
-    console.log('Browser smoke passed: desktop create -> persist -> reload -> continue; mobile preview and responsive layout');
+
+    // Exercise the real world-to-battle transition, win flow, reward persistence, and reload.
+    await page.evaluate(() => {
+      const debug = window.ELDORIA.World._debug;
+      const poring = debug.getPoring();
+      Object.assign(debug.hero, { c: poring.c, r: poring.r, x: poring.x, y: poring.y, path: [], moving: false });
+    });
+    await page.waitForFunction(() => document.querySelector('#screen-battle').classList.contains('active'), { timeout: 5000 });
+    let turns = 0;
+    while (turns < 14 && !(await page.locator('#screen-result').evaluate(e => e.classList.contains('active')))) {
+      const attacks = page.locator('#hand .card.attack:not(.disabled), #hand .card.spell:not(.disabled)');
+      if (await attacks.count()) {
+        await attacks.first().click();
+      } else {
+        await page.locator('#btn-end-turn').click();
+        turns++;
+      }
+      await page.waitForTimeout(80);
+    }
+    await page.waitForFunction(() => document.querySelector('#screen-result').classList.contains('active'), { timeout: 15000 });
+    assert.equal(await page.locator('#result-title').textContent(), 'Victory!', 'battle can be won with starter deck');
+    await page.locator('#btn-result').click();
+    await page.waitForFunction(() => document.querySelector('#screen-world').classList.contains('active'));
+    const savedAfterBattle = await page.evaluate(() => {
+      const ids = JSON.parse(localStorage.getItem('eldoria.index'));
+      const raw = JSON.parse(localStorage.getItem('eldoria.char.' + ids[0] + '.main'));
+      return raw.payload;
+    });
+    assert.equal(savedAfterBattle.stats.exp, 12, 'victory EXP saved');
+    assert.ok(savedAfterBattle.gold >= 5 && savedAfterBattle.gold <= 10, 'victory gold saved');
+    await page.reload({ waitUntil: 'networkidle' });
+    await page.locator('#btn-start').click();
+    await page.waitForFunction(() => document.querySelector('#screen-select').classList.contains('active'));
+    const savedMeta = await page.locator('#character-list').textContent();
+    assert.match(savedMeta, /Lv 1|Lv 2/, 'saved character remains selectable after battle reload');
+    assert.match(savedMeta, /Gold/, 'saved gold remains visible after reload');
+    assert.deepEqual(errors, [], 'no uncaught desktop browser errors after battle');
+    console.log('Browser smoke passed: character create/reload/continue, mobile preview, Poring battle victory, rewards and post-battle reload');
   } finally {
     if (browser) await browser.close();
     server.kill();
