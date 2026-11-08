@@ -34,13 +34,13 @@
     player.maxHp = save.stats.maxHp;
     player.gold = save.gold;
     player.jelly = save.items.jelly;
-    if (save.world && save.world.map === 'greenvale') E.World.setPosition({ c: save.world.c, r: save.world.r });
+    if (save.world && save.world.map && !E.World.setMap(save.world.map, { c: save.world.c, r: save.world.r })) E.World.setMap('greenvale', E.World.startPosition());
     updateHud();
   }
 
   function worldSnapshot(target) {
     var p = E.World.getPosition();
-    target.world = { map: 'greenvale', c: p.c, r: p.r };
+    target.world = { map: E.World.getMapId(), c: p.c, r: p.r };
     target.stats.level = player.level;
     target.stats.exp = player.exp;
     target.stats.hp = player.hp;
@@ -272,7 +272,8 @@
 
   function backToVillage(resetHero) {
     // Always move the Poring away after a battle; reset the hero only after defeat.
-    E.World.respawn(!!resetHero);
+    if (resetHero) E.World.setMap('greenvale', E.World.startPosition());
+    E.World.respawn(false);
     player.hp = player.maxHp;
     var saved = persist('return-village');
     if (!saved.ok) return;
@@ -313,6 +314,11 @@
   $('btn-continue').addEventListener('click', continueGame);
   E.World.init($('world-canvas'));
   E.World.onEncounter = function (monsterId) { startBattle(monsterId); };
+  E.World.onMapChange = function (mapId, mapName) {
+    $('hud-zone').textContent = mapName;
+    toast('Entered ' + mapName + '.', 3000);
+    persist('map-transition');
+  };
 
   // A small public surface for deterministic integration tests and diagnostics.
   E.GameSave = {

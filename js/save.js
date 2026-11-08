@@ -287,7 +287,7 @@
     if (!isInt(o.gold, 0)) return 'gold';
     if (!hasExactKeys(o.items, ['jelly']) || !isInt(o.items.jelly, 0)) return 'items';
     var w = o.world;
-    if (!hasExactKeys(w, ['map', 'c', 'r']) || w.map !== 'greenvale' || !isInt(w.c, 0, 999) || !isInt(w.r, 0, 999)) return 'world';
+    if (!hasExactKeys(w, ['map', 'c', 'r']) || (w.map !== 'greenvale' && w.map !== 'whispering_forest') || !isInt(w.c, 0, 999) || !isInt(w.r, 0, 999)) return 'world';
     if (o.deckId !== 'starter') return 'deckId';
     if (!isInt(o.nextRewardSeq, 1) || !isInt(o.lastClaimedSeq, 0)) return 'rewardSeq';
     var ids = o.claimedRewardIds;
