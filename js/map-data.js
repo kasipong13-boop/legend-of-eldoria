@@ -25,7 +25,7 @@
     (map && map.warps || []).forEach(function (warp) {
       if (!warp.id || !inside(warp.at) || !warp.targetMapId || !warp.targetSpawnId) errors.push('INVALID_WARP:' + warp.id);
     });
-    (map && map.npcs || []).forEach(function (npc) {
+    (map && map.spawnPoints || []).forEach(function (point) {\n      if (!point.id || !inside(point.at)) errors.push('INVALID_SPAWN_POINT:' + point.id);\n    });\n    (map && map.npcs || []).forEach(function (npc) {
       if (!npc.id || !inside(npc.at)) errors.push('INVALID_NPC:' + npc.id);
     });
     return { valid: errors.length === 0, errors: errors, width: width, height: height };
@@ -80,8 +80,8 @@
         { id: 'forest_to_greenvale', at: { c: 1, r: 1 }, targetMapId: 'greenvale', targetSpawnId: 'village_gate' }
       ],
       spawnZones: [
-        { id: 'forest_wolf_west', tiles: [{c:2,r:2},{c:3,r:2},{c:2,r:3},{c:3,r:4},{c:4,r:4},{c:2,r:5},{c:4,r:5},{c:5,r:5}] },
-        { id: 'forest_wolf_deep', tiles: [{c:10,r:10},{c:11,r:10},{c:12,r:10},{c:13,r:10},{c:11,r:11},{c:12,r:12},{c:13,r:12},{c:14,r:13}] }
+        { id: 'forest_wolf_west', tiles: [{c:1,r:2},{c:2,r:2},{c:1,r:3},{c:2,r:3},{c:1,r:4},{c:2,r:4},{c:3,r:4},{c:4,r:4},{c:5,r:4},{c:4,r:5},{c:5,r:5},{c:6,r:5},{c:7,r:5},{c:8,r:5},{c:9,r:5}] },
+        { id: 'forest_wolf_deep', tiles: [{c:10,r:10},{c:11,r:10},{c:12,r:10},{c:13,r:10},{c:11,r:11},{c:12,r:12},{c:13,r:12},{c:10,r:13},{c:11,r:13},{c:12,r:13},{c:10,r:14},{c:11,r:14}] }
       ],
       spawnSlots: [
         { id: 'wolf_west_01', monsterId: 'forest_wolf', zoneId: 'forest_wolf_west', respawnSeconds: 45, minPlayerDistance: 3 },
