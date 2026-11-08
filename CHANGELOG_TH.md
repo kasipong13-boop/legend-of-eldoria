@@ -25,3 +25,10 @@
 - Safari บน iPhone และ Chrome บน PC จริง (touch, viewport, orientation, localStorage, page lifecycle)
 - Save ใช้ localStorage เฉพาะ browser/device ไม่ซิงก์ข้ามอุปกรณ์
 - Browser test ที่ SKIP ไม่ใช่หลักฐานว่าผ่านการทดสอบอุปกรณ์จริง
+
+## Art Direction v1.1
+- ยืนยัน Visual Direction ใหม่ตามการเลือกของผู้ใช้: Detailed Pixel Art + Isometric แบบ Ragnarok Online Classic-inspired
+- ทิศทาง Pixel Art นี้ใช้แทนแนวทดลอง 2.5D ที่เคยพิจารณาก่อนหน้า
+- เพิ่มเอกสาร `docs/ART_DIRECTION_AND_ASSET_PIPELINE_v1.1.md` ครอบคลุม Art Bible, Greenvale visual target, modular asset pipeline, repository structure และ QA gates
+- ยืนยันกริด Isometric ตาม renderer ปัจจุบัน: 64×32 logical ground tile; คง Character benchmark เดิม 96×96 px, 8 directions
+- Greenvale concept image เป็น reference เท่านั้น ยังไม่ใช่ production tileset/spritesheet และยังไม่เปลี่ยน asset/runtime/gameplay
