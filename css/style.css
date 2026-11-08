@@ -300,3 +300,11 @@ html, body {
 .game-menu-card h2 { margin: 0 0 10px; font: 700 24px var(--serif); }
 .game-menu-card p { color: var(--dim); line-height: 1.5; }
 .game-menu-card .btn { width: 100%; margin-top: 10px; }
+
+
+/* Inventory panel */
+.inventory-panel { margin: 16px 0; padding: 14px; border: 1px solid rgba(255,255,255,.16); border-radius: 12px; background: rgba(0,0,0,.16); }
+.inventory-panel h3 { margin: 0 0 10px; color: #f4d58a; }
+.inventory-row { display: flex; justify-content: space-between; gap: 12px; padding: 8px 2px; border-bottom: 1px solid rgba(255,255,255,.09); }
+.inventory-row:last-child { border-bottom: 0; }
+.inventory-empty { margin: 0; opacity: .72; }
