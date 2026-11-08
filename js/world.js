@@ -203,6 +203,7 @@
       var ex = hero.x - poring.x, ey = hero.y - poring.y;
       if (Math.sqrt(ex * ex + ey * ey) < 1.15 && W.onEncounter) {
         hero.path = []; held = null;
+        hero.x = hero.c; hero.y = hero.r; hero.moving = false;
         running = false;
         W.onEncounter('poring');
       }
