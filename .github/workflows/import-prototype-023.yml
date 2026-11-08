@@ -1,11 +1,10 @@
 name: Import Prototype 0.2.3 source files
 
 on:
-  push:
+  pull_request:
     branches:
-      - release/prototype-0.2.3-staging
-    paths:
-      - ".github/IMPORT-PROTOTYPE-0.2.3.trigger"
+      - main
+    types: [opened, synchronize, reopened]
   workflow_dispatch:
 
 permissions:
@@ -13,6 +12,7 @@ permissions:
 
 jobs:
   import-release:
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.head_ref, 'release/prototype-0.2.3-staging')
     runs-on: ubuntu-latest
     steps:
       - name: Check out staging branch
