@@ -279,7 +279,9 @@
     } else {
       $('result-title').textContent = 'Defeated';
       line('You wake up safe in Greenvale Village.');
-      line('Nothing was lost.');
+      var goldLost = Math.floor(player.gold * 0.10);
+      player.gold -= goldLost;
+      line(goldLost > 0 ? 'You lost ' + goldLost + ' gold (10%).' : 'No gold was lost.');
       player.hp = player.maxHp;
       $('btn-result').textContent = 'Wake up';
       persist('battle-defeat');
