@@ -1,0 +1,60 @@
+name: Import Prototype 0.2.3 source files
+
+on:
+  pull_request:
+    branches:
+      - main
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  import-release:
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.head_ref, 'release/prototype-0.2.3-staging')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out staging branch
+        uses: actions/checkout@v4
+        with:
+          ref: release/prototype-0.2.3-staging
+
+      - name: Extract release package
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="LEGEND_OF_ELDORIA_GITHUB_READY_0.2.3.zip"
+          test -f "$archive"
+          unzip -t "$archive"
+          rm -rf /tmp/eldoria-release
+          mkdir -p /tmp/eldoria-release
+          unzip -q "$archive" -d /tmp/eldoria-release
+          source_dir="/tmp/eldoria-release/eldoria_github_ready"
+          test -f "$source_dir/index.html"
+          test -f "$source_dir/js/save.js"
+          test -f "$source_dir/verification/package.json"
+          cp -a "$source_dir/." .
+          echo "Imported files:"
+          find . -maxdepth 3 -type f | sort
+
+      - name: Verify JavaScript syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --version
+          for file in js/*.js; do node --check "$file"; done
+
+      - name: Commit imported source files
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html css js assets verification README.md README_TH.txt WORK_LOG_TH.md CHANGELOG_TH.md DEPLOY_TO_GITHUB_TH.txt SHA256SUMS.txt
+          if git diff --cached --quiet; then
+            echo "No source changes to commit."
+          else
+            git commit -m "release: import Prototype 0.2.3 source and verification"
+            git push origin HEAD:release/prototype-0.2.3-staging
+          fi
