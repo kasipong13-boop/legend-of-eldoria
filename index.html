@@ -21,8 +21,26 @@
     <img class="crest" src="assets/icon.svg" alt="">
     <h1>Legend of Eldoria</h1>
     <p class="subtitle">Chronicles of the Dragon Kingdom</p>
-    <button id="btn-start" class="btn primary" type="button">Begin the journey</button>
+    <button id="btn-start" class="btn primary" type="button">Continue</button>
+    <button id="btn-new" class="btn" type="button">Create New Character</button>
+    <p id="storage-warning" class="storage-warning"></p>
     <p class="version">Prototype 0.1: Greenvale Village</p>
+  </section>
+
+  <!-- CHARACTER SELECT -->
+  <section id="screen-select" class="screen center character-screen">
+    <div class="character-panel"><h2>Select Character</h2><div id="character-list"></div><button id="btn-new-character" class="btn primary" type="button">Create New Character</button><button id="btn-select-back" class="btn" type="button">Back</button></div>
+  </section>
+
+  <!-- CHARACTER CREATION -->
+  <section id="screen-create" class="screen center character-screen">
+    <div class="character-panel"><h2>Create Character</h2>
+      <label>Character Name<input id="character-name" maxlength="64" autocomplete="off" placeholder="Enter a name"></label>
+      <label>Gender<select id="character-gender"><option value="male">Male</option><option value="female">Female</option></select></label>
+      <label>Hairstyle<select id="character-hair"><option value="0">Style 1</option><option value="1">Style 2</option><option value="2">Style 3</option><option value="3">Style 4</option><option value="4">Style 5</option><option value="5">Style 6</option></select></label>
+      <label>Hair Color<select id="character-color"><option value="0">Black</option><option value="1">Brown</option><option value="2">Blonde</option><option value="3">Red</option><option value="4">Blue</option><option value="5">Green</option><option value="6">Silver</option><option value="7">Purple</option></select></label>
+      <p id="create-error" role="alert"></p><button id="btn-create-confirm" class="btn primary" type="button">Create</button><button id="btn-create-back" class="btn" type="button">Back</button>
+    </div>
   </section>
 
   <!-- WORLD (isometric exploration) -->
@@ -94,6 +112,7 @@
 <script src="js/battle.js"></script>
 <script src="js/battle-ui.js"></script>
 <script src="js/world.js"></script>
+<script src="js/save.js"></script>
 <script src="js/main.js"></script>
 </body>
 </html>
