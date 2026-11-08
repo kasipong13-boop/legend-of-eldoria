@@ -59,3 +59,14 @@ LEGEND OF ELDORIA — Prototype 0.2.3
 ------
 Prototype 0.2.3 gameplay ยังคงเดิม; Reliability CI hardening merged.
 ไม่เปลี่ยนกติกาเกม, card balance, monster balance, save schema หรือข้อมูลเซฟผู้เล่น
+
+
+Prototype 0.3 — Expanded Greenvale Capital (PR in review)
+----------------------------------------------------------
+- Greenvale Village expanded from 12x12 to 40x40 (1,600 tiles), retaining the existing map ID and original playable footprint for save compatibility.
+- Added named districts: Old Village, Central Plaza, North Residential, West Market, Riverside Inn, Crafting Quarter, Adventurers Guild and Eastern Forest Gate.
+- Added a connected road network, river crossing, pond, grove areas, building footprints and a Whispering Forest exit at the eastern gate.
+- Added deterministic map generation and viewport-based tile/object culling so the larger map does not require drawing the entire world every frame.
+- Kept Whispering Forest data, combat, monster balance, card rules and save schema unchanged.
+- Existing Greenvale start tile remains (5,5); old interior tile coordinates are preserved.
+- Automated validation and mobile/desktop browser smoke tests are required before merge.
