@@ -100,6 +100,7 @@
   $('character-name').addEventListener('keydown',function(e){if(e.key==='Enter')createCharacter();});
   E.World.init($('world-canvas'));
   E.World.onEncounter=function(monsterId){startBattle(monsterId);};
+  E.World.onSafeTile=function(){if(current&&$('screen-world').classList.contains('active'))snapshot();};
   window.addEventListener('pagehide',function(){if(current&&$('screen-world').classList.contains('active'))snapshot();});
   updateHud();
 })();
