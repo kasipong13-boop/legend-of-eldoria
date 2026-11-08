@@ -29,7 +29,7 @@ const server = http.createServer((req, res) => {
       page.on('pageerror', e => errors.push(viewport.name + ': ' + String(e)));
       page.on('console', m => { if (m.type()==='error') errors.push(viewport.name + ' console: ' + m.text()); });
       await page.goto('http://127.0.0.1:' + port + '/', { waitUntil:'networkidle' });
-      await page.locator('#screen-title.active').waitFor();
+      await page.locator('#screen-title:not([hidden])').waitFor();
       await page.getByRole('button', { name:'Begin the journey' }).click();
       await page.locator('#screen-world.active').waitFor();
       const hud = await page.locator('#hud-zone').textContent();
@@ -37,7 +37,7 @@ const server = http.createServer((req, res) => {
       await page.locator('#btn-menu').click();
       await page.locator('#game-menu:not([hidden])').waitFor();
       await page.getByRole('button', { name:'Save & Return to Title' }).click();
-      await page.locator('#screen-title.active').waitFor();
+      await page.locator('#screen-title:not([hidden])').waitFor();
       await page.locator('#btn-continue:not([hidden])').waitFor();
       await page.getByRole('button', { name:'Continue' }).click();
       await page.locator('#screen-world.active').waitFor();
