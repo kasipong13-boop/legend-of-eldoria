@@ -3,9 +3,6 @@ name: Prototype 0.2.3 browser and full verification
 on:
   pull_request:
     branches: [main]
-  push:
-    branches:
-      - qa/prototype-0.2.3-browser-smoke
   workflow_dispatch:
 
 permissions:
