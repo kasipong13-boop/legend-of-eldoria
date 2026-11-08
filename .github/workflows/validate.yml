@@ -41,3 +41,43 @@ jobs:
             echo "Checking $file"
             node --check "$file"
           done
+
+  full-regression-suite:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Run unit, integration, regression, and mutation tests
+        working-directory: verification
+        run: npm run all
+
+  browser-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Playwright
+        working-directory: verification
+        run: npm install --no-save playwright
+
+      - name: Install Chromium
+        working-directory: verification
+        run: npx playwright install --with-deps chromium
+
+      - name: Run real-browser save and game smoke tests
+        working-directory: verification
+        run: npm run browser
