@@ -27,6 +27,8 @@
     current=S.saveCharacter(current);
   }
   function applyCharacter(c) {
+    // Complete a reward transaction interrupted by a reload before entering the world.
+    if(c.pendingReward){var recovered=S.claimPendingReward(c);c=recovered.payload;}
     current=c;
     player.level=c.stats.level;player.exp=c.stats.exp;player.hp=c.stats.hp;player.maxHp=c.stats.maxHp;
     player.gold=c.gold;player.jelly=(c.items&&c.items.jelly)||0;
