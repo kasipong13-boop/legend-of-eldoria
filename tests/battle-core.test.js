@@ -84,3 +84,25 @@ test('dead units cannot be healed by further damage and battle result is detecte
   assert.equal(target.hp, 0);
   assert.equal(target.alive, false);
 });
+
+test('enemy intent is visible before its turn', () => {
+  const b = setup();
+  assert.deepEqual(b.state.units.find(u => u.id === 'p1').intent, { name: 'Bounce', damage: 4 });
+});
+
+test('Bleed triggers after the afflicted unit performs an attack', () => {
+  const b = setup();
+  const hero = b.state.units.find(u => u.id === 'hero');
+  Core.applyStatus(hero, { id: 'bleed', stacks: 3 });
+  const result = b.endTurn();
+  assert.ok(result.events.some(e => e.type === 'bleed' && e.target === 'hero'));
+  assert.equal(hero.hp, 41); // two enemy attacks (8) plus one Bleed tick (3)
+});
+
+test('Stun prevents an enemy from taking its attack action', () => {
+  const b = setup();
+  const enemy = b.state.units.find(u => u.id === 'p1');
+  Core.applyStatus(enemy, { id: 'stun', stacks: 1 });
+  const result = b.endTurn();
+  assert.equal(result.events.some(e => e.type === 'enemy-attack' && e.source === 'p1'), false);
+});
