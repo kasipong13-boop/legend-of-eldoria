@@ -163,7 +163,9 @@
     var count = Math.max(1, integer(card.targetCount, 1));
     if (candidates.length <= count) return { ok: true, targets: candidates };
     if (!Array.isArray(selectedIds)) return { ok: false, reason: 'select-targets', candidates: candidates.map(function (u) { return u.id; }), required: count };
-    var selected = selectedIds.slice(0, count).map(function (id) { return candidates.find(function (u) { return u.id === id; }); });
+    var requested = selectedIds.slice(0, count);
+    if (new Set(requested).size !== requested.length) return { ok: false, reason: 'invalid-targets' };
+    var selected = requested.map(function (id) { return candidates.find(function (u) { return u.id === id; }); });
     if (selected.some(function (u) { return !u; }) || selected.length !== count) return { ok: false, reason: 'invalid-targets' };
     return { ok: true, targets: selected };
   }
