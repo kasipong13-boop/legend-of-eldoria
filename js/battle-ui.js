@@ -5,7 +5,7 @@
   'use strict';
   var E = root.ELDORIA, Core = E.BattleCore;
   function $(id) { return document.getElementById(id); }
-  var battle = null, onEnd = null, locked = false, monsterId = null;
+  var battle = null, onEnd = null, locked = false, monsterId = null, monsterIds = [], selectedCard = null, selectedTargets = [];
 
   function flash(el, cls) {
     el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls);
@@ -45,11 +45,14 @@
     arena.innerHTML = '';
     for (var y = 0; y < 10; y++) {
       for (var x = 0; x < 10; x++) {
-        var cell = document.createElement('div');
+        var cell = document.createElement('button');
+        cell.type = 'button';
         cell.className = 'live-cell ' + (x < 5 ? 'player-zone' : 'enemy-zone');
         cell.setAttribute('role', 'gridcell');
+        cell.setAttribute('aria-label', 'Column ' + (x + 1) + ', row ' + (y + 1));
         var occupant = battle.state.units.find(function (u) { return u.alive && u.x === x && u.y === y; });
         if (occupant) {
+          if (occupant.side === 'enemy' && selectedCard !== null) cell.classList.add('targetable');
           var marker = document.createElement('span');
           marker.className = 'live-unit ' + occupant.side;
           marker.textContent = occupant.side === 'player' ? '🛡️' : '🩷';
@@ -73,20 +76,20 @@
             cell.appendChild(intent);
           }
         }
+        if (occupant && occupant.side === 'enemy') cell.addEventListener('click', function () { chooseTarget(occupant.id); });
         arena.appendChild(cell);
       }
     }
   }
   function render() {
-    var s = battle.state, hero = unit('hero'), enemy = unit('enemy');
+    var s = battle.state, hero = unit('hero'), enemies = s.units.filter(function (u) { return u.side === 'enemy'; }), enemy = enemies[0];
     renderBattlefield();
-    $('enemy-name').textContent = enemy.name;
-    $('enemy-hp-fill').style.width = (100 * enemy.hp / enemy.maxHp) + '%';
-    $('enemy-hp-text').textContent = enemy.hp + ' / ' + enemy.maxHp;
-    $('enemy-intent').textContent = s.over || !enemy.intent ? '' :
-      'Next: ' + enemy.intent.name + (Number.isFinite(enemy.intent.damage) ? ', ' + enemy.intent.damage + ' damage' : '');
+    $('enemy-name').textContent = enemies.length > 1 ? enemies.length + ' Enemies' : enemy.name;
+    $('enemy-hp-fill').style.width = (enemy ? 100 * enemy.hp / enemy.maxHp : 0) + '%';
+    $('enemy-hp-text').textContent = enemies.length > 1 ? enemies.filter(function(u){return u.alive;}).length + ' / ' + enemies.length + ' alive' : enemy.hp + ' / ' + enemy.maxHp;
+    $('enemy-intent').textContent = enemies.filter(function(u){return u.alive && u.intent;}).map(function(u){return u.name + ': ' + u.intent.name + (Number.isFinite(u.intent.damage) ? ' ' + u.intent.damage : '');}).join(' · ');
     $('enemy-intent').style.visibility = s.over ? 'hidden' : 'visible';
-    renderEffects('enemy-status', enemy);
+    renderEffects('enemy-status', enemy || {statuses:[],buffs:[]});
     $('player-hp-fill').style.width = (100 * hero.hp / hero.maxHp) + '%';
     $('player-hp-text').textContent = 'You  ' + hero.hp + ' / ' + hero.maxHp;
     renderEffects('player-status', hero);
@@ -121,12 +124,15 @@
     var s = battle.state; if (!s.over) return false;
     locked = true; render();
     if (s.over === 'win') $('enemy-sprite').classList.add('dead');
-    var result = { won: s.over === 'win', monsterId: monsterId, hp: unit('hero').hp, maxHp: unit('hero').maxHp };
+    var result = { won: s.over === 'win', monsterId: monsterId, monsterIds: monsterIds.slice(), hp: unit('hero').hp, maxHp: unit('hero').maxHp };
     setTimeout(function () { if (onEnd) onEnd(result); }, 900);
     return true;
   }
   function onCard(idx) {
     if (locked) return;
+    var cardId = battle.state.hand[idx], card = E.CARDS[cardId] || {};
+    var needsSelection = card.target !== 'self' && card.target !== 'all-enemies' && !card.aoe && (card.damage || card.statuses) && battle.state.units.filter(function(u){return u.side === 'enemy' && u.alive;}).length > Math.max(1, Number(card.targetCount) || 1);
+    if (needsSelection) { selectedCard = idx; selectedTargets = []; setLog(['Choose ' + Math.max(1, Number(card.targetCount) || 1) + ' enemy target(s).']); render(); return; }
     var res = battle.playCard(idx, 'hero');
     if (!res.ok) { setLog([res.reason === 'energy' ? 'Not enough energy.' : res.reason === 'stunned' ? 'You are stunned and cannot act.' : 'Cannot play that card.']); return; }
     setLog(describe(res.events));
@@ -137,6 +143,19 @@
       if (e.type === 'bleed') pop('player', '-' + e.result.hpDamage, 'dmg');
     });
     render(); finishIfOver();
+  }
+  function chooseTarget(id) {
+    if (locked || selectedCard === null) return;
+    var candidates = battle.state.units.filter(function(u){return u.side === 'enemy' && u.alive;});
+    if (!candidates.some(function(u){return u.id === id;})) return;
+    if (selectedTargets.indexOf(id) >= 0) { setLog(['That enemy is already selected.']); return; }
+    selectedTargets.push(id);
+    var required = Math.max(1, Number((E.CARDS[battle.state.hand[selectedCard]] || {}).targetCount) || 1);
+    if (selectedTargets.length < required) { setLog(['Choose ' + (required-selectedTargets.length) + ' more target(s).']); render(); return; }
+    var idx = selectedCard, targets = selectedTargets.slice(); selectedCard = null; selectedTargets = [];
+    var res = battle.playCard(idx, 'hero', targets);
+    if (!res.ok) { setLog(['Cannot play that card: ' + res.reason]); render(); return; }
+    setLog(describe(res.events)); render(); finishIfOver();
   }
   function onEndTurn() {
     if (locked) return;
@@ -149,15 +168,26 @@
   function wire() { if (wired) return; wired = true; $('btn-end-turn').addEventListener('click', onEndTurn); }
   function start(playerState, id, cb) {
     if (!Core) throw new Error('Battle Core v2 must load before Battle UI.');
-    wire(); onEnd = cb; locked = false; monsterId = id;
+    wire(); onEnd = cb; locked = false; monsterId = id; monsterIds = [id]; selectedCard = null; selectedTargets = [];
     $('enemy-sprite').classList.remove('dead', 'hit', 'attack');
     var def = E.MONSTERS[id];
-    battle = Core.create({
-      playerUnits: [{ id: 'hero', name: 'Novice', hp: playerState.hp, maxHp: playerState.maxHp, x: 1, y: 4 }],
-      enemyUnits: [{ id: 'enemy', name: def.name, hp: def.hp, maxHp: def.hp, x: 8, y: 4, moves: def.moves }],
-      deck: E.STARTER_DECK, energy: E.RULES.energy, drawPerTurn: E.RULES.handSize
-    });
+    createBattle(playerState, [{ id: 'enemy', monsterId: id, x: 8, y: 4 }]);
     setLog(['A wild ' + def.name + ' appears!']); render(); finishIfOver();
   }
-  E.BattleUI = { start: start };
+  function createBattle(playerState, encounterUnits) {
+    battle = Core.create({
+      playerUnits: [{ id: 'hero', name: 'Novice', hp: playerState.hp, maxHp: playerState.maxHp, x: 1, y: 4 }],
+      enemyUnits: encounterUnits.map(function(entry, index){ var def = E.MONSTERS[entry.monsterId]; if (!def) throw new Error('Unknown monster: ' + entry.monsterId); return { id: entry.id || 'enemy-' + index, name: def.name, hp: def.hp, maxHp: def.hp, x: entry.x === undefined ? 8 : entry.x, y: entry.y === undefined ? index + 2 : entry.y, moves: def.moves, boss: !!def.boss, resistance: def.resistance || {} }; }),
+      deck: E.STARTER_DECK, energy: E.RULES.energy, drawPerTurn: E.RULES.handSize
+    });
+  }
+  function startEncounter(playerState, encounterUnits, cb) {
+    if (!Array.isArray(encounterUnits) || !encounterUnits.length || encounterUnits.length > Core.LIMITS.unitsPerSide) throw new Error('Encounter must contain 1–5 enemy units.');
+    monsterIds = encounterUnits.map(function(e){return e.monsterId;}); monsterId = monsterIds[0];
+    wire(); onEnd = cb; locked = false; selectedCard = null; selectedTargets = [];
+    $('enemy-sprite').classList.remove('dead', 'hit', 'attack');
+    createBattle(playerState, encounterUnits);
+    setLog(['An enemy group approaches!']); render(); finishIfOver();
+  }
+  E.BattleUI = { start: start, startEncounter: startEncounter };
 })(typeof window !== 'undefined' ? window : globalThis);
