@@ -106,3 +106,15 @@ This is a known implementation gap, not a change to confirmed game rules. Next d
 - Commit: d434c15a3616850378d4f9b9cd479069208e1f08.
 - GitHub Actions run 42588680150: JavaScript syntax and Save/Battle unit-test steps completed successfully; browser dependency installation was still in progress at the last check.
 - This is engine-level validation only. Live deck editing, collection persistence, and battle use of a selected preset remain unimplemented.
+
+
+## Save-backed deck data foundation (2026-11-09)
+
+- Added Save APIs `getDeckData(character)` and `saveDeckData(character, data)` in js/save.js.
+- Deck collection, presets, and active preset are additive optional fields; legacy schemaVersion 1 characters continue to load with `deckId: starter` and receive empty deck data through the getter without being rewritten merely by reading.
+- Save validation checks card IDs, star levels 1-3, non-negative integer quantities, unique preset IDs, active preset existence, and per-preset use not exceeding owned quantity for each card ID + star level.
+- Added Save unit tests for legacy compatibility, save/reload persistence, cross-preset reuse, invalid ownership references, malformed entries, and missing active preset.
+- Commits: b186c961b45d58b725ddf8a6ca59c3a50ae8dc44 (Save API), 12c61c0a9f6d7abb6b37b47d0c2edc62a132924b (tests).
+- Previous validator commit d434c15a3616850378d4f9b9cd479069208e1f08 has a fully successful CI run including Browser Smoke Test.
+- Latest Save API and test commits are not yet confirmed by a CI run; no claim of test success is made for these changes until CI evidence is available.
+- Deck Builder UI, actual card acquisition, 20-card starter content, and battle integration of saved presets remain incomplete.
