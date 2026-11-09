@@ -30,6 +30,20 @@
 
   function render() {
     var s = battle.state;
+    var statusLine = $('enemy-statuses');
+    if (!statusLine) {
+      statusLine = document.createElement('div');
+      statusLine.id = 'enemy-statuses';
+      statusLine.className = 'battle-statuses';
+      $('enemy-intent').parentNode.insertBefore(statusLine, $('enemy-intent').nextSibling);
+    }
+    var statusLabels = [];
+    Object.keys(s.enemy.statuses || {}).forEach(function (type) {
+      var status = s.enemy.statuses[type];
+      statusLabels.push(type.charAt(0).toUpperCase() + type.slice(1) + ' ' + status.stacks +
+        (status.duration == null ? '' : ' (' + status.duration + ' turn)'));
+    });
+    statusLine.textContent = statusLabels.length ? statusLabels.join(' · ') : 'No status effects';
 
     $('enemy-name').textContent = s.enemy.name;
     $('enemy-hp-fill').style.width = (100 * s.enemy.hp / s.enemy.maxHp) + '%';
@@ -52,8 +66,8 @@
 
     var hand = $('hand');
     hand.innerHTML = '';
-    s.hand.forEach(function (id, idx) {
-      var c = E.CARDS[id];
+    s.hand.forEach(function (instance, idx) {
+      var c = E.CARDS[instance.id];
       var b = document.createElement('button');
       b.type = 'button';
       b.className = 'card ' + c.kind + (c.cost > s.player.energy || s.over ? ' disabled' : '');
@@ -61,7 +75,8 @@
         '<span class="cost">' + c.cost + '</span>' +
         '<span class="icon">' + c.icon + '</span>' +
         '<span class="name">' + c.name + '</span>' +
-        '<span class="text">' + c.text + '</span>';
+        '<span class="text">' + c.text + '</span>' +
+        (instance.stars > 1 ? '<span class="stars">' + '★'.repeat(instance.stars) + '</span>' : '');
       b.addEventListener('click', function () { onCard(idx); });
       hand.appendChild(b);
     });
