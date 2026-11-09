@@ -73,7 +73,7 @@ const assert = require('node:assert/strict');
     await page.evaluate(() => {
       const debug = window.ELDORIA.World._debug;
       let poring = debug.getPoring();
-      if (!poring) { debug.respawn(false); poring = debug.getPoring(); }
+      if (!poring) { window.ELDORIA.World.respawn(false); poring = debug.getPoring(); }
       if (!poring) throw new Error('World must spawn a Poring before battle smoke test');
       Object.assign(debug.hero, { c: poring.c, r: poring.r, x: poring.x, y: poring.y, path: [], moving: false });
     });
