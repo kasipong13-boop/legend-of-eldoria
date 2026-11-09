@@ -107,3 +107,22 @@ test('Stun prevents an enemy from taking its attack action', () => {
   const result = b.endTurn();
   assert.equal(result.events.some(e => e.type === 'enemy-attack' && e.source === 'p1'), false);
 });
+
+
+test('status duration ticks only at its configured side-turn boundary', () => {
+  const b = setup();
+  const hero = b.state.units.find(u => u.id === 'hero');
+  Core.applyStatus(hero, { id: 'bleed', stacks: 2, duration: 2, tickAt: 'player-turn-start' });
+  b.endTurn();
+  assert.equal(hero.statuses.find(s => s.id === 'bleed').duration, 1);
+  b.endTurn();
+  assert.equal(hero.statuses.some(s => s.id === 'bleed'), false);
+});
+
+test('status duration does not tick on the other side turn', () => {
+  const b = setup();
+  const hero = b.state.units.find(u => u.id === 'hero');
+  Core.applyStatus(hero, { id: 'bleed', stacks: 2, duration: 2, tickAt: 'enemy-turn-start' });
+  b.endTurn();
+  assert.equal(hero.statuses.find(s => s.id === 'bleed').duration, 2);
+});
