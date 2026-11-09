@@ -177,7 +177,8 @@
       if (!aliveUnits(state, 'player').length) { state.over = 'lose'; state.winner = 'enemy'; }
       else if (!aliveUnits(state, 'enemy').length) { state.over = 'win'; state.winner = 'player'; }
     }
-    function playCard(index, sourceId, selectedIds) {
+        finishCheck(); // Resolve battles that begin with a side already defeated.
+function playCard(index, sourceId, selectedIds) {
       if (state.over) return { ok: false, reason: 'over' };
       if (state.activeSide !== 'player') return { ok: false, reason: 'turn' };
       var id = state.hand[index], card = E.CARDS[id];
