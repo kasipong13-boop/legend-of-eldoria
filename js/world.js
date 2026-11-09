@@ -309,6 +309,17 @@
       ctx.fillStyle = '#5d9149'; ctx.fillRect(bx - 1, by - 7, 6, 8);
       ctx.fillStyle = '#3b703d'; ctx.fillRect(bx + 5, by - 3, 5, 4);
     }
+    if (currentMapId === 'whispering-forest' && t === '.' && h % 41 === 0) {
+      // Firefly glow is decorative and time-driven; it does not affect gameplay.
+      var glow = 0.35 + (Math.sin(time * 2.1 + (h % 31)) + 1) * 0.25;
+      var lx = p.x + ((h >> 6) % 19) - 9, ly = p.y - 8 + ((h >> 3) % 9);
+      var halo = ctx.createRadialGradient(lx, ly, 1, lx, ly, 9);
+      halo.addColorStop(0, 'rgba(222,245,137,' + glow + ')');
+      halo.addColorStop(1, 'rgba(222,245,137,0)');
+      ctx.fillStyle = halo; ctx.beginPath(); ctx.arc(lx, ly, 9, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = 'rgba(239,255,177,' + Math.min(1, glow + 0.2) + ')';
+      ctx.fillRect(lx - 1, ly - 1, 2, 2);
+    }
     if (t === '~') {
       var w = Math.sin(time * 2 + c * 1.3 + r * 0.7);
       ctx.strokeStyle = 'rgba(255,255,255,' + (0.18 + 0.12 * w) + ')'; ctx.lineWidth = 1.5;
