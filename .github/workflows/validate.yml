@@ -2,7 +2,7 @@ name: Validate Prototype
 
 on:
   push:
-    branches: [main, feature/prototype-0.2-character-save, feature/card-collection-foundation, feature/card-acquisition-foundation]
+    branches: [main, feature/prototype-0.2-character-save, feature/card-collection-foundation, feature/card-acquisition-foundation, feature/monster-special-skill-catalog]
   pull_request:
     branches: [main]
   workflow_dispatch:
