@@ -109,7 +109,45 @@
     $('btn-result').onclick=function(){backToVillage(!result.won);};
     show('screen-result');
   }
+  function renderCardCollection(){
+    if(!current)return;
+    var data=S.getDeckData(current),owned=$('collection-owned'),presets=$('collection-presets');
+    owned.innerHTML='';presets.innerHTML='';
+    var total=data.owned.reduce(function(sum,item){return sum+item.quantity;},0);
+    $('collection-summary').textContent=total+' owned card copies · '+data.owned.length+' card variants · '+data.presets.length+' deck presets';
+    if(!data.owned.length){
+      var empty=document.createElement('p');empty.className='collection-empty';empty.textContent='No cards collected yet. Card rewards and acquisition will be added in a later milestone.';owned.appendChild(empty);
+    }else{
+      data.owned.forEach(function(item){
+        var def=E.CARDS[item.cardId]||{},row=document.createElement('div');row.className='collection-row';
+        var info=document.createElement('div'),name=document.createElement('strong'),meta=document.createElement('small'),qty=document.createElement('span');
+        name.textContent=def.name||item.cardId;meta.textContent='Star '+item.stars+' · '+(def.kind||'Card');
+        info.appendChild(name);info.appendChild(meta);qty.className='collection-quantity';qty.textContent='×'+item.quantity;
+        row.appendChild(info);row.appendChild(qty);owned.appendChild(row);
+      });
+    }
+    if(!data.presets.length){
+      var noPresets=document.createElement('p');noPresets.className='collection-empty';noPresets.textContent='No saved deck presets yet.';presets.appendChild(noPresets);
+    }else{
+      data.presets.forEach(function(preset){
+        var row=document.createElement('div');row.className='collection-row';
+        var info=document.createElement('div'),name=document.createElement('strong'),meta=document.createElement('small');
+        name.textContent=preset.name;meta.textContent=preset.cardRefs.length+' / 20 cards';
+        info.appendChild(name);info.appendChild(meta);
+        var state=document.createElement('span');state.className='collection-state';
+        state.textContent=preset.id===data.activePresetId?'Active':'Saved';
+        row.appendChild(info);row.appendChild(state);presets.appendChild(row);
+      });
+    }
+  }
+  function openCardCollection(){
+    if(!current||!$('screen-world').classList.contains('active'))return;
+    E.World.pause();renderCardCollection();show('screen-card-collection');
+  }
+  function closeCardCollection(){show('screen-world');E.World.resume();}
   function backToVillage(resetHero){if(resetHero)E.World.respawn(true);updateHud();snapshot();show('screen-world');E.World.resume();}
+  $('btn-card-collection').addEventListener('click',openCardCollection);
+  $('btn-card-collection-back').addEventListener('click',closeCardCollection);
   $('btn-start').addEventListener('click',openSelect);
   $('btn-new').addEventListener('click',function(){show('screen-create');});
   $('btn-new-character').addEventListener('click',function(){show('screen-create');});
