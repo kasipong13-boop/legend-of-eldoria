@@ -119,7 +119,7 @@
     (unit && Array.isArray(unit.buffs) ? unit.buffs : []).forEach(function (buff) {
       if (buff.disabled) return;
       (buff.effects || []).forEach(function (effect) {
-        if (effect.channel !== channel || (stat && effect.stat !== stat)) return;
+        if (effect.channel !== channel || (stat && effect.stat && effect.stat !== stat)) return;
         if (!Number.isFinite(effect.value) || ['flat', 'percent'].indexOf(effect.mode) < 0) return;
         if (effect.mode === 'flat') flat += effect.value;
         else percent += effect.value;
@@ -158,7 +158,7 @@
     if (!source) return { ok: false, reason: 'source' };
     var candidates = aliveUnits(state, source.side === 'player' ? 'enemy' : 'player')
       .filter(function (u) { return rangeAllowed(source, u, card, state); });
-    if (card.target === 'self') return { ok: true, targets: [source] };
+    if (card.target === 'self' || (!card.damage && !card.statuses && (card.block || card.heal))) return { ok: true, targets: [source] };
     if (card.target === 'all-enemies' || card.aoe) return { ok: true, targets: candidates };
     var count = Math.max(1, integer(card.targetCount, 1));
     if (candidates.length <= count) return { ok: true, targets: candidates };
