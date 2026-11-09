@@ -320,6 +320,21 @@
       ctx.fillStyle = 'rgba(239,255,177,' + Math.min(1, glow + 0.2) + ')';
       ctx.fillRect(lx - 1, ly - 1, 2, 2);
     }
+    if (currentMapId === 'whispering-forest' && c === 5 && r === 2 && t === '.') {
+      // Ancient roots and a faint rune mark the landmark approach; this is visual only.
+      ctx.strokeStyle = 'rgba(91,65,39,0.9)'; ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(p.x - 20, p.y - 4); ctx.quadraticCurveTo(p.x - 9, p.y - 1, p.x - 7, p.y + 8);
+      ctx.moveTo(p.x + 20, p.y - 3); ctx.quadraticCurveTo(p.x + 8, p.y + 1, p.x + 7, p.y + 8);
+      ctx.stroke();
+      ctx.strokeStyle = 'rgba(210,171,91,0.72)'; ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(p.x - 5, p.y + 1); ctx.lineTo(p.x, p.y - 3); ctx.lineTo(p.x + 5, p.y + 1);
+      ctx.lineTo(p.x + 3, p.y + 6); ctx.moveTo(p.x - 3, p.y + 6); ctx.lineTo(p.x - 5, p.y + 1);
+      ctx.stroke();
+      ctx.fillStyle = 'rgba(226,190,112,0.55)';
+      ctx.fillRect(p.x - 1, p.y - 1, 2, 2);
+    }
     if (t === '~') {
       var w = Math.sin(time * 2 + c * 1.3 + r * 0.7);
       ctx.strokeStyle = 'rgba(255,255,255,' + (0.18 + 0.12 * w) + ')'; ctx.lineWidth = 1.5;
