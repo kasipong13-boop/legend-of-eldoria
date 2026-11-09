@@ -59,7 +59,7 @@ function claim(p){
   p=load(p.characterId);if(!p)throw Error('Character not found.');
   var q=p.pendingReward;if(!q||q.claimed)return {payload:p,claimed:false};
   var r=q.reward||{};
-  p.stats.exp+=(Number(r.exp)||0);p.gold+=(Number(r.gold)||0);
+  p.stats.exp+=(Number(r.exp)||0); // Gold is never granted through pending combat rewards.
   (r.drops||[]).forEach(function(d){if(d.id==='jelly')p.items.jelly+=(Number(d.quantity)||1);});
   mergeOwnedCards(p,r.cardDrops||[]);
   p.pendingReward=null;

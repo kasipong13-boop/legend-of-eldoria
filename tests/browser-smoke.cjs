@@ -97,7 +97,7 @@ const assert = require('node:assert/strict');
       return raw.payload;
     });
     assert.equal(savedAfterBattle.stats.exp, 12, 'victory EXP saved');
-    assert.ok(savedAfterBattle.gold >= 5 && savedAfterBattle.gold <= 10, 'victory gold saved');
+    assert.equal(savedAfterBattle.gold, 0, 'monster victory does not award Gold');
     assert.deepEqual(savedAfterBattle.deckCollection.owned, [{ cardId: 'bash', stars: 1, quantity: 1 }], 'monster special skill card saved to collection');
     await page.reload({ waitUntil: 'networkidle' });
     await page.locator('#btn-start').click();

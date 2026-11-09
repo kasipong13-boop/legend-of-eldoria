@@ -2,9 +2,9 @@ name: Validate Prototype
 
 on:
   push:
-    branches: [main, feature/prototype-0.2-character-save, feature/card-collection-foundation, feature/card-acquisition-foundation, feature/monster-special-skill-catalog, feature/combat-effect-integration]
+    branches: [main, feature/prototype-0.2-character-save, feature/card-collection-foundation, feature/card-acquisition-foundation, feature/monster-special-skill-catalog, feature/combat-effect-integration, feature/npc-material-sale-gold-economy]
   pull_request:
-    branches: [main, feature/card-acquisition-foundation, feature/monster-special-skill-catalog]
+    branches: [main, feature/card-acquisition-foundation, feature/monster-special-skill-catalog, feature/combat-effect-integration]
   workflow_dispatch:
 
 permissions:
@@ -41,6 +41,8 @@ jobs:
           test -f tests/card-catalog.test.js
           test -f tests/battle.test.js
           test -f docs/COMBAT-EFFECT-INTEGRATION.md
+          test -f docs/GOLD-SOURCE-RULE.md
+          test -f tests/economy-gold-source.test.js
 
       - name: Check JavaScript syntax
         run: |
