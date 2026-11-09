@@ -73,7 +73,7 @@
       $('character-name').value='';enterWorld(c);
     } catch(e){$('create-error').textContent=e.message||'Unable to create character.';}
   }
-  function startBattle(monsterId){E.World.pause();show('screen-battle');E.BattleUI.startEncounter({hp:player.hp,maxHp:player.maxHp},[{id:'world-'+monsterId+'-1',monsterId:monsterId}],onBattleEnd);}
+  function startBattle(encounter){E.World.pause();show('screen-battle');var ids=encounter&&Array.isArray(encounter.monsterIds)?encounter.monsterIds:[encounter];var units=ids.map(function(id,index){return {id:'world-'+id+'-'+(index+1),monsterId:id};});E.BattleUI.startEncounter({hp:player.hp,maxHp:player.maxHp},units,onBattleEnd);}
   function onBattleEnd(result){
     var list=$('result-list');list.innerHTML='';
     function line(text,cls){var li=document.createElement('li');li.textContent=text;if(cls)li.className=cls;list.appendChild(li);}
@@ -117,7 +117,8 @@
   updateCreationPreview();
   $('character-name').addEventListener('keydown',function(e){if(e.key==='Enter')createCharacter();});
   E.World.init($('world-canvas'));
-  E.World.onEncounter=function(monsterId){startBattle(monsterId);};
+  E.World.onEncounter=function(encounter){startBattle(encounter);};
+  E.World.onMapChange=function(mapId){$('hud-zone').textContent=mapId==='whispering-forest'?'Whispering Forest':'Greenvale Village';};
   E.World.onSafeTile=function(){if(current&&$('screen-world').classList.contains('active'))snapshot();};
   window.addEventListener('pagehide',function(){if(current&&$('screen-world').classList.contains('active'))snapshot();});
   updateHud();
