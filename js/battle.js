@@ -230,12 +230,12 @@
   E.rollRewards = function (monsterId, rng) {
     rng = rng || Math.random;
     var def = E.MONSTERS[monsterId];
-    var gold = def.gold[0] + Math.floor(rng() * (def.gold[1] - def.gold[0] + 1));
     var drops = [];
     def.drops.forEach(function (d) {
       if (rng() < d.chance) drops.push({ id: d.id, name: d.name });
     });
-    return { exp: def.exp, gold: gold, drops: drops };
+    // Gold is earned through NPC material sales, never from defeating monsters.
+    return { exp: def.exp, drops: drops };
   };
 
   if (typeof module !== 'undefined' && module.exports) module.exports = E;
