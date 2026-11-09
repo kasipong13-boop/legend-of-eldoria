@@ -299,3 +299,63 @@ test('multi-target selection rejects duplicate target IDs', () => {
   assert.equal(result.reason, 'invalid-targets');
   assert.equal(b.state.units.find(u => u.id === 'p1').hp, 20);
 });
+
+
+test('Multi-Hit applies every hit to the same selected target', () => {
+  E.CARDS['test-multi-hit'] = Object.assign({}, E.CARDS.strike, { damage: 2, hits: 3, target: 'enemy' });
+  const b = setup();
+  b.state.hand = ['test-multi-hit'];
+  const result = b.playCard(0, 'hero', ['p1']);
+  delete E.CARDS['test-multi-hit'];
+  assert.equal(result.ok, true);
+  assert.equal(result.events.filter(e => e.type === 'damage' && e.target === 'p1').length, 3);
+  assert.equal(b.state.units.find(u => u.id === 'p1').hp, 14);
+  assert.equal(b.state.units.find(u => u.id === 'p2').hp, 20);
+});
+
+test('Multi-Target requires exactly the selected number when eligible enemies exceed it', () => {
+  E.CARDS['test-multi-target'] = Object.assign({}, E.CARDS.strike, { damage: 2, target: 'enemy', targetCount: 2 });
+  const b = setup({
+    enemyUnits: [
+      { id: 'p1', hp: 20, maxHp: 20, x: 8, y: 1 },
+      { id: 'p2', hp: 20, maxHp: 20, x: 8, y: 2 },
+      { id: 'p3', hp: 20, maxHp: 20, x: 8, y: 3 }
+    ]
+  });
+  b.state.hand = ['test-multi-target'];
+  const result = b.playCard(0, 'hero', ['p1', 'p3']);
+  delete E.CARDS['test-multi-target'];
+  assert.equal(result.ok, true);
+  assert.equal(b.state.units.find(u => u.id === 'p1').hp, 18);
+  assert.equal(b.state.units.find(u => u.id === 'p2').hp, 20);
+  assert.equal(b.state.units.find(u => u.id === 'p3').hp, 18);
+});
+
+test('Multi-Target automatically hits every eligible enemy when count is sufficient', () => {
+  E.CARDS['test-auto-target'] = Object.assign({}, E.CARDS.strike, { damage: 2, target: 'enemy', targetCount: 3 });
+  const b = setup();
+  b.state.hand = ['test-auto-target'];
+  const result = b.playCard(0, 'hero');
+  delete E.CARDS['test-auto-target'];
+  assert.equal(result.ok, true);
+  assert.equal(result.events.filter(e => e.type === 'damage').length, 2);
+  assert.equal(b.state.units.find(u => u.id === 'p1').hp, 18);
+  assert.equal(b.state.units.find(u => u.id === 'p2').hp, 18);
+});
+
+test('All Enemies targeting hits every eligible enemy without manual selection', () => {
+  E.CARDS['test-all-enemies'] = Object.assign({}, E.CARDS.strike, { damage: 2, target: 'all-enemies' });
+  const b = setup({
+    enemyUnits: [
+      { id: 'p1', hp: 20, maxHp: 20, x: 8, y: 1 },
+      { id: 'p2', hp: 20, maxHp: 20, x: 8, y: 2 },
+      { id: 'p3', hp: 20, maxHp: 20, x: 8, y: 3 }
+    ]
+  });
+  b.state.hand = ['test-all-enemies'];
+  const result = b.playCard(0, 'hero');
+  delete E.CARDS['test-all-enemies'];
+  assert.equal(result.ok, true);
+  assert.equal(result.events.filter(e => e.type === 'damage').length, 3);
+  assert.ok(b.state.units.filter(u => u.side === 'enemy').every(u => u.hp === 18));
+});
