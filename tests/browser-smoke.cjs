@@ -71,11 +71,8 @@ const assert = require('node:assert/strict');
 
     // Exercise the real world-to-battle transition, win flow, reward persistence, and reload.
     await page.evaluate(() => {
-      const debug = window.ELDORIA.World._debug;
-      let poring = debug.getPoring();
-      if (!poring) { window.ELDORIA.World.respawn(false); poring = debug.getPoring(); }
-      if (!poring) throw new Error('World must spawn a Poring before battle smoke test');
-      Object.assign(debug.hero, { c: poring.c, r: poring.r, x: poring.x, y: poring.y, path: [], moving: false });
+      // Exercise the same World -> main.js encounter handoff deterministically.
+      window.ELDORIA.World.onEncounter({ mapId: 'greenvale-village', monsterIds: ['poring'] });
     });
     await page.waitForFunction(() => document.querySelector('#screen-battle').classList.contains('active'), { timeout: 5000 });
     assert.equal(await page.locator('#live-battlefield .live-cell').count(), 100, 'live battle screen renders the 10x10 battlefield');
