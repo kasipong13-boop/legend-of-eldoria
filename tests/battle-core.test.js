@@ -404,21 +404,22 @@ test('deck validator enforces Monster Special Skill and Legendary copy caps', ()
 test('deck validator checks owned quantities for each card star level', () => {
   const cards = {
     strike: { id: 'strike', rarity: 'Common', category: 'standard' },
-    guard: { id: 'guard', rarity: 'Common', category: 'standard' }
+    guard: { id: 'guard', rarity: 'Common', category: 'standard' },
+    filler: { id: 'filler', rarity: 'Rare', category: 'standard' }
   };
   const deck = [
     ...Array(3).fill({ cardId: 'strike', stars: 1 }),
     ...Array(3).fill({ cardId: 'strike', stars: 2 }),
     ...Array(3).fill({ cardId: 'guard', stars: 1 }),
     ...Array(3).fill({ cardId: 'guard', stars: 2 }),
-    ...Array(8).fill({ cardId: 'guard', stars: 3 })
+    ...Array(8).fill({ cardId: 'filler', stars: 1 })
   ];
   const owned = [
     { cardId: 'strike', stars: 1, quantity: 3 },
     { cardId: 'strike', stars: 2, quantity: 2 },
     { cardId: 'guard', stars: 1, quantity: 3 },
     { cardId: 'guard', stars: 2, quantity: 3 },
-    { cardId: 'guard', stars: 3, quantity: 8 }
+    { cardId: 'filler', stars: 1, quantity: 8 }
   ];
   const result = Core.validateDeck(deck, cards, { owned });
   assert.equal(result.valid, false);
