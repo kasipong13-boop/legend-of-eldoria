@@ -86,6 +86,33 @@ const assert = require('node:assert/strict');
     assert.match(savedMeta, /Lv 1|Lv 2/, 'saved character remains selectable after battle reload');
     assert.match(savedMeta, /Gold/, 'saved gold remains visible after reload');
     assert.deepEqual(errors, [], 'no uncaught desktop browser errors after battle');
+    // Exercise the playable Whispering Forest map, random Poring groups, and live encounter handoff.
+    const forest = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
+    const forestErrors = [];
+    forest.on('pageerror', e => forestErrors.push(e.message));
+    await forest.goto('http://127.0.0.1:4173', { waitUntil: 'networkidle' });
+    await forest.locator('#btn-new').click();
+    await forest.locator('#character-name').fill('Forest QA');
+    await forest.locator('#btn-create-confirm').click();
+    await forest.waitForFunction(() => document.querySelector('#screen-world').classList.contains('active'));
+    const forestState = await forest.evaluate(() => {
+      const W = window.ELDORIA.World, debug = W._debug;
+      debug.switchMap('whispering-forest');
+      return { mapId: debug.getMapId(), count: debug.getPorings().length, label: document.querySelector('#hud-zone').textContent };
+    });
+    assert.equal(forestState.mapId, 'whispering-forest', 'Forest map loads');
+    assert.equal(forestState.label, 'Whispering Forest', 'HUD reflects the active map');
+    assert.ok(forestState.count >= 1 && forestState.count <= 3, 'Forest spawns one to three Porings');
+    await forest.evaluate(() => {
+      const d = window.ELDORIA.World._debug, p = d.getPorings()[0];
+      Object.assign(d.hero, { c:p.c, r:p.r, x:p.x, y:p.y, path:[], moving:false });
+    });
+    await forest.waitForFunction(() => document.querySelector('#screen-battle').classList.contains('active'), { timeout: 5000 });
+    assert.equal(await forest.locator('#live-battlefield .live-unit.enemy').count(), forestState.count, 'Touching one Poring starts battle with the whole spawned group');
+    assert.equal(await forest.locator('#live-battlefield .live-cell').count(), 100, 'Forest encounter uses the 10x10 battlefield');
+    assert.deepEqual(forestErrors, [], 'no uncaught errors in Forest map or encounter');
+    await forest.close();
+
     // Exercise the isolated Battle Core v2 multi-unit battlefield UI.
     const grid = await browser.newPage({ viewport: { width: 1280, height: 900 } });
     const gridErrors = [];
