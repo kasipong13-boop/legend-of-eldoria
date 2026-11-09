@@ -110,7 +110,39 @@ const assert = require('node:assert/strict');
     assert.deepEqual(gridErrors, [], 'no uncaught errors in multi-unit battlefield');
     await gridMobile.close();
     await grid.close();
-    console.log('Browser smoke passed: character create/reload/continue, mobile preview, legacy Poring battle, rewards, and Battle Core v2 10x10 multi-unit UI');
+
+    // Exercise the multi-enemy adapter on the real battle screen at a phone viewport.
+    const liveGroup = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
+    const liveGroupErrors = [];
+    liveGroup.on('pageerror', e => liveGroupErrors.push(e.message));
+    await liveGroup.goto('http://127.0.0.1:4173', { waitUntil: 'networkidle' });
+    await liveGroup.evaluate(() => {
+      Math.random = () => 0;
+      document.querySelector('#screen-battle').classList.add('active');
+      window.ELDORIA.BattleUI.startEncounter(
+        { hp: 50, maxHp: 50 },
+        [
+          { id: 'poring-a', monsterId: 'poring', x: 8, y: 2 },
+          { id: 'poring-b', monsterId: 'poring', x: 8, y: 7 }
+        ],
+        () => {}
+      );
+    });
+    assert.equal(await liveGroup.locator('#live-battlefield .live-cell').count(), 100, 'live multi-enemy screen renders 100 cells');
+    assert.equal(await liveGroup.locator('#live-battlefield .live-unit.enemy').count(), 2, 'live adapter renders both enemies');
+    const liveAttacks = liveGroup.locator('#hand .card.attack:not(:disabled)');
+    assert.ok(await liveAttacks.count() > 0, 'live multi-enemy hand contains an attack card');
+    await liveAttacks.first().click();
+    assert.equal(await liveGroup.locator('#live-battlefield .live-cell.targetable').count(), 2, 'manual target selection highlights both eligible enemies');
+    assert.equal(await liveGroup.locator('#hand .card:disabled').count(), await liveGroup.locator('#hand .card').count(), 'hand is locked while selecting a target');
+    await liveGroup.locator('#live-battlefield .live-unit.enemy').first().locator('xpath=..').click();
+    await liveGroup.waitForFunction(() => document.querySelector('#battle-log').textContent.includes('Hit poring-'));
+    assert.equal(await liveGroup.locator('#live-battlefield .live-cell.targetable').count(), 0, 'target selection clears after card resolves');
+    const liveGroupLayout = await liveGroup.evaluate(() => ({ width: document.documentElement.clientWidth, scroll: document.documentElement.scrollWidth }));
+    assert.ok(liveGroupLayout.scroll <= liveGroupLayout.width + 1, 'live multi-enemy battle has no horizontal overflow on mobile');
+    assert.deepEqual(liveGroupErrors, [], 'no uncaught errors in live multi-enemy adapter');
+    await liveGroup.close();
+    console.log('Browser smoke passed: character/save/reward regression, legacy battle, isolated grid UI, and live multi-enemy target selection on mobile');
   } finally {
     if (browser) await browser.close();
     server.kill();
