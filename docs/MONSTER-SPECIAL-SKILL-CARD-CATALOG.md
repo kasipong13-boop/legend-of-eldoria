@@ -1,12 +1,12 @@
 # Monster Special Skill Card Catalog — LEGEND OF ELDORIA
 
 **Document:** Monster Special Skill Card Catalog  
-**Version:** Draft 0.1  
-**Status:** PROPOSED — not GAME_CONFIRMED  
+**Version:** 0.2  
+**Status:** GAME_CONFIRMED — Slime Splash and Savage Bite approved  
 **Parent foundation:** Card Acquisition Foundation  
 **Branch:** `feature/monster-special-skill-catalog`
 
-This catalog is a design proposal for review. It does not approve new combat rules, card identities, drop chances, or economy values until the player confirms them.
+The player approved MSC-POR-001 Slime Splash and MSC-WOLF-001 Savage Bite from Draft 0.1. Their card identities, rarities, energy costs, base effects, star evolutions, and monster eligibility are GAME_CONFIRMED. Drop chances and crafting recipes remain unassigned.
 
 ## 1. Binding rules
 
@@ -46,6 +46,8 @@ The two candidates below continue earlier concept exploration for Poring and Wol
 
 ### MSC-POR-001 — Slime Splash
 
+<badge>GAME_CONFIRMED</badge>
+
 | Field | Proposed value |
 |---|---|
 | Source monster | Poring |
@@ -66,6 +68,8 @@ The two candidates below continue earlier concept exploration for Poring and Wol
 **Rules note:** Vulnerable uses the confirmed damage-taken multiplier (+50%). The duration and stacking behavior must use the existing global status rules; this card does not create a separate status implementation.
 
 ### MSC-WOLF-001 — Savage Bite
+
+<badge>GAME_CONFIRMED</badge>
 
 | Field | Proposed value |
 |---|---|
@@ -128,16 +132,15 @@ After catalog approval, each approved entry can be represented in `E.CARDS` with
 
 The monster-specific card-drop table in `js/card-acquisition.js` should reference only approved card IDs. Each entry's `chance` remains a separate numeric value to be decided in the Drop Rate & Balance task.
 
-This document alone does not activate either candidate in the live drop table.
+Both approved card definitions are now registered in `E.CARDS` as catalog content with stable IDs `msc-por-001` and `msc-wolf-001`. They carry `implementationStatus: 'catalog-only'` while combat execution for these status effects and star evolutions is pending. Neither card is active in the live drop table because no numeric drop chance has been approved. The Wolf monster's runtime encounter definition is also not added by this catalog task.
 
 ## 7. Open decisions before content activation
 
 The following are intentionally unresolved:
 
-- Approval or revision of Slime Splash and Savage Bite effects.
-- Whether both candidates should be included in the initial release catalog.
-- Final element assignments if the player wants a different identity at ★ or ★★.
-- Final ★★★ effects and whether any individual card should unlock a Gem Slot.
+- Numeric drop chance for each eligible card.
+- Crafting recipes and which Monster Special Skill Cards can be crafted.
+- Combat execution and UI support for these catalog-defined effects and star evolutions.
 - Additional monster-specific cards beyond Poring and Wolf.
 - Drop chance for each eligible card.
 - Crafting recipes and which Monster Special Skill Cards can be crafted.
@@ -151,3 +154,11 @@ The following are intentionally unresolved:
 - Direct base-stat increases from star upgrades.
 - Gem balance, recipes, material costs, or Gold costs.
 - Changes to existing item drops, EXP, Gold, monster HP, or save schema.
+
+
+## 9. Approval record
+
+- Approval: both initial entries approved by the player.
+- Approved content: card IDs, names, source-monster eligibility, rarity, Energy cost, ★ base effects, ★★ property/effect changes, and ★★★ unique effects exactly as listed above.
+- Not approved / not assigned: numeric drop chances, crafting recipes/costs, new monster runtime stats or encounters, and changes to global combat rules.
+- Runtime definitions are catalog-only until their effect execution is implemented and tested.
