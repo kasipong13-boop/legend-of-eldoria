@@ -90,6 +90,8 @@ const assert = require('node:assert/strict');
     await grid.goto('http://127.0.0.1:4173/battle-grid-test.html', { waitUntil: 'networkidle' });
     assert.equal(await grid.locator('#arena .cell').count(), 100, 'battlefield renders 10x10 cells');
     assert.equal(await grid.locator('#arena .cell .unit').count(), 3, 'hero and two enemies render');
+    assert.equal(await grid.locator('#arena .cell .unit-intent').count(), 2, 'both enemies show their next intent');
+    assert.match(await grid.locator('#arena .cell .unit-intent').first().textContent(), /Bounce/, 'enemy intent name is visible');
     const bash = grid.locator('#hand .card').filter({ hasText: 'Bash' }).first();
     assert.equal(await bash.count(), 1, 'deterministic test hand contains Bash');
     await bash.click();
