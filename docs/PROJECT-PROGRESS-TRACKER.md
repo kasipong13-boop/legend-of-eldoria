@@ -87,3 +87,11 @@ A source review after CI run #298 confirms:
 - The live battle UI supports multi-enemy presentation/targeting in tested scenarios, but the overall card collection, deck editing, and complete 20-card enforcement path are not yet complete.
 
 This is a known implementation gap, not a change to confirmed game rules. Next deck milestone requires an authored 20-card starter list consistent with copy caps, complete card metadata, validation at deck save/equip time, and mobile UI regression. Avoid inventing the starter card list or changing card balance without a separate design decision.
+
+
+## Deck integration contract (2026-11-09)
+
+- Added `docs/DECK-INTEGRATION-TECHNICAL-CONTRACT.md` in commit `655363717217b84e3a4062e1d71a8e6ee521a520`.
+- The document records the current live integration gap, additive Save compatibility requirements, proposed ownership/preset data shape, card metadata requirements, shared validation rules, migration safety, implementation order, and acceptance tests.
+- This is a technical contract/proposal only. It does not add card content, change card balance, alter Save schema, or claim the live game now enforces a 20-card deck.
+- Next: implement pure validators and unit tests first; only connect persisted decks to battle after the user-approved starter content is available.
