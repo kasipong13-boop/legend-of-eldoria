@@ -77,9 +77,12 @@
   function onBattleEnd(result){
     var list=$('result-list');list.innerHTML='';
     function line(text,cls){var li=document.createElement('li');li.textContent=text;if(cls)li.className=cls;list.appendChild(li);}
+    player.hp=Number.isFinite(result.hp)?Math.max(0,Math.min(player.maxHp,result.hp)):player.hp;
     if(result.won){
       var rw=E.rollRewards(result.monsterId);
       // Persist the reward intent before the result screen can be shown.
+      current.stats={level:player.level,exp:player.exp,hp:player.hp,maxHp:player.maxHp};
+      current.gold=player.gold;current.items={jelly:player.jelly};
       current=S.setPendingReward(current,{exp:rw.exp,gold:rw.gold,drops:rw.drops.map(function(d){return {id:d.id,name:d.name,quantity:1};})});
       var claimed=S.claimPendingReward(current);current=claimed.payload;
       $('result-title').textContent='Victory!';
@@ -94,10 +97,10 @@
       $('btn-result').textContent='Return to the village';
     } else {
       $('result-title').textContent='Defeated';
-      line('You wake up safe in Greenvale Village.');line('Nothing was lost.');
+      var penalty=Math.floor(player.gold*0.10);player.gold-=penalty;
+      line('You wake up safe in Greenvale Village.');line('Lost '+penalty+' Gold (10%).');
       $('btn-result').textContent='Wake up';
     }
-    player.hp=player.maxHp;
     snapshot();
     $('btn-result').onclick=function(){backToVillage(!result.won);};
     show('screen-result');
