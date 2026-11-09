@@ -1,132 +1,109 @@
-/* Legend of Eldoria - Prototype 0.1
-   battle-ui.js: draws the battle screen and connects taps to the battle engine. */
+/* Legend of Eldoria — live single-enemy adapter for Battle Core v2.
+   The existing encounter screen remains visually compatible while using the
+   new deterministic rules engine. Multi-unit presentation remains in its harness. */
 (function (root) {
-  var E = root.ELDORIA;
+  'use strict';
+  var E = root.ELDORIA, Core = E.BattleCore;
   function $(id) { return document.getElementById(id); }
-
-  var battle = null;
-  var onEnd = null;
-  var locked = false;
+  var battle = null, onEnd = null, locked = false, monsterId = null;
 
   function flash(el, cls) {
-    el.classList.remove(cls);
-    void el.offsetWidth; // restart animation
-    el.classList.add(cls);
+    el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls);
     setTimeout(function () { el.classList.remove(cls); }, 450);
   }
-
   function pop(who, text, cls) {
     var host = who === 'enemy' ? $('enemy-stage') : $('player-panel');
-    var el = document.createElement('div');
-    el.className = 'pop ' + cls;
-    el.textContent = text;
+    var el = document.createElement('div'); el.className = 'pop ' + cls; el.textContent = text;
     if (who === 'player') { el.style.top = '-30px'; el.style.left = '45%'; }
-    host.style.position = 'relative';
-    host.appendChild(el);
+    host.style.position = 'relative'; host.appendChild(el);
     setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 950);
   }
-
-  function setLog(msgs) { $('battle-log').textContent = msgs.join(' '); }
-
+  function setLog(messages) { $('battle-log').textContent = messages.join(' '); }
+  function unit(id) { return battle.state.units.find(function (u) { return u.id === id; }); }
+  function statusText(u) {
+    return (u.statuses || []).map(function (s) {
+      var label = s.id === 'vulnerable' ? 'VUL' : s.id === 'bleed' ? 'BLD' : s.id === 'stun' ? 'STN' : s.id.toUpperCase();
+      return label + ' ' + s.stacks;
+    }).join(' · ');
+  }
   function render() {
-    var s = battle.state;
-
-    $('enemy-name').textContent = s.enemy.name;
-    $('enemy-hp-fill').style.width = (100 * s.enemy.hp / s.enemy.maxHp) + '%';
-    $('enemy-hp-text').textContent = s.enemy.hp + ' / ' + s.enemy.maxHp;
-    $('enemy-intent').textContent = s.over ? '' : 'Next: ' + s.enemy.intent.name + ', ' + s.enemy.intent.damage + ' damage';
+    var s = battle.state, hero = unit('hero'), enemy = unit('enemy');
+    $('enemy-name').textContent = enemy.name;
+    $('enemy-hp-fill').style.width = (100 * enemy.hp / enemy.maxHp) + '%';
+    $('enemy-hp-text').textContent = enemy.hp + ' / ' + enemy.maxHp;
+    $('enemy-intent').textContent = s.over || !enemy.intent ? '' :
+      'Next: ' + enemy.intent.name + (Number.isFinite(enemy.intent.damage) ? ', ' + enemy.intent.damage + ' damage' : '');
     $('enemy-intent').style.visibility = s.over ? 'hidden' : 'visible';
-
-    $('player-hp-fill').style.width = (100 * s.player.hp / s.player.maxHp) + '%';
-    $('player-hp-text').textContent = 'You  ' + s.player.hp + ' / ' + s.player.maxHp;
-
-    var blk = $('player-block');
-    blk.textContent = '\uD83D\uDEE1\uFE0F ' + s.player.block;
-    blk.classList.toggle('zero', s.player.block === 0);
-
+    $('player-hp-fill').style.width = (100 * hero.hp / hero.maxHp) + '%';
+    $('player-hp-text').textContent = 'You  ' + hero.hp + ' / ' + hero.maxHp + (statusText(hero) ? ' · ' + statusText(hero) : '');
+    var blk = $('player-block'); blk.textContent = '\uD83D\uDEE1\uFE0F ' + hero.block;
+    blk.classList.toggle('zero', hero.block === 0);
     var orbs = '';
-    for (var i = 0; i < E.RULES.energy; i++) orbs += (i < s.player.energy ? '\u25CF' : '\u25CB');
+    for (var i = 0; i < E.RULES.energy; i++) orbs += i < s.energy ? '\u25CF' : '\u25CB';
     $('player-energy').textContent = '\u26A1 ' + orbs;
-
     $('piles').textContent = 'Draw ' + s.drawPile.length + '  Discard ' + s.discardPile.length;
-
-    var hand = $('hand');
-    hand.innerHTML = '';
+    var hand = $('hand'); hand.innerHTML = '';
     s.hand.forEach(function (id, idx) {
-      var c = E.CARDS[id];
-      var b = document.createElement('button');
-      b.type = 'button';
-      b.className = 'card ' + c.kind + (c.cost > s.player.energy || s.over ? ' disabled' : '');
-      b.innerHTML =
-        '<span class="cost">' + c.cost + '</span>' +
-        '<span class="icon">' + c.icon + '</span>' +
-        '<span class="name">' + c.name + '</span>' +
-        '<span class="text">' + c.text + '</span>';
-      b.addEventListener('click', function () { onCard(idx); });
-      hand.appendChild(b);
+      var c = E.CARDS[id], b = document.createElement('button');
+      b.type = 'button'; b.className = 'card ' + c.kind + (c.cost > s.energy || s.over || locked ? ' disabled' : '');
+      b.disabled = c.cost > s.energy || !!s.over || locked;
+      b.innerHTML = '<span class="cost">' + c.cost + '</span><span class="icon">' + c.icon +
+        '</span><span class="name">' + c.name + '</span><span class="text">' + c.text + '</span>';
+      b.addEventListener('click', function () { onCard(idx); }); hand.appendChild(b);
     });
-
     $('btn-end-turn').disabled = !!s.over || locked;
   }
-
+  function describe(events) {
+    return events.map(function (e) {
+      if (e.type === 'damage') return 'Hit ' + e.target + ' for ' + e.result.hpDamage + ' damage.';
+      if (e.type === 'block') return 'Gain ' + e.amount + ' Block.';
+      if (e.type === 'heal') return 'Restore ' + e.amount + ' HP.';
+      if (e.type === 'enemy-attack') return e.source + ' uses its intent on ' + e.target + ' for ' + e.result.hpDamage + ' damage.';
+      if (e.type === 'bleed') return 'Bleed deals ' + e.result.hpDamage + ' damage to ' + e.target + '.';
+      return e.type + '.';
+    });
+  }
   function finishIfOver() {
-    var s = battle.state;
-    if (!s.over) return false;
-    locked = true;
-    render();
+    var s = battle.state; if (!s.over) return false;
+    locked = true; render();
     if (s.over === 'win') $('enemy-sprite').classList.add('dead');
-    var result = { won: s.over === 'win', monsterId: s.enemy.id, hp: s.player.hp, maxHp: s.player.maxHp };
+    var result = { won: s.over === 'win', monsterId: monsterId, hp: unit('hero').hp, maxHp: unit('hero').maxHp };
     setTimeout(function () { if (onEnd) onEnd(result); }, 900);
     return true;
   }
-
   function onCard(idx) {
     if (locked) return;
-    var res = battle.playCard(idx);
-    if (!res.ok) {
-      if (res.reason === 'energy') setLog(['Not enough energy.']);
-      return;
-    }
-    setLog(res.msgs);
-    res.pops.forEach(function (p) { pop(p.who, p.text, p.cls); });
-    if (res.pops.some(function (p) { return p.who === 'enemy'; })) flash($('enemy-sprite'), 'hit');
-    render();
-    finishIfOver();
+    var res = battle.playCard(idx, 'hero');
+    if (!res.ok) { setLog([res.reason === 'energy' ? 'Not enough energy.' : res.reason === 'stunned' ? 'You are stunned and cannot act.' : 'Cannot play that card.']); return; }
+    setLog(describe(res.events));
+    res.events.forEach(function (e) {
+      if (e.type === 'damage') { pop('enemy', '-' + e.result.hpDamage, 'dmg'); flash($('enemy-sprite'), 'hit'); }
+      if (e.type === 'block') pop('player', '+' + e.amount, 'blk');
+      if (e.type === 'heal') pop('player', '+' + e.amount, 'heal');
+      if (e.type === 'bleed') pop('player', '-' + e.result.hpDamage, 'dmg');
+    });
+    render(); finishIfOver();
   }
-
   function onEndTurn() {
     if (locked) return;
-    var res = battle.endTurn();
-    if (!res.ok) return;
-    setLog(res.msgs);
-    flash($('enemy-sprite'), 'attack');
-    res.pops.forEach(function (p) { pop(p.who, p.text, p.cls); });
-    if (res.pops.some(function (p) { return p.who === 'player' && p.cls === 'dmg'; })) flash($('player-panel'), 'hit');
-    render();
-    finishIfOver();
+    var res = battle.endTurn(); if (!res.ok) return;
+    setLog(describe(res.events));
+    res.events.forEach(function (e) { if (e.type === 'enemy-attack') { flash($('enemy-sprite'), 'attack'); pop('player', '-' + e.result.hpDamage, e.result.hpDamage ? 'dmg' : 'blk'); } });
+    render(); finishIfOver();
   }
-
   var wired = false;
-  function wire() {
-    if (wired) return;
-    wired = true;
-    $('btn-end-turn').addEventListener('click', onEndTurn);
-  }
-
-  // playerState: {hp, maxHp}. cb({won, monsterId})
-  function start(playerState, monsterId, cb) {
-    wire();
-    onEnd = cb;
-    locked = false;
+  function wire() { if (wired) return; wired = true; $('btn-end-turn').addEventListener('click', onEndTurn); }
+  function start(playerState, id, cb) {
+    if (!Core) throw new Error('Battle Core v2 must load before Battle UI.');
+    wire(); onEnd = cb; locked = false; monsterId = id;
     $('enemy-sprite').classList.remove('dead', 'hit', 'attack');
-    battle = E.createBattle({
-      player: { hp: playerState.hp, maxHp: playerState.maxHp },
-      monsterId: monsterId,
-      deck: E.STARTER_DECK
+    var def = E.MONSTERS[id];
+    battle = Core.create({
+      playerUnits: [{ id: 'hero', name: 'Novice', hp: playerState.hp, maxHp: playerState.maxHp, x: 1, y: 4 }],
+      enemyUnits: [{ id: 'enemy', name: def.name, hp: def.hp, maxHp: def.hp, x: 8, y: 4, moves: def.moves }],
+      deck: E.STARTER_DECK, energy: E.RULES.energy, drawPerTurn: E.RULES.handSize
     });
-    setLog(['A wild ' + E.MONSTERS[monsterId].name + ' appears!']);
-    render();
+    setLog(['A wild ' + def.name + ' appears!']); render(); finishIfOver();
   }
-
   E.BattleUI = { start: start };
 })(typeof window !== 'undefined' ? window : globalThis);
