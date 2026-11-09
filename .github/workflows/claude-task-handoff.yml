@@ -1,0 +1,57 @@
+name: Claude Code — ChatGPT Task Handoff
+
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: claude-task-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  claude-implementation:
+    # Only tasks opened by the repository owner and explicitly routed by the Director
+    # may start a Claude coding run. No comment, fork PR, or public-user trigger.
+    if: >-
+      github.event.issue.author_association == 'OWNER' &&
+      startsWith(github.event.issue.title, '[AI TASK]') &&
+      contains(github.event.issue.body, '@claude')
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Run Claude Code on the approved task
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          branch_prefix: claude/
+          prompt: |
+            You are the Implementation Engineer for LEGEND OF ELDORIA.
+            This issue was created by the repository owner through the AI Development Director.
+            Treat the issue title and body as the assigned task packet.
+
+            Before editing:
+            1. Read CLAUDE.md and the collaboration/review/development standards under docs/.
+            2. Read the relevant GDD, work log, changelog, source files, and tests.
+            3. Confirm the current base branch and create/use a task-specific branch with the configured claude/ prefix.
+            4. Report any ambiguity, conflict with confirmed game rules, or critical save/security risk before making a risky change.
+
+            Implementation rules:
+            - Never commit directly to main.
+            - Never merge a pull request, deploy, or change repository settings.
+            - Keep the diff limited to the assigned task.
+            - Preserve existing gameplay, player saves, save schema, regression baselines, and active unrelated PRs.
+            - Protected/high-risk files listed in CLAUDE.md require explicit task-level authorization and focused tests.
+            - Never expose secrets, tokens, credentials, or private user data.
+            - Run the applicable repository tests and report exact commands and actual results.
+            - Open or update a pull request for completed implementation, then stop for Director review.
+            - If the task cannot be completed safely, do not guess; report blockers and recommended next steps.
+
+            The Director will independently review the branch/PR and report to the Game Owner.
+          claude_args: |
+            --max-turns 12
+            --permission-mode auto
