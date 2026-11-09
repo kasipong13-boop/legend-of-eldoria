@@ -42,6 +42,7 @@ function saveDeckData(p,data){
   var presetIds=Object.create(null);
   data.presets.forEach(function(preset){
     if(!preset||typeof preset.id!=='string'||!preset.id||typeof preset.name!=='string'||!preset.name.trim()||!Array.isArray(preset.cardRefs))throw Error('Invalid deck preset.');
+    if(preset.cardRefs.length>20)throw Error('Deck preset cannot exceed 20 cards.');
     if(presetIds[preset.id])throw Error('Duplicate deck preset id.');
     presetIds[preset.id]=true;
     var used=Object.create(null);
