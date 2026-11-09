@@ -61,6 +61,7 @@
       <div class="hud-block right">
         <span id="hud-gold">0 gold</span>
         <span id="hud-jelly">0 jelly</span>
+        <button id="btn-card-collection" class="btn collection-open" type="button">Cards</button>
       </div>
     </div>
     <div id="toast"></div>
@@ -69,6 +70,22 @@
       <button type="button" data-dir="left" aria-label="Move left">&#9664;</button>
       <button type="button" data-dir="right" aria-label="Move right">&#9654;</button>
       <button type="button" data-dir="down" aria-label="Move down">&#9660;</button>
+    </div>
+  </section>
+
+  <!-- CARD COLLECTION (read-only foundation; deck editing is a later milestone) -->
+  <section id="screen-card-collection" class="screen center collection-screen">
+    <div class="collection-panel">
+      <header class="collection-header">
+        <div><p class="collection-kicker">ADVENTURER'S ARCHIVE</p><h2>Card Collection</h2></div>
+        <button id="btn-card-collection-back" class="btn" type="button">Return</button>
+      </header>
+      <p id="collection-summary" class="collection-summary"></p>
+      <h3>Owned Cards</h3>
+      <div id="collection-owned" class="collection-list"></div>
+      <h3>Deck Presets</h3>
+      <div id="collection-presets" class="collection-list"></div>
+      <p class="collection-note">Deck editing unlocks in a future update. A complete 20-card deck and card rules must be available before presets can be changed.</p>
     </div>
   </section>
 
