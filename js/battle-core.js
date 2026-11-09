@@ -130,6 +130,8 @@
   function damage(state, target, amount, kind) {
     amount = Math.max(0, integer(amount, 0));
     if (!target || !target.alive || target.hp <= 0) return { amount: 0, blocked: 0, hpDamage: 0, defeated: !!target && !target.alive };
+    // Incoming-damage Buffs apply before the Vulnerable multiplier.
+    amount = buffValue(target, 'damageTaken', amount, kind);
     var vulnerable = status(target, 'vulnerable');
     if (vulnerable) amount = Math.round(amount * 1.5);
     var resistance = target.resistance[kind] || 0;
