@@ -30,3 +30,38 @@ test('rejects a corrupted guard checksum rather than loading an untrusted revisi
 test('world exposes saved character appearance API and main applies profile on continue',()=>{const world=fs.readFileSync(require.resolve('../js/world.js'),'utf8');const main=fs.readFileSync(require.resolve('../js/main.js'),'utf8');assert.match(world,/W\.setAppearance\s*=\s*function\(profile\)/);assert.match(world,/HAIR\s*=\s*\[/);assert.match(main,/E\.World\.setAppearance\(c\.profile\)/);});
 
 test('character creation and select screens render avatar previews',()=>{const html=fs.readFileSync(require.resolve('../index.html'),'utf8');const main=fs.readFileSync(require.resolve('../js/main.js'),'utf8');const css=fs.readFileSync(require.resolve('../css/character.css'),'utf8');assert.match(html,/id="creation-avatar"/);assert.match(main,/function makeAvatar\(profile,small\)/);assert.match(main,/info\.appendChild\(makeAvatar\(c\.profile,true\)\)/);assert.match(css,/\.avatar-preview-wrap/);});
+
+
+test('legacy characters expose empty deck data without changing existing save fields',()=>{
+  const {Save}=boot();let c=Save.createCharacter(profile);c.gold=41;c=Save.saveCharacter(c);
+  const deck=Save.getDeckData(c);
+  assert.deepEqual(deck,{owned:[],presets:[],activePresetId:null});
+  const loaded=Save.loadCharacter(c.characterId);
+  assert.equal(loaded.deckId,'starter');assert.equal(loaded.gold,41);assert.equal(loaded.schemaVersion,1);
+});
+
+test('saves and reloads owned cards and reusable deck presets additively',()=>{
+  const {Save}=boot();let c=Save.createCharacter(profile);
+  const data={owned:[{cardId:'strike',stars:1,quantity:3},{cardId:'guard',stars:1,quantity:2}],presets:[
+    {id:'preset-a',name:'Balanced',cardRefs:[{cardId:'strike',stars:1},{cardId:'guard',stars:1}]},
+    {id:'preset-b',name:'Alternate',cardRefs:[{cardId:'strike',stars:1}]}
+  ],activePresetId:'preset-a'};
+  c=Save.saveDeckData(c,data);
+  const reloaded=Save.loadCharacter(c.characterId);
+  assert.deepEqual(Save.getDeckData(reloaded),data);
+  assert.equal(reloaded.deckId,'starter');
+  assert.equal(reloaded.schemaVersion,1);
+});
+
+test('deck save rejects preset references beyond owned quantity without modifying save',()=>{
+  const {Save}=boot();let c=Save.createCharacter(profile);c.gold=12;c=Save.saveCharacter(c);
+  assert.throws(()=>Save.saveDeckData(c,{owned:[{cardId:'strike',stars:1,quantity:1}],presets:[{id:'p1',name:'Test',cardRefs:[{cardId:'strike',stars:1},{cardId:'strike',stars:1}]}],activePresetId:'p1'}),/unowned cards/);
+  assert.equal(Save.loadCharacter(c.characterId).gold,12);
+  assert.deepEqual(Save.getDeckData(c),{owned:[],presets:[],activePresetId:null});
+});
+
+test('deck save rejects malformed ownership and missing active preset',()=>{
+  const {Save}=boot();const c=Save.createCharacter(profile);
+  assert.throws(()=>Save.saveDeckData(c,{owned:[{cardId:'strike',stars:4,quantity:1}],presets:[],activePresetId:null}),/Invalid owned-card/);
+  assert.throws(()=>Save.saveDeckData(c,{owned:[],presets:[{id:'p1',name:'Test',cardRefs:[]}],activePresetId:'missing'}),/Active deck preset/);
+});
