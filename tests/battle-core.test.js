@@ -260,7 +260,13 @@ test('battle result resolves immediately when a side has no living units at setu
 
 
 test('multi-target selection rejects duplicate target IDs', () => {
-  const b = setup();
+  const b = setup({
+    enemyUnits: [
+      { id: 'p1', name: 'Poring A', hp: 20, maxHp: 20, x: 8, y: 2 },
+      { id: 'p2', name: 'Poring B', hp: 20, maxHp: 20, x: 8, y: 3 },
+      { id: 'p3', name: 'Poring C', hp: 20, maxHp: 20, x: 8, y: 4 }
+    ]
+  });
   const card = Object.assign({}, E.CARDS.strike, { target: 'enemy', targetCount: 2 });
   E.CARDS['test-double-target'] = card;
   b.state.hand = ['test-double-target'];
