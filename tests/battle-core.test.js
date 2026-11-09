@@ -196,6 +196,47 @@ test('Buff definitions without explicit stacking or charge-zero policy are rejec
   assert.equal(b.applyBuff(hero, { id: 'charges', stacking: 'replace', durationPolicy: 'reset', charges: 1 }).reason, 'charge-zero-policy-required');
 });
 
+test('configured Buff effects modify damage, block and healing with flat-before-percent order', () => {
+  const b = setup();
+  const hero = b.state.units.find(u => u.id === 'hero');
+  const target = b.state.units.find(u => u.id === 'p1');
+  hero.hp = 30;
+  b.applyBuff(hero, {
+    id: 'combat-training', stacking: 'replace', durationPolicy: 'reset', duration: null,
+    effects: [
+      { channel: 'damage', mode: 'flat', value: 2 },
+      { channel: 'damage', mode: 'percent', value: 50 },
+      { channel: 'block', mode: 'flat', value: 1 },
+      { channel: 'healing', mode: 'percent', value: 25 }
+    ]
+  });
+  const strikeIndex = b.state.hand.indexOf('strike');
+  const strike = b.playCard(strikeIndex, 'hero', ['p1']);
+  assert.equal(strike.events.find(e => e.type === 'damage').result.hpDamage, 12);
+  assert.equal(target.hp, 8);
+
+  const guardIndex = b.state.hand.indexOf('guard');
+  const guard = b.playCard(guardIndex, 'hero');
+  assert.equal(guard.events.find(e => e.type === 'block').amount, 6);
+
+  const healIndex = b.state.hand.indexOf('heal');
+  const heal = b.playCard(healIndex, 'hero');
+  assert.equal(heal.events.find(e => e.type === 'heal').amount, 10);
+  assert.equal(hero.hp, 40);
+});
+
+test('target Buff damageTaken modifier applies before Vulnerable multiplier', () => {
+  const b = setup();
+  const target = b.state.units.find(u => u.id === 'p1');
+  b.applyBuff(target, {
+    id: 'armor', stacking: 'replace', durationPolicy: 'reset', duration: null,
+    effects: [{ channel: 'damageTaken', mode: 'percent', value: -20 }]
+  });
+  Core.applyStatus(target, { id: 'vulnerable', stacks: 1 });
+  const result = Core.damage(b.state, target, 10, 'physical');
+  assert.equal(result.hpDamage, 12);
+});
+
 test('battle result resolves immediately when a side has no living units at setup', () => {
   const won = Core.create({
     playerUnits: [{ id: 'hero', hp: 10, maxHp: 10, x: 1, y: 1 }],
