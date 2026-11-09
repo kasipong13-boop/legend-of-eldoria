@@ -118,3 +118,16 @@ This is a known implementation gap, not a change to confirmed game rules. Next d
 - Previous validator commit d434c15a3616850378d4f9b9cd479069208e1f08 has a fully successful CI run including Browser Smoke Test.
 - Latest Save API and test commits are not yet confirmed by a CI run; no claim of test success is made for these changes until CI evidence is available.
 - Deck Builder UI, actual card acquisition, 20-card starter content, and battle integration of saved presets remain incomplete.
+
+
+## Card Collection UI foundation (2026-11-09)
+
+- Added a mobile-first Card Collection screen reachable from the world HUD.
+- The screen reads owned card quantities, star variants, and saved deck presets through `Save.getDeckData`; it does not modify ownership or presets.
+- Shows an explicit empty state when no cards have been acquired.
+- Shows preset card counts against the confirmed 20-card deck size.
+- Deck editing remains intentionally unavailable until the full 20-card starter/content definitions and live validation path are ready. No card content, rarity, or balance has been invented.
+- Browser smoke coverage now checks rendering of saved owned-card stacks and multiple presets, and navigation back to the world.
+- Files: `index.html`, `js/main.js`, `css/style.css`, `tests/browser-smoke.cjs`.
+- Latest relevant CI run: 42596008537 (commit b2d2119a9da53d5c2bf3959251cdfc2d949a9db8) was in progress at the time of this update. Do not mark browser QA passed until its result is confirmed.
+- Current limitation: collection and presets are view-only; no card acquisition, deck editing, 20-card starter deck, or selected-preset battle integration has been implemented.
