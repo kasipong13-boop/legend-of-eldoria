@@ -90,13 +90,13 @@ const assert = require('node:assert/strict');
     await grid.goto('http://127.0.0.1:4173/battle-grid-test.html', { waitUntil: 'networkidle' });
     assert.equal(await grid.locator('#arena .cell').count(), 100, 'battlefield renders 10x10 cells');
     assert.equal(await grid.locator('#arena .cell .unit').count(), 3, 'hero and two enemies render');
-    const strike = grid.locator('#hand .card').filter({ hasText: 'Strike' }).first();
-    if (await strike.count()) {
-      await strike.click();
-      await grid.locator('#arena .cell').nth(38).click(); // Poring A at x=8, y=3
-      await grid.waitForFunction(() => document.querySelector('#battle-log').textContent.includes('Damage to poring-a'));
-      assert.equal(await grid.locator('#arena .cell').nth(38).locator('.unit').count(), 1, 'target remains visible after damage');
-    }
+    const bash = grid.locator('#hand .card').filter({ hasText: 'Bash' }).first();
+    assert.equal(await bash.count(), 1, 'deterministic test hand contains Bash');
+    await bash.click();
+    await grid.locator('#arena .cell').nth(38).click(); // Poring A at x=8, y=3
+    await grid.waitForFunction(() => document.querySelector('#battle-log').textContent.includes('Damage to poring-a'));
+    assert.match(await grid.locator('#arena .cell').nth(38).locator('.unit-effects').textContent(), /VUL 1/, 'Vulnerable status is visible on the battlefield unit');
+    assert.equal(await grid.locator('#arena .cell').nth(38).locator('.unit').count(), 1, 'target remains visible after damage');
     const gridMobile = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
     await gridMobile.goto('http://127.0.0.1:4173/battle-grid-test.html', { waitUntil: 'networkidle' });
     assert.equal(await gridMobile.locator('#arena .cell').count(), 100, 'mobile battlefield renders all cells');
