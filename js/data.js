@@ -32,7 +32,7 @@
       name: 'Poring',
       hp: 20,
       exp: 12,
-      gold: [5, 10],
+     
       drops: [{ id: 'jelly', name: 'Poring Jelly', chance: 0.6 }],
       moves: [
         { name: 'Bounce', damage: 4 },
@@ -41,12 +41,12 @@
       ]
     },
     forest_wolf: {
-      id: 'forest_wolf', name: 'Forest Wolf', hp: 34, exp: 22, gold: [9, 15],
+      id: 'forest_wolf', name: 'Forest Wolf', hp: 34, exp: 22
       drops: [{ id: 'wolf_fang', name: 'Wolf Fang', chance: 0.35 }],
       moves: [{ name: 'Bite', damage: 6 }, { name: 'Pounce', damage: 8 }, { name: 'Claw Swipe', damage: 5 }]
     },
     ancient_wolf: {
-      id: 'ancient_wolf', name: 'Ancient Wolf', hp: 65, exp: 55, gold: [22, 35],
+      id: 'ancient_wolf', name: 'Ancient Wolf', hp: 65, exp: 55
       drops: [{ id: 'ancient_fang', name: 'Ancient Fang', chance: 0.5 }],
       moves: [{ name: 'Ancient Bite', damage: 9 }, { name: 'Moonlit Pounce', damage: 12 }, { name: 'Rending Claw', damage: 8 }]
     }
