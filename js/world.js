@@ -1,6 +1,4 @@
-/* Legend of Eldoria - Prototype 0.1
-   world.js: isometric Greenvale Village. Tap/click to walk, or use the D-pad / arrow keys / WASD.
-   Touch the Poring to start a battle. Everything is drawn on one canvas (no image files needed). */
+/* Legend of Eldoria — isometric world maps: Greenvale Village and Whispering Forest. */
 (function (root) {
   var E = root.ELDORIA;
 
@@ -16,10 +14,13 @@
     '#.H..=..#..#',
     '#....=.....#',
     '#.......#..#',
-    '#..........#',
+    '#.........F#',
     '############'
   ];
+  var FOREST_MAP = ['############','#....#.....#','#..........#','#..##...##.#','#..........#','#.##....#..#','#..........#','#...#..##..#','#..........#','#..##......#','#E.........#','############'];
+  var MAPS = { 'greenvale-village': MAP, 'whispering-forest': FOREST_MAP };
   var ROWS = MAP.length, COLS = MAP[0].length;
+  var currentMapId = 'greenvale-village';
   var TW = 64, TH = 32;
   var START = { c: 5, r: 5 };
   var HERO_SPEED = 5.2, PORING_SPEED = 1.5;
@@ -27,7 +28,8 @@
   var DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]];
   var HELD = { up: [-1, -1], down: [1, 1], left: [-1, 1], right: [1, -1] };
 
-  function tile(c, r) { return (c < 0 || r < 0 || c >= COLS || r >= ROWS) ? '#' : MAP[r].charAt(c); }
+  function activeMap() { return MAPS[currentMapId] || MAP; }
+  function tile(c, r) { var map = activeMap(); return (c < 0 || r < 0 || c >= map[0].length || r >= map.length) ? '#' : map[r].charAt(c); }
   function walk(c, r) { var t = tile(c, r); return t !== '#' && t !== 'H' && t !== '~'; }
   function canMove(c, r, nc, nr) {
     if (!walk(nc, nr)) return false;
@@ -64,7 +66,7 @@
   var cv, ctx, dpr = 1, vw = 0, vh = 0, scale = 1;
   var running = false, lastT = 0, time = 0;
   var hero = { c: START.c, r: START.r, x: START.c, y: START.r, path: [], moving: false };
-  var poring = null;
+  var porings = [];
   var held = null;
   var marker = null, lastSafeTile = null;
   var appearance = { gender: 'male', hairstyle: 0, hairColor: 0 };
@@ -107,6 +109,7 @@
   }
 
   W.start = function () {
+    currentMapId = 'greenvale-village'; ROWS = activeMap().length; COLS = activeMap()[0].length;
     hero.c = START.c; hero.r = START.r; hero.x = START.c; hero.y = START.r; hero.path = [];
     spawnPoring();
     W.resume();
@@ -118,24 +121,39 @@
   };
   W.pause = function () { running = false; held = null; };
   // Public save API: only stable, completed tile positions are exposed.
-  W.getPosition = function () { return { mapId: 'greenvale-village', x: hero.c, y: hero.r, safe: !hero.moving && hero.path.length === 0 }; };
+  W.getPosition = function () { return { mapId: currentMapId, x: hero.c, y: hero.r, safe: !hero.moving && hero.path.length === 0 }; };
   W.setPosition = function (p) {
-    if (!p || p.mapId !== 'greenvale-village' || !Number.isInteger(p.x) || !Number.isInteger(p.y) || !walk(p.x, p.y)) return false;
-    hero.c = hero.x = p.x; hero.r = hero.y = p.y; hero.path = []; lastSafeTile = p.x + ',' + p.y; spawnPoring(); return true;
+    if (!p || !MAPS[p.mapId] || !Number.isInteger(p.x) || !Number.isInteger(p.y)) return false;
+    var old = currentMapId; currentMapId = p.mapId; ROWS = activeMap().length; COLS = activeMap()[0].length;
+    if (!walk(p.x, p.y)) { currentMapId = old; ROWS = activeMap().length; COLS = activeMap()[0].length; return false; }
+    hero.c = hero.x = p.x; hero.r = hero.y = p.y; hero.path = []; lastSafeTile = p.x + ',' + p.y; spawnPoring();
+    if (W.onMapChange) W.onMapChange(currentMapId); return true;
   };
   W.respawn = function (resetHero) {
-    if (resetHero) { hero.c = START.c; hero.r = START.r; hero.x = START.c; hero.y = START.r; }
-    hero.path = [];
-    spawnPoring();
+    if (resetHero) { currentMapId = 'greenvale-village'; ROWS = activeMap().length; COLS = activeMap()[0].length; hero.c = START.c; hero.r = START.r; hero.x = START.c; hero.y = START.r; if (W.onMapChange) W.onMapChange(currentMapId); }
+    hero.path = []; spawnPoring();
   };
 
   function spawnPoring() {
-    var c = [];
+    var candidates = [];
     for (var r = 0; r < ROWS; r++) for (var q = 0; q < COLS; q++) {
-      if (tile(q, r) === '.' && Math.max(Math.abs(q - hero.c), Math.abs(r - hero.r)) >= 4) c.push([q, r]);
+      if (tile(q, r) === '.' && Math.max(Math.abs(q - hero.c), Math.abs(r - hero.r)) >= 3) candidates.push([q, r]);
     }
-    var p = c.length ? c[Math.floor(Math.random() * c.length)] : [9, 9];
-    poring = { c: p[0], r: p[1], x: p[0], y: p[1], tc: p[0], tr: p[1], wait: 0.6 + Math.random() };
+    var count = currentMapId === 'whispering-forest' ? E.createForestEncounter().length : 1;
+    porings = [];
+    for (var n = 0; n < count && candidates.length; n++) {
+      var p = candidates.splice(Math.floor(Math.random() * candidates.length), 1)[0];
+      porings.push({ id:'world-poring-'+(n+1), c:p[0], r:p[1], x:p[0], y:p[1], tc:p[0], tr:p[1], wait:0.6+Math.random() });
+    }
+  }
+  function switchMap(mapId) {
+    if (!MAPS[mapId] || mapId === currentMapId) return;
+    currentMapId = mapId; ROWS = activeMap().length; COLS = activeMap()[0].length;
+    var start = mapId === 'whispering-forest' ? {c:1,r:10} : START;
+    hero.c = hero.x = start.c; hero.r = hero.y = start.r; hero.path = []; hero.moving = false;
+    lastSafeTile = null; spawnPoring();
+    if (W.onMapChange) W.onMapChange(currentMapId);
+    if (W.onSafeTile) W.onSafeTile();
   }
 
   /* ---------- input ---------- */
@@ -181,8 +199,12 @@
       if (safeKey !== lastSafeTile) { lastSafeTile = safeKey; if (W.onSafeTile) W.onSafeTile(); }
     }
 
-    // poring wanders
-    if (poring) {
+    if (!hero.moving && hero.path.length === 0) {
+      if (currentMapId === 'greenvale-village' && tile(hero.c, hero.r) === 'F') { switchMap('whispering-forest'); return; }
+      if (currentMapId === 'whispering-forest' && tile(hero.c, hero.r) === 'E') { switchMap('greenvale-village'); return; }
+    }
+    for (var pi = 0; pi < porings.length; pi++) {
+      var poring = porings[pi];
       var pdx = poring.tc - poring.x, pdy = poring.tr - poring.y, pd = Math.sqrt(pdx * pdx + pdy * pdy);
       if (pd > 0.001) {
         var ps = PORING_SPEED * dt;
@@ -200,14 +222,11 @@
           if (opts.length) { var o = opts[Math.floor(Math.random() * opts.length)]; poring.tc = o[0]; poring.tr = o[1]; }
         }
       }
-
-      // touching the poring starts a battle
       var ex = hero.x - poring.x, ey = hero.y - poring.y;
       if (Math.sqrt(ex * ex + ey * ey) < 1.15 && W.onEncounter) {
-        hero.path = []; held = null;
-        hero.x = hero.c; hero.y = hero.r; hero.moving = false;
-        running = false;
-        W.onEncounter('poring');
+        hero.path = []; held = null; hero.x = hero.c; hero.y = hero.r; hero.moving = false; running = false;
+        W.onEncounter({ mapId:currentMapId, monsterIds:currentMapId === 'whispering-forest' ? porings.map(function(){return 'poring';}) : ['poring'] });
+        break;
       }
     }
   }
@@ -240,6 +259,7 @@
     var p = iso(c, r), t = tile(c, r), h = hash(c, r), alt = (c + r) % 2 === 0;
     var fill;
     if (t === '=') fill = alt ? '#b99c6a' : '#c3a676';
+    else if (t === 'F' || t === 'E') fill = alt ? '#d7bd72' : '#c9a85c';
     else if (t === '~') fill = alt ? '#3d83b0' : '#4590bd';
     else if (t === '#' || t === 'H') fill = '#3f7440';
     else fill = alt ? '#4c8546' : '#538c4c';
@@ -312,7 +332,7 @@
 
   W.setAppearance = function(profile) { if(!profile)return; appearance={gender:profile.gender==='female'?'female':'male',hairstyle:Number.isInteger(profile.hairstyle)?Math.max(0,Math.min(5,profile.hairstyle)):0,hairColor:Number.isInteger(profile.hairColor)?Math.max(0,Math.min(7,profile.hairColor)):0}; };
 
-  function drawPoring() {
+  function drawPoring(poring) {
     var p = iso(poring.x, poring.y);
     var sq = Math.sin(time * 4 + poring.c);
     var w = 17 + sq * 1.5, h = 13 - sq * 1.5;
@@ -350,9 +370,9 @@
       else if (t === 'H') objs.push({ d: c + r, fn: drawHouse, c: c, r: r });
     }
     objs.push({ d: hero.x + hero.y + 0.01, fn: drawHero });
-    if (poring) objs.push({ d: poring.x + poring.y, fn: drawPoring });
+    porings.forEach(function(poring){ objs.push({ d: poring.x + poring.y, fn: drawPoring, p: poring }); });
     objs.sort(function (a, b) { return a.d - b.d; });
-    for (var i = 0; i < objs.length; i++) objs[i].fn(objs[i].c, objs[i].r);
+    for (var i = 0; i < objs.length; i++) { if (objs[i].p) objs[i].fn(objs[i].p); else objs[i].fn(objs[i].c, objs[i].r); }
   }
 
   function frame(now) {
@@ -364,5 +384,6 @@
     if (running) requestAnimationFrame(frame);
   }
 
-  W._debug = { MAP: MAP, walk: walk, bfs: bfs, hero: hero, getPoring: function () { return poring; } };
+  W.onMapChange = null;
+  W._debug = { MAP:MAP, FOREST_MAP:FOREST_MAP, walk:walk, bfs:bfs, hero:hero, getPoring:function(){return porings[0]||null;}, getPorings:function(){return porings.slice();}, switchMap:switchMap, getMapId:function(){return currentMapId;} };
 })(typeof window !== 'undefined' ? window : globalThis);
