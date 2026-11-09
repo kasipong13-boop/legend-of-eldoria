@@ -257,3 +257,16 @@ test('battle result resolves immediately when a side has no living units at setu
   assert.equal(lost.state.over, 'lose');
   assert.equal(lost.state.winner, 'enemy');
 });
+
+
+test('multi-target selection rejects duplicate target IDs', () => {
+  const b = setup();
+  const card = Object.assign({}, E.CARDS.strike, { target: 'enemy', targetCount: 2 });
+  E.CARDS['test-double-target'] = card;
+  b.state.hand = ['test-double-target'];
+  const result = b.playCard(0, 'hero', ['p1', 'p1']);
+  delete E.CARDS['test-double-target'];
+  assert.equal(result.ok, false);
+  assert.equal(result.reason, 'invalid-targets');
+  assert.equal(b.state.units.find(u => u.id === 'p1').hp, 20);
+});
