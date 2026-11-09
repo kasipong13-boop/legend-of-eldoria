@@ -293,6 +293,22 @@
       ctx.fillStyle = '#f3dcae'; ctx.fillRect(mx + 5, my - 2, 2, 3);
       ctx.fillStyle = '#d5b66d'; ctx.fillRect(mx + 3, my - 4, 6, 2);
     }
+    if (currentMapId === 'whispering-forest' && t === '.' && h % 17 === 0) {
+      // Mossy stone cluster, drawn low on the tile so it never obscures actors.
+      var sx = p.x + (h % 15) - 7, sy = p.y + 7;
+      ctx.fillStyle = '#315b3b'; ctx.fillRect(sx - 7, sy + 1, 15, 3);
+      ctx.fillStyle = '#71836a'; ctx.fillRect(sx - 5, sy - 2, 5, 4);
+      ctx.fillStyle = '#8b9874'; ctx.fillRect(sx + 1, sy - 4, 6, 6);
+      ctx.fillStyle = '#a6ad83'; ctx.fillRect(sx + 2, sy - 4, 2, 2);
+    }
+    if (currentMapId === 'whispering-forest' && t === '.' && h % 23 === 0) {
+      // Low fern bush with three chunky leaf clusters.
+      var bx = p.x + ((h >> 2) % 17) - 8, by = p.y + 3;
+      ctx.fillStyle = '#285638'; ctx.fillRect(bx - 8, by, 17, 3);
+      ctx.fillStyle = '#477d43'; ctx.fillRect(bx - 7, by - 4, 6, 5);
+      ctx.fillStyle = '#5d9149'; ctx.fillRect(bx - 1, by - 7, 6, 8);
+      ctx.fillStyle = '#3b703d'; ctx.fillRect(bx + 5, by - 3, 5, 4);
+    }
     if (t === '~') {
       var w = Math.sin(time * 2 + c * 1.3 + r * 0.7);
       ctx.strokeStyle = 'rgba(255,255,255,' + (0.18 + 0.12 * w) + ')'; ctx.lineWidth = 1.5;
