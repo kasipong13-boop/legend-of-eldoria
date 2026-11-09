@@ -104,3 +104,12 @@ Important limitations still open:
 - Buff lifecycle/effect application has implementation and unit-test coverage in progress; Accuracy/Evasion/Critical/Lucky, element multipliers, stat scaling, boss resistance data, multi-enemy AI target priorities, reward/card-drop integration and 500-seed simulation remain to implement/validate.
 - Range bands remain configuration-only until the user-approved card/range data is authored.
 - The module has automated tests, but must pass CI and browser integration before it is marked TESTED or exposed for user play.
+
+
+Battlefield UI status display update (2026-11-09):
+- The isolated 10x10 Battle Grid harness now renders compact status and Buff labels on occupied unit cells.
+- Status labels include Vulnerable (VUL), Bleed (BLD), and Stun (STN); other IDs remain visible as uppercase labels.
+- Each unit's status/Buff stack count is shown, and the tooltip provides the effect ID, stack count, and configured duration when present.
+- Browser smoke coverage now applies Bash to a Poring and checks that the Vulnerable badge appears.
+- This display is limited to the isolated Battle Grid test harness; the live legacy battle screen remains unchanged and still needs the full integration pass.
+- Multi-target selection now rejects duplicate target IDs in the core and UI. The test fixture uses three eligible enemies to exercise the manual-selection path; when eligible enemy count is at or below targetCount, automatic targeting remains the intended rule.
