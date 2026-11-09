@@ -94,9 +94,10 @@ test('Bleed triggers after the afflicted unit performs an attack', () => {
   const b = setup();
   const hero = b.state.units.find(u => u.id === 'hero');
   Core.applyStatus(hero, { id: 'bleed', stacks: 3 });
-  const result = b.endTurn();
+  const index = b.state.hand.findIndex(id => id === 'strike');
+  const result = b.playCard(index, 'hero', ['p1']);
   assert.ok(result.events.some(e => e.type === 'bleed' && e.target === 'hero'));
-  assert.equal(hero.hp, 41); // two enemy attacks (8) plus one Bleed tick (3)
+  assert.equal(hero.hp, 47); // Bleed ticks once after the hero's attack action
 });
 
 test('Stun prevents an enemy from taking its attack action', () => {
