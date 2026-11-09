@@ -46,6 +46,6 @@ test('approved Monster Special Skill Cards are registered with their confirmed c
 test('approved cards remain inactive in drop tables until independent drop chances are approved',()=>{
   const E=loadGame();
   assert.deepEqual(JSON.parse(JSON.stringify(E.MONSTER_CARD_DROP_TABLE)),{poring:[]});
-  assert.deepEqual(E.CardAcquisition.rollMonsterDrops('poring',()=>0),[]);
-  assert.deepEqual(E.CardAcquisition.rollMonsterDrops('wolf',()=>0),[]);
+  assert.deepEqual(JSON.parse(JSON.stringify(E.CardAcquisition.rollMonsterDrops('poring',()=>0))),[]);
+  assert.deepEqual(JSON.parse(JSON.stringify(E.CardAcquisition.rollMonsterDrops('wolf',()=>0))),[]);
 });
