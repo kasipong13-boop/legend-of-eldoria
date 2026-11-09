@@ -284,3 +284,23 @@ html, body {
 .live-unit-effects,.live-unit-intent{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:600 5px var(--sans);line-height:1.1;text-align:center}
 .live-unit-effects{color:#f3d58c}.live-unit-intent{color:#ffb2a5}
 @media(min-width:700px){.live-battlefield{aspect-ratio:1.8}.live-battlefield-wrap{padding:12px}}
+
+
+/* Mobile-first, read-only Card Collection foundation */
+.collection-open{margin-top:4px;padding:6px 10px;font-size:12px}
+.collection-screen{background:rgba(8,16,17,.96);padding:16px;overflow-y:auto;align-items:center;justify-content:flex-start}
+.collection-panel{width:min(560px,100%);margin:auto 0;padding:20px;border:1px solid var(--line);border-radius:14px;background:var(--panel);max-height:100%;overflow-y:auto}
+.collection-header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}
+.collection-header h2{margin:0;font:700 26px var(--serif)}
+.collection-kicker{margin:0 0 4px;color:var(--gold);font-size:10px;letter-spacing:2px}
+.collection-summary,.collection-note{color:var(--dim);font-size:12px;line-height:1.5}
+.collection-panel h3{margin:18px 0 8px;font:700 17px var(--serif)}
+.collection-list{display:flex;flex-direction:column;gap:7px}
+.collection-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 12px;border:1px solid var(--line);border-radius:9px;background:#101e1e}
+.collection-row strong,.collection-row small{display:block}
+.collection-row strong{font:700 14px var(--serif)}
+.collection-row small{margin-top:3px;color:var(--dim);font-size:11px}
+.collection-quantity,.collection-state{color:var(--gold);font-weight:700;white-space:nowrap}
+.collection-empty{margin:0;padding:14px;border:1px dashed var(--line);border-radius:9px;color:var(--dim);font-size:13px;line-height:1.5}
+.collection-note{margin:18px 0 0;padding-top:12px;border-top:1px solid var(--line)}
+@media(max-width:420px){.collection-screen{padding:10px}.collection-panel{padding:15px}.collection-header h2{font-size:22px}}
