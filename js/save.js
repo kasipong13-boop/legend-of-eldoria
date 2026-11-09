@@ -31,5 +31,38 @@ function update(p){var old=load(p.characterId);if(!old)throw Error('Character no
 function list(){return idx().map(load).filter(Boolean).sort(function(a,b){return b.savedAt.localeCompare(a.savedAt);});}
 function pending(p,r){p=JSON.parse(JSON.stringify(p));p.rewardSequence++;p.pendingReward={id:p.characterId+':'+p.rewardSequence,reward:r,claimed:false};return update(p);}
 function claim(p){p=JSON.parse(JSON.stringify(p));var q=p.pendingReward;if(!q||q.claimed)return {payload:p,claimed:false};var r=q.reward||{};p.stats.exp+=(Number(r.exp)||0);p.gold+=(Number(r.gold)||0);(r.drops||[]).forEach(function(d){if(d.id==='jelly')p.items.jelly+=(Number(d.quantity)||1);});p.pendingReward=null;return {payload:update(p),claimed:true};}
-E.Save={createCharacter:create,loadCharacter:load,listCharacters:list,saveCharacter:update,setPendingReward:pending,claimPendingReward:claim,validateName:name,get persistentAvailable(){return persistent;},get storageWarning(){return persistent?null:'Session-only: persistent storage unavailable.';}};
+function saveDeckData(p,data){
+  if(!p||!p.characterId)throw Error('Character required.');
+  if(!data||!Array.isArray(data.owned)||!Array.isArray(data.presets)||typeof data.activePresetId!=='string')throw Error('Invalid deck data.');
+  var owned=Object.create(null);
+  data.owned.forEach(function(entry){
+    if(!entry||typeof entry.cardId!=='string'||!entry.cardId||!Number.isInteger(entry.stars)||entry.stars<1||entry.stars>3||!Number.isInteger(entry.quantity)||entry.quantity<0)throw Error('Invalid owned-card entry.');
+    var key=entry.cardId+'@'+entry.stars;owned[key]=(owned[key]||0)+entry.quantity;
+  });
+  var presetIds=Object.create(null);
+  data.presets.forEach(function(preset){
+    if(!preset||typeof preset.id!=='string'||!preset.id||typeof preset.name!=='string'||!preset.name.trim()||!Array.isArray(preset.cardRefs))throw Error('Invalid deck preset.');
+    if(presetIds[preset.id])throw Error('Duplicate deck preset id.');
+    presetIds[preset.id]=true;
+    var used=Object.create(null);
+    preset.cardRefs.forEach(function(ref){
+      if(!ref||typeof ref.cardId!=='string'||!ref.cardId||!Number.isInteger(ref.stars)||ref.stars<1||ref.stars>3)throw Error('Invalid preset card reference.');
+      var key=ref.cardId+'@'+ref.stars;used[key]=(used[key]||0)+1;
+      if(used[key]>(owned[key]||0))throw Error('Preset references unowned cards: '+key+'.');
+    });
+  });
+  if(data.presets.length&&!presetIds[data.activePresetId])throw Error('Active deck preset does not exist.');
+  if(!data.presets.length&&data.activePresetId)throw Error('Active deck preset does not exist.');
+  var current=load(p.characterId);if(!current)throw Error('Character not found.');
+  current.deckCollection={owned:JSON.parse(JSON.stringify(data.owned))};
+  current.deckPresets=JSON.parse(JSON.stringify(data.presets));
+  current.activeDeckPresetId=data.activePresetId||null;
+  return update(current);
+}
+function getDeckData(p){
+  if(!p||!p.characterId)throw Error('Character required.');
+  var current=load(p.characterId);if(!current)throw Error('Character not found.');
+  return {owned:JSON.parse(JSON.stringify(current.deckCollection&&Array.isArray(current.deckCollection.owned)?current.deckCollection.owned:[])),presets:JSON.parse(JSON.stringify(Array.isArray(current.deckPresets)?current.deckPresets:[])),activePresetId:current.activeDeckPresetId||null};
+}
+E.Save={createCharacter:create,loadCharacter:load,listCharacters:list,saveCharacter:update,saveDeckData:saveDeckData,getDeckData:getDeckData,setPendingReward:pending,claimPendingReward:claim,validateName:name,get persistentAvailable(){return persistent;},get storageWarning(){return persistent?null:'Session-only: persistent storage unavailable.';}};
 })(typeof window!=='undefined'?window:globalThis);
