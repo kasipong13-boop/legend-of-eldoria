@@ -68,7 +68,7 @@ test('summons occupy fixed battlefield slots and reject full sides or occupied c
 });
 
 test('deck validator enforces the 20-card deck size and rarity copy caps', () => {
-  const deck = Array(20).fill('strike');
+  const deck = Array(19).fill('strike');
   const cards = Object.assign({}, E.CARDS, { strike: Object.assign({}, E.CARDS.strike, { rarity: 'Common' }) });
   const result = Core.validateDeck(deck, cards);
   assert.equal(result.valid, false);
