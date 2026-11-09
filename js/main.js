@@ -139,7 +139,7 @@
 
   function applyRewardToSave(target, reward) {
     target.stats.exp += reward.exp;
-    target.gold += reward.gold;
+    // Preserve the character's existing Gold; monster rewards never grant Gold.
     reward.drops.forEach(function (d) {
       if (!Object.prototype.hasOwnProperty.call(target.items, d.id)) target.items[d.id] = 0;
       target.items[d.id]++;
@@ -350,7 +350,10 @@
     if (result.won) {
       var rw = E.rollRewards(result.monsterId);
       $('result-title').textContent = 'Victory!';
-      var pending = E.Save.withPendingReward(currentSave, rw, result.monsterId, new Date().toISOString());
+      // The current Save Schema requires pendingReward.gold; store zero for schema compatibility.
+      // The claim handler intentionally ignores this field, including legacy nonzero values.
+      var pendingReward = { exp: rw.exp, gold: 0, drops: rw.drops };
+      var pending = E.Save.withPendingReward(currentSave, pendingReward, result.monsterId, new Date().toISOString());
       var rewardSaved = false;
       if (pending.ok) {
         var staged = saveSystem.commit(currentSave, pending.save);
@@ -389,7 +392,7 @@
         player.exp = currentSave.stats.exp; player.level = currentSave.stats.level;
         player.gold = currentSave.gold; player.items = JSON.parse(JSON.stringify(currentSave.items)); player.jelly = currentSave.items.jelly;
         player.maxHp = currentSave.stats.maxHp; player.hp = currentSave.stats.hp;
-        line('+' + rw.exp + ' EXP'); line('+' + rw.gold + ' gold');
+        line('+' + rw.exp + ' EXP');
         rw.drops.forEach(function (d) { line('Dropped: ' + d.name, 'loot'); });
         if (!rw.drops.length) line('No drops this time.');
         if (player.level > 1) line('Current level: ' + player.level, 'level');
