@@ -2,9 +2,9 @@ name: Validate Prototype
 
 on:
   push:
-    branches: [main, feature/prototype-0.2-character-save]
+    branches: [main, feature/prototype-0.2-character-save, feature/battle-system-foundation]
   pull_request:
-    branches: [main]
+    branches: [main, feature/prototype-0.2-character-save]
   workflow_dispatch:
 
 permissions:
