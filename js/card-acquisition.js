@@ -6,7 +6,7 @@
 
   // Deliberately empty until card identities and drop rates are approved.
   // Item drops remain in E.MONSTERS[].drops and are not read by this module.
-  E.MONSTER_CARD_DROP_TABLE={poring:[]};
+  E.MONSTER_CARD_DROP_TABLE=E.MONSTER_CARD_DROP_TABLE||{poring:[]};
 
   function rollMonsterDrops(monsterId,rng,tableOverride){
     rng=rng||Math.random;
