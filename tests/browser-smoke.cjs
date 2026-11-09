@@ -80,8 +80,10 @@ const assert = require('node:assert/strict');
     assert.equal(await page.locator('#live-battlefield .live-cell').count(), 100, 'live battle screen renders the 10x10 battlefield');
     assert.equal(await page.locator('#live-battlefield .live-unit').count(), 2, 'live battlefield renders hero and encountered enemy');
     assert.equal(await page.locator('#live-battlefield .live-unit-intent').count(), 1, 'live enemy intent is visible on its battlefield cell');
-    const attacks = page.locator('#hand .card.attack:not(.disabled), #hand .card.spell:not(.disabled)');
-    await page.waitForFunction(() => document.querySelectorAll('#hand .card.attack:not(.disabled), #hand .card.spell:not(.disabled)').length > 0, { timeout: 5000 });
+    // The 10-card starter deck always draws at least one of its five attack cards
+    // into a five-card opening hand; do not accidentally choose the non-damaging Heal spell.
+    const attacks = page.locator('#hand .card.attack:not(.disabled)');
+    await page.waitForFunction(() => document.querySelectorAll('#hand .card.attack:not(.disabled)').length > 0, { timeout: 5000 });
     await attacks.first().click();
     await page.waitForFunction(() => document.querySelector('#screen-result').classList.contains('active'), { timeout: 5000 });
     assert.equal(await page.locator('#result-title').textContent(), 'Victory!', 'battle can be won with starter deck');
