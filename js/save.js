@@ -33,7 +33,7 @@ function pending(p,r){p=JSON.parse(JSON.stringify(p));p.rewardSequence++;p.pendi
 function claim(p){p=JSON.parse(JSON.stringify(p));var q=p.pendingReward;if(!q||q.claimed)return {payload:p,claimed:false};var r=q.reward||{};p.stats.exp+=(Number(r.exp)||0);p.gold+=(Number(r.gold)||0);(r.drops||[]).forEach(function(d){if(d.id==='jelly')p.items.jelly+=(Number(d.quantity)||1);});p.pendingReward=null;return {payload:update(p),claimed:true};}
 function saveDeckData(p,data){
   if(!p||!p.characterId)throw Error('Character required.');
-  if(!data||!Array.isArray(data.owned)||!Array.isArray(data.presets)||typeof data.activePresetId!=='string')throw Error('Invalid deck data.');
+  if(!data||!Array.isArray(data.owned)||!Array.isArray(data.presets)||(data.activePresetId!==null&&typeof data.activePresetId!=='string'))throw Error('Invalid deck data.');
   var owned=Object.create(null);
   data.owned.forEach(function(entry){
     if(!entry||typeof entry.cardId!=='string'||!entry.cardId||!Number.isInteger(entry.stars)||entry.stars<1||entry.stars>3||!Number.isInteger(entry.quantity)||entry.quantity<0)throw Error('Invalid owned-card entry.');
