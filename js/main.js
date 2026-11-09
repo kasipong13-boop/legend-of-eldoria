@@ -22,6 +22,10 @@
     if(!current) return;
     var pos=E.World.getPosition();
     if(!pos.safe) return;
+    // Merge against the newest persisted character so optional systems (such as
+    // Card Collection and Deck Presets) are not erased by an older in-memory copy.
+    var latest=S.loadCharacter(current.characterId);
+    if(latest) current=latest;
     current.stats={level:player.level,exp:player.exp,hp:player.hp,maxHp:player.maxHp};
     current.gold=player.gold;current.items={jelly:player.jelly};current.world=pos;
     current=S.saveCharacter(current);
@@ -81,7 +85,6 @@
     if(result.won){
       var defeatedIds=Array.isArray(result.monsterIds)&&result.monsterIds.length?result.monsterIds:[result.monsterId];
       var rw=defeatedIds.length>1?E.rollEncounterRewards(defeatedIds):E.rollRewards(defeatedIds[0]);
-      // Persist the reward intent before the result screen can be shown.
       current.stats={level:player.level,exp:player.exp,hp:player.hp,maxHp:player.maxHp};
       current.gold=player.gold;current.items={jelly:player.jelly};
       current=S.setPendingReward(current,{exp:rw.exp,gold:rw.gold,drops:rw.drops.map(function(d){return {id:d.id,name:d.name,quantity:d.quantity||1};})});
