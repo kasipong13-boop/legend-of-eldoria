@@ -86,3 +86,41 @@ test('Card Collection is registered as a read-only screen with world navigation'
   assert.match(main,/function closeCardCollection\(\)\{show\('screen-world'\);E\.World\.resume\(\);\}/);
   assert.doesNotMatch(main,/function openCardCollection\(\)[\s\S]*?saveDeckData/);
 });
+
+test('monster card rewards persist in Card Collection and duplicate copies stack',()=>{
+  const {Save}=boot();let c=Save.createCharacter(profile);
+  c=Save.setPendingReward(c,{exp:7,gold:4,drops:[],cardDrops:[{cardId:'poring_skill',stars:1,quantity:1}]});
+  const claimed=Save.claimPendingReward(Save.loadCharacter(c.characterId));
+  assert.equal(claimed.claimed,true);
+  let deck=Save.getDeckData(claimed.payload);
+  assert.deepEqual(JSON.parse(JSON.stringify(deck.owned)),[{cardId:'poring_skill',stars:1,quantity:1}]);
+  const granted=Save.grantCards(claimed.payload,[{cardId:'poring_skill',stars:1,quantity:2}]);
+  deck=Save.getDeckData(Save.loadCharacter(c.characterId));
+  assert.deepEqual(JSON.parse(JSON.stringify(deck.owned)),[{cardId:'poring_skill',stars:1,quantity:3}]);
+  assert.equal(granted.deckId,'starter');
+});
+
+test('card rewards are claimed once and preserve cards granted after the reward snapshot',()=>{
+  const {Save}=boot();let c=Save.createCharacter(profile);
+  c=Save.setPendingReward(c,{exp:5,gold:2,drops:[],cardDrops:[{cardId:'monster_skill',stars:1,quantity:1}]});
+  const staleRewardSnapshot=c;
+  Save.grantCards(c,[{cardId:'crafted_skill',stars:1,quantity:2}]);
+  const first=Save.claimPendingReward(staleRewardSnapshot);
+  assert.equal(first.claimed,true);
+  const second=Save.claimPendingReward(Save.loadCharacter(c.characterId));
+  assert.equal(second.claimed,false);
+  assert.equal(second.payload.gold,2);
+  assert.deepEqual(JSON.parse(JSON.stringify(Save.getDeckData(second.payload).owned)),[
+    {cardId:'crafted_skill',stars:1,quantity:2},
+    {cardId:'monster_skill',stars:1,quantity:1}
+  ]);
+});
+
+test('card reward validation fails closed without consuming the pending reward',()=>{
+  const {Save}=boot();let c=Save.createCharacter(profile);
+  c=Save.setPendingReward(c,{exp:1,gold:1,drops:[],cardDrops:[{cardId:'bad',stars:4,quantity:1}]});
+  assert.throws(()=>Save.claimPendingReward(c),/Invalid card reward/);
+  const stillPending=Save.loadCharacter(c.characterId);
+  assert.ok(stillPending.pendingReward);
+  assert.equal(stillPending.gold,0);
+});

@@ -83,13 +83,15 @@
     function line(text,cls){var li=document.createElement('li');li.textContent=text;if(cls)li.className=cls;list.appendChild(li);}
     if(result.won){
       var rw=E.rollRewards(result.monsterId);
-      // Persist the reward intent before the result screen can be shown.
-      current=S.setPendingReward(current,{exp:rw.exp,gold:rw.gold,drops:rw.drops.map(function(d){return {id:d.id,name:d.name,quantity:1};})});
+      var cardDrops=E.CardAcquisition.rollMonsterDrops(result.monsterId);
+      // Persist item and card rewards together before the result screen can be shown.
+      current=S.setPendingReward(current,{exp:rw.exp,gold:rw.gold,drops:rw.drops.map(function(d){return {id:d.id,name:d.name,quantity:1};}),cardDrops:cardDrops});
       var claimed=S.claimPendingReward(current);current=claimed.payload;
       $('result-title').textContent='Victory!';
       line('+'+rw.exp+' EXP');line('+'+rw.gold+' gold');
       rw.drops.forEach(function(d){line('Dropped: '+d.name,'loot');});
-      if(!rw.drops.length)line('No drops this time.');
+      cardDrops.forEach(function(card){line('Card acquired: '+card.name+' · '+card.rarity,'card-loot');});
+      if(!rw.drops.length&&!cardDrops.length)line('No drops this time.');
       player.level=current.stats.level;player.exp=current.stats.exp;player.gold=current.gold;player.jelly=current.items.jelly;
       while(player.exp>=E.expToNext(player.level)){
         player.exp-=E.expToNext(player.level);player.level++;player.maxHp+=E.levelUpMaxHp;
@@ -118,7 +120,7 @@
       data.owned.forEach(function(item){
         var def=E.CARDS[item.cardId]||{},row=document.createElement('div');row.className='collection-row';
         var info=document.createElement('div'),name=document.createElement('strong'),meta=document.createElement('small'),qty=document.createElement('span');
-        name.textContent=def.name||item.cardId;meta.textContent='Star '+item.stars+' · '+(def.kind||'Card');
+        name.textContent=def.name||item.cardId;meta.textContent='Star '+item.stars+' · '+(def.rarity||'Rarity unassigned')+' · '+(def.kind||'Card');
         info.appendChild(name);info.appendChild(meta);qty.className='collection-quantity';qty.textContent='×'+item.quantity;
         row.appendChild(info);row.appendChild(qty);owned.appendChild(row);
       });

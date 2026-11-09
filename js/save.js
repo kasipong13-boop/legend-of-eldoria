@@ -30,7 +30,41 @@ function create(profile){var p={name:name(profile.name),gender:profile.gender,ha
 function update(p){var old=load(p.characterId);if(!old)throw Error('Character not found.');p=JSON.parse(JSON.stringify(p));p.revision=old.revision+1;p.status='ready';p.savedAt=new Date().toISOString();return save(p);}
 function list(){return idx().map(load).filter(Boolean).sort(function(a,b){return b.savedAt.localeCompare(a.savedAt);});}
 function pending(p,r){p=JSON.parse(JSON.stringify(p));p.rewardSequence++;p.pendingReward={id:p.characterId+':'+p.rewardSequence,reward:r,claimed:false};return update(p);}
-function claim(p){p=JSON.parse(JSON.stringify(p));var q=p.pendingReward;if(!q||q.claimed)return {payload:p,claimed:false};var r=q.reward||{};p.stats.exp+=(Number(r.exp)||0);p.gold+=(Number(r.gold)||0);(r.drops||[]).forEach(function(d){if(d.id==='jelly')p.items.jelly+=(Number(d.quantity)||1);});p.pendingReward=null;return {payload:update(p),claimed:true};}
+function mergeOwnedCards(p,cards){
+  if(!Array.isArray(cards))throw Error('Card rewards must be an array.');
+  var incoming=cards.map(function(card){
+    if(!card||typeof card.cardId!=='string'||!card.cardId||!Number.isInteger(card.stars)||card.stars<1||card.stars>3||!Number.isInteger(card.quantity)||card.quantity<1)throw Error('Invalid card reward.');
+    return {cardId:card.cardId,stars:card.stars,quantity:card.quantity};
+  });
+  if(!incoming.length)return p;
+  var existing=p.deckCollection&&Array.isArray(p.deckCollection.owned)?JSON.parse(JSON.stringify(p.deckCollection.owned)):[];
+  incoming.forEach(function(card){
+    var found=existing.find(function(item){return item.cardId===card.cardId&&item.stars===card.stars;});
+    if(found)found.quantity+=card.quantity;
+    else existing.push(card);
+  });
+  p.deckCollection=p.deckCollection||{};
+  p.deckCollection.owned=existing;
+  return p;
+}
+function grantCards(p,cards){
+  if(!p||!p.characterId)throw Error('Character required.');
+  var current=load(p.characterId);if(!current)throw Error('Character not found.');
+  mergeOwnedCards(current,cards);
+  if(!cards.length)return current;
+  return update(current);
+}
+function claim(p){
+  if(!p||!p.characterId)throw Error('Character required.');
+  p=load(p.characterId);if(!p)throw Error('Character not found.');
+  var q=p.pendingReward;if(!q||q.claimed)return {payload:p,claimed:false};
+  var r=q.reward||{};
+  p.stats.exp+=(Number(r.exp)||0);p.gold+=(Number(r.gold)||0);
+  (r.drops||[]).forEach(function(d){if(d.id==='jelly')p.items.jelly+=(Number(d.quantity)||1);});
+  mergeOwnedCards(p,r.cardDrops||[]);
+  p.pendingReward=null;
+  return {payload:update(p),claimed:true};
+}
 function saveDeckData(p,data){
   if(!p||!p.characterId)throw Error('Character required.');
   if(!data||!Array.isArray(data.owned)||!Array.isArray(data.presets)||(data.activePresetId!==null&&typeof data.activePresetId!=='string'))throw Error('Invalid deck data.');
@@ -65,5 +99,5 @@ function getDeckData(p){
   var current=load(p.characterId);if(!current)throw Error('Character not found.');
   return {owned:JSON.parse(JSON.stringify(current.deckCollection&&Array.isArray(current.deckCollection.owned)?current.deckCollection.owned:[])),presets:JSON.parse(JSON.stringify(Array.isArray(current.deckPresets)?current.deckPresets:[])),activePresetId:current.activeDeckPresetId||null};
 }
-E.Save={createCharacter:create,loadCharacter:load,listCharacters:list,saveCharacter:update,saveDeckData:saveDeckData,getDeckData:getDeckData,setPendingReward:pending,claimPendingReward:claim,validateName:name,get persistentAvailable(){return persistent;},get storageWarning(){return persistent?null:'Session-only: persistent storage unavailable.';}};
+E.Save={createCharacter:create,loadCharacter:load,listCharacters:list,saveCharacter:update,saveDeckData:saveDeckData,getDeckData:getDeckData,grantCards:grantCards,setPendingReward:pending,claimPendingReward:claim,validateName:name,get persistentAvailable(){return persistent;},get storageWarning(){return persistent?null:'Session-only: persistent storage unavailable.';}};
 })(typeof window!=='undefined'?window:globalThis);
