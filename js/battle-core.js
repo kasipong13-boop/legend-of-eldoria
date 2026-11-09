@@ -315,7 +315,8 @@ function playCard(index, sourceId, selectedIds) {
   BattleCore.create = create;
   BattleCore.applyStatus = applyStatus;
   BattleCore.applyBuff = applyBuff;
-  BattleCore.consumeBuffCharge = consumeBuffCharge;\n  BattleCore.buffValue = buffValue;
+  BattleCore.consumeBuffCharge = consumeBuffCharge;
+  BattleCore.buffValue = buffValue;
   BattleCore.damage = damage;
   E.BattleCore = BattleCore;
   if (typeof module !== 'undefined' && module.exports) module.exports = BattleCore;
