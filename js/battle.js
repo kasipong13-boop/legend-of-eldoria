@@ -121,14 +121,15 @@
       res.ok = true;
 
       var damage = card.damage || 0;
-      if (card.id === 'msc-por-001' && stars >= 3 && hadVulnerable) {
-        damage += 3;
-        res.msgs.push('Slime Splash triggers its bonus hit.');
-      }
       if (damage) {
         var hit = dealDamage(s.enemy, damage);
         res.msgs.push(card.name + ' hits ' + s.enemy.name + ' for ' + hit.amount + ' damage.');
         res.pops.push({ who: 'enemy', text: '-' + hit.amount, cls: 'dmg' });
+      }
+      if (card.id === 'msc-por-001' && stars >= 3 && hadVulnerable && s.enemy.hp > 0) {
+        var bonusHit = dealDamage(s.enemy, 3);
+        res.msgs.push('Slime Splash bonus hit deals ' + bonusHit.amount + ' damage.');
+        res.pops.push({ who: 'enemy', text: '-' + bonusHit.amount, cls: 'dmg' });
       }
 
       if (card.block) {
