@@ -77,7 +77,8 @@ test('end turn resolves visible enemy intent and starts next player turn', () =>
 test('battle UI returns remaining HP and world integration does not auto-heal', () => {
   const ui = fs.readFileSync(require.resolve('../js/battle-ui.js'), 'utf8');
   const main = fs.readFileSync(require.resolve('../js/main.js'), 'utf8');
-  assert.match(ui, /hp: s\.player\.hp, maxHp: s\.player\.maxHp/);
+  assert.match(ui, /hp: unit\('hero'\)\.hp, maxHp: unit\('hero'\)\.maxHp/);
+  assert.match(ui, /Core\.create\(/);
   assert.match(main, /player\.hp=Number\.isFinite\(result\.hp\)/);
   assert.doesNotMatch(main, /player\.hp=player\.maxHp/);
 });
