@@ -44,8 +44,8 @@ jobs:
             node --check "$file"
           done
 
-      - name: Run save-system unit tests
-        run: node --test tests/save.test.js
+      - name: Run save-system and battle unit tests
+        run: node --test tests/save.test.js tests/battle.test.js
 
       - name: Install browser test dependencies
         run: |
