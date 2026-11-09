@@ -29,6 +29,7 @@ jobs:
           test -f css/style.css
           test -f js/data.js
           test -f js/battle.js
+          test -f js/battle-core.js
           test -f js/battle-ui.js
           test -f js/world.js
           test -f js/main.js
@@ -36,6 +37,7 @@ jobs:
           test -f assets/apple-touch-icon.png
           test -f js/save.js
           test -f tests/save.test.js
+          test -f tests/battle-core.test.js
 
       - name: Check JavaScript syntax
         run: |
@@ -45,7 +47,7 @@ jobs:
           done
 
       - name: Run save-system and battle unit tests
-        run: node --test tests/save.test.js tests/battle.test.js
+        run: node --test tests/save.test.js tests/battle.test.js tests/battle-core.test.js
 
       - name: Install browser test dependencies
         run: |
