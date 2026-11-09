@@ -113,3 +113,9 @@ Battlefield UI status display update (2026-11-09):
 - Browser smoke coverage now applies Bash to a Poring and checks that the Vulnerable badge appears.
 - This display is limited to the isolated Battle Grid test harness; the live legacy battle screen remains unchanged and still needs the full integration pass.
 - Multi-target selection now rejects duplicate target IDs in the core and UI. The test fixture uses three eligible enemies to exercise the manual-selection path; when eligible enemy count is at or below targetCount, automatic targeting remains the intended rule.
+
+
+Enemy intent presentation update (2026-11-09):
+- The isolated Battle Grid harness displays each living enemy's currently revealed intent (move name and damage when supplied) directly on its battlefield cell.
+- Browser smoke coverage checks that both test Porings show their revealed Bounce intent before the player ends the turn.
+- This is a presentation of the existing intent data; it does not introduce new enemy AI behavior or alter target selection rules.
