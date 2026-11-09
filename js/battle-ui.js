@@ -69,13 +69,18 @@
     s.hand.forEach(function (instance, idx) {
       var c = E.CARDS[instance.id];
       var b = document.createElement('button');
+      var displayText = c.text;
+      if (instance.stars > 1 && c.starUpgrades && c.starUpgrades[instance.stars]) {
+        var upgrade = c.starUpgrades[instance.stars];
+        displayText += ' ' + (upgrade.description || upgrade.propertyChange || 'Upgraded effect');
+      }
       b.type = 'button';
       b.className = 'card ' + c.kind + (c.cost > s.player.energy || s.over ? ' disabled' : '');
       b.innerHTML =
         '<span class="cost">' + c.cost + '</span>' +
         '<span class="icon">' + c.icon + '</span>' +
         '<span class="name">' + c.name + '</span>' +
-        '<span class="text">' + c.text + '</span>' +
+        '<span class="text">' + displayText + '</span>' +
         (instance.stars > 1 ? '<span class="stars">' + '★'.repeat(instance.stars) + '</span>' : '');
       b.addEventListener('click', function () { onCard(idx); });
       hand.appendChild(b);
