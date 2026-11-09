@@ -101,6 +101,8 @@ const server = http.createServer((req, res) => {
       });
       if (afterVictory.gold !== 37 || afterVictory.pendingReward !== null) throw new Error(viewport.name + ': monster victory changed existing Gold or left a pending reward');
       if (!(await page.locator('#hud-gold').textContent()).includes('37 gold')) throw new Error(viewport.name + ': Gold HUD did not preserve the existing balance');
+      await page.locator('#btn-result').click();
+      await page.locator('#screen-world.active').waitFor();
       await page.locator('#btn-menu').click();
       await page.locator('#game-menu:not([hidden])').waitFor();
       await page.getByRole('button', { name:'Save & Return to Title' }).click();
