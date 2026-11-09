@@ -50,7 +50,7 @@ const server = http.createServer((req, res) => {
       // Seed a valid existing Gold balance plus a legacy pending combat reward.
       // Reload so the application reads this fixture through the real Save Engine.
       await page.evaluate(() => {
-        const key = Object.keys(localStorage).find(k => /^eldoria\\.char\\.[a-f0-9]{32}\\.main$/.test(k));
+        const key = Object.keys(localStorage).find(k => /^eldoria\.char\.[a-f0-9]{32}\.main$/.test(k));
         if (!key) throw new Error('character save key not found');
         const id = key.split('.')[2];
         const current = JSON.parse(localStorage.getItem(key));
@@ -75,7 +75,7 @@ const server = http.createServer((req, res) => {
       await page.getByRole('button', { name:'Play' }).click();
       await page.locator('#screen-world.active').waitFor();
       const afterLegacyClaim = await page.evaluate(() => {
-        const key = Object.keys(localStorage).find(k => /^eldoria\\.char\\.[a-f0-9]{32}\\.main$/.test(k));
+        const key = Object.keys(localStorage).find(k => /^eldoria\.char\.[a-f0-9]{32}\.main$/.test(k));
         return JSON.parse(localStorage.getItem(key));
       });
       if (afterLegacyClaim.gold !== 37 || afterLegacyClaim.stats.exp !== 12 || afterLegacyClaim.items.jelly !== 1 || afterLegacyClaim.pendingReward !== null) {
@@ -96,7 +96,7 @@ const server = http.createServer((req, res) => {
       const victoryText = await page.locator('#result-list').textContent();
       if (!victoryText.includes('EXP') || /gold/i.test(victoryText)) throw new Error(viewport.name + ': victory result displayed an invalid Gold reward');
       const afterVictory = await page.evaluate(() => {
-        const key = Object.keys(localStorage).find(k => /^eldoria\\.char\\.[a-f0-9]{32}\\.main$/.test(k));
+        const key = Object.keys(localStorage).find(k => /^eldoria\.char\.[a-f0-9]{32}\.main$/.test(k));
         return JSON.parse(localStorage.getItem(key));
       });
       if (afterVictory.gold !== 37 || afterVictory.pendingReward !== null) throw new Error(viewport.name + ': monster victory changed existing Gold or left a pending reward');
