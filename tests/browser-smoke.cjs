@@ -141,7 +141,7 @@ const assert = require('node:assert/strict');
     // Win the actual three-enemy battle through the live card UI.
     let groupTurns = 0;
     while (groupTurns < 6 && !(await forest.locator('#screen-result').evaluate(e => e.classList.contains('active')))) {
-      const attacks = forest.locator('#hand .card.attack:not(:disabled), #hand .card.spell:not(:disabled)');
+      const attacks = forest.locator('#hand .card.attack:not(:disabled), #hand .card.spell:not(:disabled)').filter({ hasNotText: 'Heal' });
       if (await attacks.count()) {
         await attacks.first().click();
         const targetCell = forest.locator('#live-battlefield .live-cell:has(.live-unit.enemy)').first();
