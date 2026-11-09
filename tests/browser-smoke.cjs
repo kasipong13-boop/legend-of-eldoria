@@ -86,7 +86,16 @@ const assert = require('node:assert/strict');
     const savedMeta = await page.locator('#character-list').textContent();
     assert.match(savedMeta, /Lv 1|Lv 2/, 'saved character remains selectable after battle reload');
     assert.match(savedMeta, /Gold/, 'saved gold remains visible after reload');
-    assert.deepEqual(errors, [], 'no uncaught desktop browser errors after battle');
+    assert.deepEqual(errors, [], 'no uncaught desktop browser errors after reload');
+    await page.locator('#character-list .btn').click();
+    await page.waitForFunction(() => document.querySelector('#screen-world').classList.contains('active'));
+    await page.locator('#btn-card-collection').click();
+    await page.waitForFunction(() => document.querySelector('#screen-card-collection').classList.contains('active'));
+    assert.match(await page.locator('#collection-summary').textContent(), /5 owned card copies/);
+    assert.equal(await page.locator('#collection-owned .collection-row').count(), 2, 'collection renders saved card variants');
+    assert.equal(await page.locator('#collection-presets .collection-row').count(), 2, 'collection renders saved deck presets');
+    await page.locator('#btn-card-collection-back').click();
+    await page.waitForFunction(() => document.querySelector('#screen-world').classList.contains('active'));
     // Exercise both real portal tiles, force a three-Poring spawn, and verify grouped battle handoff.
     const forest = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
     const forestErrors = [];
