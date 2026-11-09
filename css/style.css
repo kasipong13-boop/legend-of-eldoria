@@ -270,3 +270,17 @@ html, body {
 }
 
 .battle-status{min-height:16px;max-width:90%;text-align:center;color:#f2c77b;font-size:12px;font-weight:700;letter-spacing:.3px}
+
+
+/* Live 10x10 battle board */
+.live-battlefield-wrap{width:min(100%,520px);margin:0 auto;padding:8px;border:1px solid var(--line);border-radius:12px;background:linear-gradient(145deg,#203a35,#17272b)}
+.live-side-labels{display:grid;grid-template-columns:1fr 1fr;text-align:center;margin-bottom:6px;color:var(--dim);font-size:9px;letter-spacing:1px}
+.live-battlefield{display:grid;grid-template-columns:repeat(10,minmax(0,1fr));gap:2px;aspect-ratio:1.35;width:100%}
+.live-cell{min-width:0;min-height:0;position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;border:1px solid #a4c7a51a;border-radius:3px;background:#b8d8bd0a}
+.live-cell.player-zone{background:#4c91a51a}
+.live-cell.enemy-zone{background:#c8756814}
+.live-unit{font-size:clamp(10px,3vw,19px);line-height:1}
+.live-unit small{display:block;font:600 6px var(--sans);text-align:center;color:var(--text);white-space:nowrap}
+.live-unit-effects,.live-unit-intent{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:600 5px var(--sans);line-height:1.1;text-align:center}
+.live-unit-effects{color:#f3d58c}.live-unit-intent{color:#ffb2a5}
+@media(min-width:700px){.live-battlefield{aspect-ratio:1.8}.live-battlefield-wrap{padding:12px}}
