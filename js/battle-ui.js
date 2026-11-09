@@ -103,7 +103,8 @@
     s.hand.forEach(function (id, idx) {
       var c = E.CARDS[id], b = document.createElement('button');
       b.type = 'button'; b.className = 'card ' + c.kind + (c.cost > s.energy || s.over || locked ? ' disabled' : '');
-      b.disabled = c.cost > s.energy || !!s.over || locked;
+      b.disabled = c.cost > s.energy || !!s.over || locked || (selectedCard !== null && idx !== selectedCard);
+      if (selectedCard === idx) b.classList.add('selected');
       b.innerHTML = '<span class="cost">' + c.cost + '</span><span class="icon">' + c.icon +
         '</span><span class="name">' + c.name + '</span><span class="text">' + c.text + '</span>';
       b.addEventListener('click', function () { onCard(idx); }); hand.appendChild(b);
