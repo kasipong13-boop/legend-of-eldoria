@@ -125,7 +125,7 @@ test('multi-enemy reward aggregation rejects empty, oversized, and unknown encou
   const E = boot();
   assert.throws(() => E.rollEncounterRewards([]), /1–5/);
   assert.throws(() => E.rollEncounterRewards(['poring','poring','poring','poring','poring','poring']), /1–5/);
-  assert.throws(() => E.rollEncounterRewards(['missing']), TypeError);
+  assert.throws(() => E.rollEncounterRewards(['missing']), /Cannot read properties/);
 });
 
 test('world result handler uses all defeated monster IDs and preserves drop quantities', () => {
