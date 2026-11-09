@@ -98,6 +98,18 @@
     if (selected.some(function (u) { return !u; }) || selected.length !== count) return { ok: false, reason: 'invalid-targets' };
     return { ok: true, targets: selected };
   }
+  function revealIntents(state) {
+    aliveUnits(state, 'enemy').forEach(function (enemy) {
+      var moves = enemy.moves || [];
+      if (moves.length) enemy.intent = clone(moves[Math.floor(state.rng() * moves.length)]);
+    });
+  }
+  function triggerBleed(unit, events) {
+    var bleed = status(unit, 'bleed');
+    if (!bleed) return;
+    var tick = damage(null, unit, bleed.stacks, 'true');
+    events.push({ type: 'bleed', target: unit.id, result: tick });
+  }
   function draw(state, n) {
     var drawn = [];
     while (n-- > 0 && state.hand.length < LIMITS.hand) {
@@ -150,6 +162,7 @@
       rng: rng, log: []
     };
     shuffle(state.drawPile, rng);
+    revealIntents(state);
     startTurn(state, 'player');
     function finishCheck() {
       if (!aliveUnits(state, 'player').length) { state.over = 'lose'; state.winner = 'enemy'; }
@@ -169,6 +182,7 @@
       state.energy -= card.cost; state.hand.splice(index, 1); state.discardPile.push(id);
       var events = [];
       var targets = targetResult.targets;
+      var madeAttack = !!card.damage;
       targets.forEach(function (target) {
         var hits = Math.max(1, integer(card.hits, 1));
         for (var h = 0; h < hits && target.alive; h++) {
@@ -176,6 +190,7 @@
           (card.statuses || []).forEach(function (effect) { if (target.alive) applyStatus(target, effect); });
         }
       });
+      if (madeAttack) triggerBleed(source, events);
       if (card.block) { source.block += card.block; events.push({ type: 'block', target: source.id, amount: card.block }); }
       if (card.heal) { var before = source.hp; source.hp = Math.min(source.maxHp, source.hp + card.heal); events.push({ type: 'heal', target: source.id, amount: source.hp - before }); }
       finishCheck(); state.log.push({ turn: state.turn, card: id, events: clone(events) });
@@ -200,12 +215,11 @@
         var target = targets[Math.floor(rng() * targets.length)];
         var dealt = damage(state, target, intent.damage || 0, intent.damageType || 'physical');
         events.push({ type: 'enemy-attack', source: enemy.id, target: target.id, result: dealt });
-        // Bleed ticks for every attack made by its target.
-        var bleed = status(enemy, 'bleed');
-        if (bleed) { var tick = damage(state, enemy, bleed.stacks, 'true'); events.push({ type: 'bleed', target: enemy.id, result: tick }); }
+        // Bleed triggers once for each attack action made by the afflicted unit.
+        triggerBleed(enemy, events);
       });
       finishCheck();
-      if (!state.over) { state.round += 1; startTurn(state, 'player'); }
+      if (!state.over) { revealIntents(state); state.round += 1; startTurn(state, 'player'); }
       return { ok: true, events: events, over: state.over };
     }
     function summon(unit) {
