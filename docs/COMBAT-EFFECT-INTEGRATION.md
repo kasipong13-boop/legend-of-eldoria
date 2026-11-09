@@ -29,7 +29,7 @@ Slime Splash applies Vulnerable for 1 turn. Savage Bite ★★★ also applies V
 ### MSC-POR-001 — Slime Splash
 - ★: 1 Energy; deal 5 damage; apply 1 Vulnerable stack for 1 turn.
 - ★★: damage property becomes Water element. This integration records the property in the card catalog; it does not add an elemental damage multiplier or change the global element rules.
-- ★★★: if the target was already Vulnerable before the card is played, add one bonus hit for 3 base damage. The bonus hit is part of the same card play and is subject to Vulnerable's damage multiplier.
+- ★★★: if the target was already Vulnerable before the card is played, add one separate bonus hit for 3 base damage. Each hit is independently modified by Vulnerable and rounded to the nearest integer.
 
 ### MSC-WOLF-001 — Savage Bite
 - ★: 1 Energy; deal 7 damage; apply 2 Bleed stacks.
