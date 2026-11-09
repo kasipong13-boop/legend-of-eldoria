@@ -159,6 +159,43 @@ test('Bash applies Vulnerable to a surviving target and gains its confirmed bloc
   assert.equal(hero.block, 4);
 });
 
+test('Buff stacking and duration policies are explicit and independently configurable', () => {
+  const b = setup();
+  const hero = b.state.units.find(u => u.id === 'hero');
+  assert.equal(b.applyBuff(hero, { id: 'power', stacking: 'stack', durationPolicy: 'reset', stacks: 1, duration: 2, tickAt: 'player-turn-start' }).ok, true);
+  assert.equal(b.applyBuff(hero, { id: 'power', stacking: 'stack', durationPolicy: 'reset', stacks: 2, duration: 4, tickAt: 'player-turn-start' }).ok, true);
+  assert.equal(hero.buffs.length, 1);
+  assert.equal(hero.buffs[0].stacks, 3);
+  assert.equal(hero.buffs[0].duration, 4);
+  assert.equal(b.applyBuff(hero, { id: 'power', stacking: 'refresh', durationPolicy: 'keep', duration: 9 }).ok, true);
+  assert.equal(hero.buffs[0].stacks, 3);
+  assert.equal(hero.buffs[0].duration, 4);
+  assert.equal(b.applyBuff(hero, { id: 'power', stacking: 'independent', durationPolicy: 'independent', duration: 1 }).ok, true);
+  assert.equal(hero.buffs.length, 2);
+});
+
+test('Buff charge zero behavior follows its declared policy', () => {
+  const b = setup();
+  const hero = b.state.units.find(u => u.id === 'hero');
+  assert.equal(b.applyBuff(hero, { id: 'ward', stacking: 'replace', durationPolicy: 'reset', duration: null, charges: 1, onZero: 'remove' }).ok, true);
+  const used = b.consumeBuffCharge(hero, 'ward');
+  assert.equal(used.ok, true);
+  assert.equal(used.removed, true);
+  assert.equal(hero.buffs.some(x => x.id === 'ward'), false);
+
+  assert.equal(b.applyBuff(hero, { id: 'stance', stacking: 'replace', durationPolicy: 'reset', duration: null, charges: 1, onZero: 'disable' }).ok, true);
+  const disabled = b.consumeBuffCharge(hero, 'stance');
+  assert.equal(disabled.disabled, true);
+  assert.equal(hero.buffs.find(x => x.id === 'stance').disabled, true);
+});
+
+test('Buff definitions without explicit stacking or charge-zero policy are rejected', () => {
+  const b = setup();
+  const hero = b.state.units.find(u => u.id === 'hero');
+  assert.equal(b.applyBuff(hero, { id: 'ambiguous', duration: 2 }).reason, 'stacking-policy-required');
+  assert.equal(b.applyBuff(hero, { id: 'charges', stacking: 'replace', durationPolicy: 'reset', charges: 1 }).reason, 'charge-zero-policy-required');
+});
+
 test('battle result resolves immediately when a side has no living units at setup', () => {
   const won = Core.create({
     playerUnits: [{ id: 'hero', hp: 10, maxHp: 10, x: 1, y: 1 }],
