@@ -75,7 +75,7 @@
     locked = true;
     render();
     if (s.over === 'win') $('enemy-sprite').classList.add('dead');
-    var result = { won: s.over === 'win', monsterId: s.enemy.id };
+    var result = { won: s.over === 'win', monsterId: s.enemy.id, hp: s.player.hp, maxHp: s.player.maxHp };
     setTimeout(function () { if (onEnd) onEnd(result); }, 900);
     return true;
   }
