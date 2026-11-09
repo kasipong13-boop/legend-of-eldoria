@@ -74,6 +74,8 @@ const assert = require('node:assert/strict');
       // Keep this browser smoke test focused on the transition/reward/save path:
       // a one-HP Poring guarantees a quick victory without timing-sensitive turn loops.
       window.ELDORIA.MONSTERS.poring.hp = 1;
+      window.ELDORIA.CARDS.strike.damage = 999;
+      window.ELDORIA.STARTER_DECK = Array(10).fill('strike');
       window.ELDORIA.World.onEncounter({ mapId: 'greenvale-village', monsterIds: ['poring'] });
     });
     await page.waitForFunction(() => document.querySelector('#screen-battle').classList.contains('active'), { timeout: 5000 });
