@@ -49,6 +49,9 @@ const assert = require('node:assert/strict');
       Object.assign(debug.hero, { c: poring.c, r: poring.r, x: poring.x, y: poring.y, path: [], moving: false });
     });
     await page.waitForFunction(() => document.querySelector('#screen-battle').classList.contains('active'), { timeout: 5000 });
+    assert.equal(await page.locator('#live-battlefield .live-cell').count(), 100, 'live battle screen renders the 10x10 battlefield');
+    assert.equal(await page.locator('#live-battlefield .live-unit').count(), 2, 'live battlefield renders hero and encountered enemy');
+    assert.equal(await page.locator('#live-battlefield .live-unit-intent').count(), 1, 'live enemy intent is visible on its battlefield cell');
     let turns = 0;
     while (turns < 14 && !(await page.locator('#screen-result').evaluate(e => e.classList.contains('active')))) {
       const attacks = page.locator('#hand .card.attack:not(.disabled), #hand .card.spell:not(.disabled)');
