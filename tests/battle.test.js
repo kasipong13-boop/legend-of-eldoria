@@ -138,8 +138,10 @@ test('world result handler uses all defeated monster IDs and preserves drop quan
 });
 
 
-test('overworld encounter entry routes through the live multi-unit battle adapter', () => {
+test('overworld encounter entry routes grouped encounters through the live multi-unit adapter', () => {
   const main = fs.readFileSync(require.resolve('../js/main.js'), 'utf8');
-  assert.match(main, /E\.BattleUI\.startEncounter\(\{hp:player\.hp,maxHp:player\.maxHp\},\[\{id:'world-'\+monsterId\+'-1',monsterId:monsterId\}\],onBattleEnd\)/);
-  assert.match(main, /E\.World\.onEncounter=function\(monsterId\)\{startBattle\(monsterId\);\}/);
+  assert.match(main, /function startBattle\(encounter\)/);
+  assert.match(main, /encounter\.monsterIds/);
+  assert.match(main, /E\.BattleUI\.startEncounter\(\{hp:player\.hp,maxHp:player\.maxHp\},units,onBattleEnd\)/);
+  assert.match(main, /E\.World\.onEncounter=function\(encounter\)\{startBattle\(encounter\);\}/);
 });
