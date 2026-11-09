@@ -79,15 +79,15 @@
     function line(text,cls){var li=document.createElement('li');li.textContent=text;if(cls)li.className=cls;list.appendChild(li);}
     player.hp=Number.isFinite(result.hp)?Math.max(0,Math.min(player.maxHp,result.hp)):player.hp;
     if(result.won){
-      var rw=E.rollRewards(result.monsterId);
+      var defeatedIds=Array.isArray(result.monsterIds)&&result.monsterIds.length?result.monsterIds:[result.monsterId];\n      var rw=defeatedIds.length>1?E.rollEncounterRewards(defeatedIds):E.rollRewards(defeatedIds[0]);
       // Persist the reward intent before the result screen can be shown.
       current.stats={level:player.level,exp:player.exp,hp:player.hp,maxHp:player.maxHp};
       current.gold=player.gold;current.items={jelly:player.jelly};
-      current=S.setPendingReward(current,{exp:rw.exp,gold:rw.gold,drops:rw.drops.map(function(d){return {id:d.id,name:d.name,quantity:1};})});
+      current=S.setPendingReward(current,{exp:rw.exp,gold:rw.gold,drops:rw.drops.map(function(d){return {id:d.id,name:d.name,quantity:d.quantity||1};})});
       var claimed=S.claimPendingReward(current);current=claimed.payload;
       $('result-title').textContent='Victory!';
       line('+'+rw.exp+' EXP');line('+'+rw.gold+' gold');
-      rw.drops.forEach(function(d){line('Dropped: '+d.name,'loot');});
+      rw.drops.forEach(function(d){line('Dropped: '+d.name+(d.quantity>1?' ×'+d.quantity:''),'loot');});
       if(!rw.drops.length)line('No drops this time.');
       player.level=current.stats.level;player.exp=current.stats.exp;player.gold=current.gold;player.jelly=current.items.jelly;
       while(player.exp>=E.expToNext(player.level)){
