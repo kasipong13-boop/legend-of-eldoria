@@ -1,4 +1,4 @@
-name: Claude Code — ChatGPT Task Handoff
+name: Claude Code — Owner-Gated Task Execution
 
 on:
   issues:
@@ -8,50 +8,70 @@ permissions:
   contents: write
   pull-requests: write
   issues: write
+  actions: read
 
 concurrency:
-  group: claude-task-${{ github.event.issue.number }}
+  group: eldoria-claude-task-${{ github.event.issue.number }}
   cancel-in-progress: false
 
 jobs:
-  claude-implementation:
-    # Only tasks opened by the repository owner and explicitly routed by the Director
-    # may start a Claude coding run. No comment, fork PR, or public-user trigger.
+  execute-approved-task:
     if: >-
       github.event.issue.author_association == 'OWNER' &&
-      startsWith(github.event.issue.title, '[AI TASK]') &&
-      contains(github.event.issue.body, '@claude')
+      startsWith(github.event.issue.title, '[AI TASK]')
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 45
     steps:
-      - name: Run Claude Code on the approved task
+      - name: Run Claude Code for the Director-assigned task
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           branch_prefix: claude/
+          additional_permissions: |
+            actions: read
           prompt: |
-            You are the Implementation Engineer for LEGEND OF ELDORIA.
-            This issue was created by the repository owner through the AI Development Director.
-            Treat the issue title and body as the assigned task packet.
+            You are the implementation engineer for LEGEND OF ELDORIA.
+            This task was created by the repository owner / AI Development Director.
+            Treat the issue title and body as the complete task packet.
 
-            Before editing:
-            1. Read CLAUDE.md and the collaboration/review/development standards under docs/.
-            2. Read the relevant GDD, work log, changelog, source files, and tests.
-            3. Confirm the current base branch and create/use a task-specific branch with the configured claude/ prefix.
-            4. Report any ambiguity, conflict with confirmed game rules, or critical save/security risk before making a risky change.
+            REQUIRED FIRST STEPS
+            1. Read CLAUDE.md, docs/AI_COLLABORATION_PROTOCOL.md,
+               docs/GITHUB_DEVELOPMENT_STANDARD.md, and docs/AI_AUTONOMY_POLICY.md.
+            2. Read relevant approved game design documents, WORK_LOG_TH.md,
+               CHANGELOG_TH.md, source files, and tests.
+            3. Confirm current main and active PRs. Never overwrite unrelated work.
+            4. State scope, non-goals, expected files, risks, and acceptance tests
+               in an issue comment before implementation.
 
-            Implementation rules:
-            - Never commit directly to main.
-            - Never merge a pull request, deploy, or change repository settings.
-            - Keep the diff limited to the assigned task.
-            - Preserve existing gameplay, player saves, save schema, regression baselines, and active unrelated PRs.
-            - Protected/high-risk files listed in CLAUDE.md require explicit task-level authorization and focused tests.
-            - Never expose secrets, tokens, credentials, or private user data.
-            - Run the applicable repository tests and report exact commands and actual results.
-            - Open or update a pull request for completed implementation, then stop for Director review.
-            - If the task cannot be completed safely, do not guess; report blockers and recommended next steps.
+            AUTONOMOUS EXECUTION RULES
+            - Implement only the assigned task and its explicitly authorized subtasks.
+            - Use a task-specific claude/ branch. Never commit directly to main.
+            - You may run focused tests and make bounded fixes for failures caused
+              by your own changes. Maximum 2 fix-and-retest cycles.
+            - Stop if acceptance criteria require a new game-design decision,
+              scope expansion, secret/permission changes, external paid service,
+              deployment, or a high/critical-risk data operation.
+            - Never modify player save data, delete saves, silently change save
+              schema, rewrite regression baselines, or alter historical archives.
+            - Treat js/save.js, js/data.js, js/battle.js, js/world.js and
+              verification/tests/baseline/ as high-risk. Do not edit these unless
+              the task packet explicitly names and authorizes the exact change.
+            - Preserve all confirmed gameplay rules and existing mobile/desktop support.
+            - Never expose secrets, credentials, tokens, or private user data.
+            - Never merge, deploy, change repository settings, or grant permissions.
+            - Do not create follow-up tasks or expand the backlog autonomously.
+            - Report exact tests run, failures, skipped tests, changed files,
+              save compatibility, risks, and rollback instructions.
+            - Push the completed branch and report its exact branch name.
+              Do not claim a PR exists unless one is actually created.
+            - Stop after implementation and handoff. The Development Director
+              will independently review and create/manage the PR.
 
-            The Director will independently review the branch/PR and report to the Game Owner.
+            TASK:
+            ${{ github.event.issue.title }}
+
+            TASK DETAILS:
+            ${{ github.event.issue.body }}
           claude_args: |
-            --max-turns 12
-            --permission-mode auto
+            --max-turns 20
+            --allowedTools "Bash(npm ci),Bash(npm test),Bash(npm run regression),Bash(npm run mutation),Bash(npm run browser),Bash(npm run all),Bash(node --check *),Edit,Write,Read,Glob,Grep"
