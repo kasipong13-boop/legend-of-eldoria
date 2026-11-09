@@ -95,11 +95,12 @@ Buff lifecycle implementation update (2026-11-09):
 - Explicit effect channels now apply to combat actions: outgoing damage, incoming damage, Block, and Healing.
 - Effect entries support Flat and Percentage values; flat modifiers are applied first, then percentages in the same channel are additive.
 - These are generic configurable primitives, not final class/card balance values.
-- These are lifecycle primitives only. Numeric Buff effect application to damage, block, healing, or Secondary Stats remains a separate implementation task; no unapproved balance values were introduced.
+- Effect application is implemented for outgoing damage, incoming damage, Block, and Healing. Incoming-damage modifiers apply before Vulnerable and resistance; effect-specific stat filters are optional. Support-only Block/Healing cards target their source unit by default.
+- Secondary Stat modifier application remains a separate implementation task; no unapproved balance values were introduced.
 
 Important limitations still open:
 - Existing 10-card legacy starter deck is intentionally not silently expanded to 20; the live adapter still uses legacy battle.js.
 - Live battle UI is still single-enemy and does not yet render the 10x10 field, multiple units, target selection, range indicators, status/buff icons or summon placement.
-- Buff lifecycle/effects, Accuracy/Evasion/Critical/Lucky, element multipliers, stat scaling, boss resistance data, multi-enemy AI target priorities, reward/card-drop integration and 500-seed simulation remain to implement/validate.
+- Buff lifecycle/effect application has implementation and unit-test coverage in progress; Accuracy/Evasion/Critical/Lucky, element multipliers, stat scaling, boss resistance data, multi-enemy AI target priorities, reward/card-drop integration and 500-seed simulation remain to implement/validate.
 - Range bands remain configuration-only until the user-approved card/range data is authored.
 - The module has automated tests, but must pass CI and browser integration before it is marked TESTED or exposed for user play.
