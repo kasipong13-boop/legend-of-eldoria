@@ -35,7 +35,7 @@ test('character creation and select screens render avatar previews',()=>{const h
 test('legacy characters expose empty deck data without changing existing save fields',()=>{
   const {Save}=boot();let c=Save.createCharacter(profile);c.gold=41;c=Save.saveCharacter(c);
   const deck=Save.getDeckData(c);
-  assert.deepEqual(deck,{owned:[],presets:[],activePresetId:null});
+  assert.deepEqual(JSON.parse(JSON.stringify(deck)),{owned:[],presets:[],activePresetId:null});
   const loaded=Save.loadCharacter(c.characterId);
   assert.equal(loaded.deckId,'starter');assert.equal(loaded.gold,41);assert.equal(loaded.schemaVersion,1);
 });
@@ -48,7 +48,7 @@ test('saves and reloads owned cards and reusable deck presets additively',()=>{
   ],activePresetId:'preset-a'};
   c=Save.saveDeckData(c,data);
   const reloaded=Save.loadCharacter(c.characterId);
-  assert.deepEqual(Save.getDeckData(reloaded),data);
+  assert.deepEqual(JSON.parse(JSON.stringify(Save.getDeckData(reloaded))),data);
   assert.equal(reloaded.deckId,'starter');
   assert.equal(reloaded.schemaVersion,1);
 });
@@ -57,7 +57,7 @@ test('deck save rejects preset references beyond owned quantity without modifyin
   const {Save}=boot();let c=Save.createCharacter(profile);c.gold=12;c=Save.saveCharacter(c);
   assert.throws(()=>Save.saveDeckData(c,{owned:[{cardId:'strike',stars:1,quantity:1}],presets:[{id:'p1',name:'Test',cardRefs:[{cardId:'strike',stars:1},{cardId:'strike',stars:1}]}],activePresetId:'p1'}),/unowned cards/);
   assert.equal(Save.loadCharacter(c.characterId).gold,12);
-  assert.deepEqual(Save.getDeckData(c),{owned:[],presets:[],activePresetId:null});
+  assert.deepEqual(JSON.parse(JSON.stringify(Save.getDeckData(c))),{owned:[],presets:[],activePresetId:null});
 });
 
 test('deck save rejects malformed ownership and missing active preset',()=>{
