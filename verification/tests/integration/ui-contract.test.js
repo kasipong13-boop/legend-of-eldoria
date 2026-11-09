@@ -37,3 +37,25 @@ test('Defeat applies the confirmed 10% gold penalty before persisting', () => {
   assert.match(main, /line\(goldLost > 0 \? 'You lost '/);
   assert.match(main, /player\.gold -= goldLost;[\s\S]*?persist\('battle-defeat'\)/);
 });
+
+
+test('Character creation and selection screens are wired to the current Save API', () => {
+  assert.match(html, /id="screen-select"/);
+  assert.match(html, /id="screen-create"/);
+  assert.match(html, /id="character-name"/);
+  assert.match(html, /id="character-gender"/);
+  assert.match(html, /id="character-hair"/);
+  assert.match(html, /id="character-color"/);
+  assert.match(main, /saveSystem\.createCharacter\(\{[\s\S]*?hairStyle:/);
+  assert.match(main, /saveSystem\.loadCharacter\(id\)/);
+  assert.match(main, /function renderCharacterSelection\(\)/);
+  assert.match(main, /function loadSelectedCharacter\(id\)/);
+});
+
+test('Character UI preserves save recovery boundaries and does not replace the Save Engine', () => {
+  assert.match(main, /entry\.state !== 'ready'/);
+  assert.match(main, /saveSystem\.loadCharacter\(id\)/);
+  assert.match(main, /settlePendingReward\(loaded\.save\)/);
+  assert.doesNotMatch(main, /localStorage\.(setItem|removeItem)/);
+  assert.match(html, /css\/character\.css/);
+});
