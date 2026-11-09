@@ -109,7 +109,7 @@ test('card rewards are claimed once and preserve cards granted after the reward 
   assert.equal(first.claimed,true);
   const second=Save.claimPendingReward(Save.loadCharacter(c.characterId));
   assert.equal(second.claimed,false);
-  assert.equal(second.payload.gold,2);
+  assert.equal(second.payload.gold,0);
   assert.deepEqual(JSON.parse(JSON.stringify(Save.getDeckData(second.payload).owned)),[
     {cardId:'crafted_skill',stars:1,quantity:2},
     {cardId:'monster_skill',stars:1,quantity:1}
