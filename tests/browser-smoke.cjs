@@ -72,7 +72,9 @@ const assert = require('node:assert/strict');
     // Exercise the real world-to-battle transition, win flow, reward persistence, and reload.
     await page.evaluate(() => {
       const debug = window.ELDORIA.World._debug;
-      const poring = debug.getPoring();
+      let poring = debug.getPoring();
+      if (!poring) { debug.respawn(false); poring = debug.getPoring(); }
+      if (!poring) throw new Error('World must spawn a Poring before battle smoke test');
       Object.assign(debug.hero, { c: poring.c, r: poring.r, x: poring.x, y: poring.y, path: [], moving: false });
     });
     await page.waitForFunction(() => document.querySelector('#screen-battle').classList.contains('active'), { timeout: 5000 });
@@ -106,6 +108,9 @@ const assert = require('node:assert/strict');
     });
     assert.equal(savedAfterBattle.stats.exp, 12, 'victory EXP saved');
     assert.ok(savedAfterBattle.gold >= 5 && savedAfterBattle.gold <= 10, 'victory gold saved');
+    assert.equal(savedAfterBattle.activeDeckPresetId, 'qa-balanced', 'world snapshot preserves active deck preset');
+    assert.equal(savedAfterBattle.deckCollection.owned[0].quantity, 3, 'world snapshot preserves card ownership');
+    assert.equal(savedAfterBattle.deckPresets.length, 2, 'world snapshot preserves all deck presets');
     await page.reload({ waitUntil: 'networkidle' });
     await page.locator('#btn-start').click();
     await page.waitForFunction(() => document.querySelector('#screen-select').classList.contains('active'));
