@@ -36,16 +36,40 @@
   }
   function validateDeck(deck, cards, rules) {
     rules = rules || {};
-    var errors = [];
-    if (!Array.isArray(deck)) return { valid: false, errors: ['Deck must be an array.'] };
-    if (deck.length !== (rules.deckSize || LIMITS.deckSize)) errors.push('Deck must contain exactly ' + (rules.deckSize || LIMITS.deckSize) + ' cards.');
-    var counts = Object.create(null);
-    deck.forEach(function (id) {
-      if (!cards[id]) { errors.push('Unknown card: ' + id); return; }
-      var c = cards[id], key = id + '@' + (c.stars || 1);
+    cards = cards || {};
+    var errors = [], counts = Object.create(null), ownedCounts = Object.create(null);
+    var expectedSize = Number.isInteger(rules.deckSize) && rules.deckSize > 0 ? rules.deckSize : LIMITS.deckSize;
+    if (!Array.isArray(deck)) return { valid: false, errors: ['Deck must be an array.'], details: [{ code: 'deck-not-array' }] };
+    if (deck.length !== expectedSize) errors.push('Deck must contain exactly ' + expectedSize + ' cards.');
+    var hasOwnership = Object.prototype.hasOwnProperty.call(rules, 'owned');
+    if (hasOwnership) {
+      if (!Array.isArray(rules.owned)) errors.push('Owned cards must be an array.');
+      else rules.owned.forEach(function (entry) {
+        if (!entry || typeof entry.cardId !== 'string' || !entry.cardId || !Number.isInteger(entry.stars) || entry.stars < 1 || entry.stars > 3 || !Number.isInteger(entry.quantity) || entry.quantity < 0) {
+          errors.push('Invalid owned-card entry.');
+          return;
+        }
+        var ownedKey = entry.cardId + '@' + entry.stars;
+        ownedCounts[ownedKey] = (ownedCounts[ownedKey] || 0) + entry.quantity;
+      });
+    }
+    deck.forEach(function (entry) {
+      var id = typeof entry === 'string' ? entry : entry && entry.cardId;
+      var explicitStars = entry && typeof entry === 'object' ? entry.stars : undefined;
+      if (typeof id !== 'string' || !id || !Object.prototype.hasOwnProperty.call(cards, id)) {
+        errors.push('Unknown card: ' + String(id));
+        return;
+      }
+      var c = cards[id] || {}, stars = explicitStars === undefined ? (Number.isInteger(c.stars) ? c.stars : 1) : explicitStars;
+      if (!Number.isInteger(stars) || stars < 1 || stars > 3) {
+        errors.push('Invalid star level for ' + id + ': ' + String(stars) + '.');
+        return;
+      }
+      var key = id + '@' + stars;
       counts[key] = (counts[key] || 0) + 1;
-      var max = c.rarity === 'Legendary' ? 1 : c.category === 'monster-special' ? 2 : 3;
+      var max = c.rarity === 'Legendary' ? 1 : c.category === 'monster-special' ? 2 : c.rarity === 'Common' ? 3 : Infinity;
       if (counts[key] > max) errors.push('Copy limit exceeded for ' + key + ' (max ' + max + ').');
+      if (hasOwnership && counts[key] > (ownedCounts[key] || 0)) errors.push('Deck uses unowned cards: ' + key + '.');
     });
     return { valid: errors.length === 0, errors: errors };
   }
