@@ -145,3 +145,16 @@ test('battle setup rejects duplicate unit ids and overlapping living units', () 
     enemyUnits: [{ id: 'enemy', hp: 10, maxHp: 10, x: 8, y: 1 }]
   }), /already occupied/);
 });
+
+test('Bash applies Vulnerable to a surviving target and gains its confirmed block', () => {
+  const b = setup();
+  const hero = b.state.units.find(u => u.id === 'hero');
+  const target = b.state.units.find(u => u.id === 'p1');
+  const index = b.state.hand.indexOf('bash');
+  assert.notEqual(index, -1);
+  const result = b.playCard(index, 'hero', ['p1']);
+  assert.equal(result.ok, true);
+  assert.equal(target.hp, 12);
+  assert.equal(target.statuses.some(s => s.id === 'vulnerable' && s.stacks === 1), true);
+  assert.equal(hero.block, 4);
+});
