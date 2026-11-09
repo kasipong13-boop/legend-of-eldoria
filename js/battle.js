@@ -119,6 +119,8 @@
       s.hand.splice(handIndex, 1);
       s.discardPile.push(instance);
       res.ok = true;
+      res.element = card.element || 'neutral';
+      if (card.id === 'msc-por-001' && stars >= 2) res.element = 'water';
 
       var damage = card.damage || 0;
       if (damage) {
@@ -183,8 +185,8 @@
       var it = s.enemy.intent;
       var bleed = statusOf(s.enemy, 'bleed');
       if (bleed) {
-        var bleedDamage = Math.min(s.enemy.hp, bleed.stacks);
-        s.enemy.hp -= bleedDamage;
+        var bleedHit = dealDamage(s.enemy, bleed.stacks);
+        var bleedDamage = bleedHit.amount;
         var remaining = removeOneStack(s.enemy, 'bleed');
         res.msgs.push(s.enemy.name + ' takes ' + bleedDamage + ' Bleed damage' + (remaining ? ' (' + remaining + ' stacks left).' : '.'));
         res.pops.push({ who: 'enemy', text: '-' + bleedDamage, cls: 'dmg' });
