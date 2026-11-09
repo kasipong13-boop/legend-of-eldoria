@@ -119,3 +119,11 @@ Enemy intent presentation update (2026-11-09):
 - The isolated Battle Grid harness displays each living enemy's currently revealed intent (move name and damage when supplied) directly on its battlefield cell.
 - Browser smoke coverage checks that both test Porings show their revealed Bounce intent before the player ends the turn.
 - This is a presentation of the existing intent data; it does not introduce new enemy AI behavior or alter target selection rules.
+
+
+Live battle adapter integration update (2026-11-09):
+- The production single-enemy battle screen now uses Battle Core v2 through the existing BattleUI.start interface.
+- Existing world-to-battle navigation, result callback, reward transaction, defeat penalty and character Save flow remain owned by main.js and save.js.
+- The live adapter maps the current monster definition and current starter deck into one player unit and one enemy unit. It does not claim that the 20-card deck builder or multi-enemy live presentation is complete.
+- The legacy battle engine remains available as a compatibility module, but is no longer the active engine for the live battle screen.
+- Browser smoke tests exercise the real world-to-battle route and existing reward persistence after this engine switch; CI must pass before this integration is considered verified.
