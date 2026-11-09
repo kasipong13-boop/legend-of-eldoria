@@ -46,7 +46,7 @@ The two candidates below continue earlier concept exploration for Poring and Wol
 
 ### MSC-POR-001 — Slime Splash
 
-<badge>GAME_CONFIRMED</badge>
+**Status: GAME_CONFIRMED**
 
 | Field | Proposed value |
 |---|---|
