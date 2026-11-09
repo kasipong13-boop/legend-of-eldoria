@@ -64,7 +64,7 @@
     var s=battle.state,arena=$('arena');arena.innerHTML='';
     for(var y=0;y<10;y++)for(var x=0;x<10;x++){
       var cell=document.createElement('button');cell.type='button';cell.className='cell '+(x<5?'player-zone':'enemy-zone');cell.setAttribute('role','gridcell');cell.setAttribute('aria-label','Column '+(x+1)+', row '+(y+1));
-      var unit=s.units.find(u=>u.x===x&&u.y===y&&u.alive);
+      let unit=s.units.find(u=>u.x===x&&u.y===y&&u.alive);
       if(unit){
         cell.classList.add(unit.alive?'living':'dead');
         if(unit.side==='enemy'&&selectedCard!==null)cell.classList.add('targetable');
