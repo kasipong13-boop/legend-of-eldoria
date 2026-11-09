@@ -24,6 +24,33 @@ const assert = require('node:assert/strict');
     await page.waitForFunction(() => document.querySelector('#screen-select').classList.contains('active'));
     await page.locator('#character-list .btn').click();
     await page.waitForFunction(() => document.querySelector('#screen-world').classList.contains('active'));
+    // Exercise the real browser Save API for collection ownership and reusable presets.
+    const deckPersisted = await page.evaluate(() => {
+      const ids = JSON.parse(localStorage.getItem('eldoria.index'));
+      const character = window.ELDORIA.Save.loadCharacter(ids[0]);
+      const saved = window.ELDORIA.Save.saveDeckData(character, {
+        owned: [
+          { cardId: 'strike', stars: 1, quantity: 3 },
+          { cardId: 'guard', stars: 1, quantity: 2 }
+        ],
+        presets: [
+          { id: 'qa-balanced', name: 'QA Balanced', cardRefs: [{ cardId: 'strike', stars: 1 }, { cardId: 'guard', stars: 1 }] },
+          { id: 'qa-alternate', name: 'QA Alternate', cardRefs: [{ cardId: 'strike', stars: 1 }] }
+        ],
+        activePresetId: 'qa-balanced'
+      });
+      return { revision: saved.revision, deck: window.ELDORIA.Save.getDeckData(saved) };
+    });
+    assert.equal(deckPersisted.deck.owned.length, 2, 'browser Save API persists owned card stacks');
+    assert.equal(deckPersisted.deck.presets.length, 2, 'browser Save API persists multiple presets');
+    await page.reload({ waitUntil: 'networkidle' });
+    const deckAfterReload = await page.evaluate(() => {
+      const ids = JSON.parse(localStorage.getItem('eldoria.index'));
+      return window.ELDORIA.Save.getDeckData(window.ELDORIA.Save.loadCharacter(ids[0]));
+    });
+    assert.equal(deckAfterReload.activePresetId, 'qa-balanced', 'active preset survives a real browser reload');
+    assert.equal(deckAfterReload.owned[0].quantity, 3, 'owned card quantity survives a real browser reload');
+    assert.equal(deckAfterReload.presets.length, 2, 'preset collection survives a real browser reload');
     assert.deepEqual(errors, [], 'no uncaught browser errors');
     const mobile = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
     const mobileErrors = [];
