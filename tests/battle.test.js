@@ -96,3 +96,14 @@ test('battle layout preserves separate-screen transition and intent display', ()
   assert.match(html, /id="enemy-intent"/);
   assert.match(ui, /Next: /);
 });
+
+test('live battle UI displays status effects and Buff details for both sides', () => {
+  const html = fs.readFileSync(require.resolve('../index.html'), 'utf8');
+  const ui = fs.readFileSync(require.resolve('../js/battle-ui.js'), 'utf8');
+  assert.match(html, /id="enemy-status"/);
+  assert.match(html, /id="player-status"/);
+  assert.match(ui, /function effectDetails\(u\)/);
+  assert.match(ui, /\(u\.buffs \|\| \[\]\)/);
+  assert.match(ui, /function renderEffects\(id, u\)/);
+  assert.match(ui, /\.title = effects\.map/);
+});
