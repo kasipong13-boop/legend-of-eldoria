@@ -266,15 +266,32 @@
     diamond(p.x, p.y, fill, 'rgba(0,0,0,0.10)');
 
     if (t === '.' && h % 3 === 0) {
-      ctx.strokeStyle = '#3a6f3b'; ctx.lineWidth = 1.5; ctx.beginPath();
+      ctx.strokeStyle = currentMapId === 'whispering-forest' ? '#285d35' : '#3a6f3b';
+      ctx.lineWidth = currentMapId === 'whispering-forest' ? 2 : 1.5; ctx.beginPath();
       var ox = (h % 17) - 8, oy = ((h >> 4) % 9) - 4;
       ctx.moveTo(p.x + ox, p.y + oy); ctx.lineTo(p.x + ox - 2, p.y + oy - 6);
       ctx.moveTo(p.x + ox + 3, p.y + oy); ctx.lineTo(p.x + ox + 4, p.y + oy - 6);
       ctx.stroke();
     }
-    if (t === '.' && h % 11 === 0) {
+    if (currentMapId === 'whispering-forest' && t === '.' && h % 7 === 0) {
+      // Small fern fronds add readable forest-floor texture without changing collision.
+      var fx = p.x + (h % 19) - 9, fy = p.y + ((h >> 5) % 7) - 3;
+      ctx.strokeStyle = '#2c673b'; ctx.lineWidth = 2; ctx.beginPath();
+      ctx.moveTo(fx, fy + 3);
+      ctx.lineTo(fx - 5, fy - 3); ctx.moveTo(fx, fy + 3); ctx.lineTo(fx + 1, fy - 6);
+      ctx.moveTo(fx, fy + 3); ctx.lineTo(fx + 6, fy - 2); ctx.stroke();
+      ctx.fillStyle = '#79a85a'; ctx.fillRect(fx - 6, fy - 4, 3, 2); ctx.fillRect(fx, fy - 7, 3, 2); ctx.fillRect(fx + 4, fy - 3, 3, 2);
+    } else if (t === '.' && h % 11 === 0) {
       ctx.fillStyle = (h % 2) ? '#f6e27a' : '#f4a9c4';
       ctx.beginPath(); ctx.arc(p.x + ((h >> 3) % 15) - 7, p.y + ((h >> 7) % 7) - 3, 2.4, 0, Math.PI * 2); ctx.fill();
+    }
+    if (currentMapId === 'whispering-forest' && t === '.' && h % 29 === 0) {
+      // A tiny mushroom pair, purely decorative.
+      var mx = p.x + (h % 13) - 6, my = p.y + 4;
+      ctx.fillStyle = '#e7d6b5'; ctx.fillRect(mx - 1, my - 4, 2, 5);
+      ctx.fillStyle = '#c85c50'; ctx.fillRect(mx - 4, my - 5, 8, 2);
+      ctx.fillStyle = '#f3dcae'; ctx.fillRect(mx + 5, my - 2, 2, 3);
+      ctx.fillStyle = '#d5b66d'; ctx.fillRect(mx + 3, my - 4, 6, 2);
     }
     if (t === '~') {
       var w = Math.sin(time * 2 + c * 1.3 + r * 0.7);
@@ -285,6 +302,25 @@
 
   function drawTree(c, r) {
     var p = iso(c, r), h = hash(c, r), s = 0.9 + (h % 5) * 0.06;
+    if (currentMapId === 'whispering-forest') {
+      // Layered canopy with a dark crown, mid-tone foliage and pixel-like highlights.
+      var variant = h % 3, crown = variant === 0 ? '#244f32' : variant === 1 ? '#285a38' : '#315f36';
+      shadow(p.x, p.y + 4, 23 * s, 9 * s);
+      ctx.fillStyle = '#60452b'; ctx.fillRect(p.x - 5 * s, p.y - 23 * s, 10 * s, 27 * s);
+      ctx.fillStyle = '#765333'; ctx.fillRect(p.x - 2 * s, p.y - 19 * s, 4 * s, 20 * s);
+      ctx.fillStyle = crown;
+      ctx.beginPath(); ctx.ellipse(p.x, p.y - 43 * s, 25 * s, 22 * s, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(p.x - 15 * s, p.y - 31 * s, 17 * s, 17 * s, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(p.x + 15 * s, p.y - 31 * s, 17 * s, 17 * s, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = variant === 1 ? '#477d43' : '#3e7540';
+      ctx.beginPath(); ctx.ellipse(p.x - 5 * s, p.y - 48 * s, 14 * s, 11 * s, -0.25, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#6d9650';
+      ctx.fillRect(p.x - 16 * s, p.y - 43 * s, 6 * s, 4 * s);
+      ctx.fillRect(p.x + 7 * s, p.y - 34 * s, 5 * s, 4 * s);
+      ctx.fillRect(p.x - 2 * s, p.y - 58 * s, 5 * s, 4 * s);
+      if (variant === 2) { ctx.fillStyle = '#b0bd68'; ctx.fillRect(p.x + 13 * s, p.y - 50 * s, 4 * s, 4 * s); }
+      return;
+    }
     shadow(p.x, p.y + 4, 20 * s, 8 * s);
     ctx.fillStyle = '#6b4a2b'; ctx.fillRect(p.x - 4, p.y - 18 * s, 8, 22 * s);
     var greens = ['#2f6b35', '#38783d', '#2a5f31'];
