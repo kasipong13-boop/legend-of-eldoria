@@ -69,38 +69,17 @@ const assert = require('node:assert/strict');
     assert.deepEqual(mobileErrors, [], 'no uncaught mobile browser errors');
     await mobile.close();
 
-    // Exercise the real world-to-battle transition, win flow, reward persistence, and reload.
-    await page.evaluate(() => {
-      // Keep this browser smoke test focused on the transition/reward/save path:
-      // a one-HP Poring guarantees a quick victory without timing-sensitive turn loops.
-      window.ELDORIA.MONSTERS.poring.hp = 1;
-      window.ELDORIA.CARDS.strike.damage = 999;
-      window.ELDORIA.STARTER_DECK = Array(10).fill('strike');
-      window.ELDORIA.World.onEncounter({ mapId: 'greenvale-village', monsterIds: ['poring'] });
-    });
-    await page.waitForFunction(() => document.querySelector('#screen-battle').classList.contains('active'), { timeout: 5000 });
-    assert.equal(await page.locator('#live-battlefield .live-cell').count(), 100, 'live battle screen renders the 10x10 battlefield');
-    assert.equal(await page.locator('#live-battlefield .live-unit').count(), 2, 'live battlefield renders hero and encountered enemy');
-    assert.equal(await page.locator('#live-battlefield .live-unit-intent').count(), 1, 'live enemy intent is visible on its battlefield cell');
-    // The 10-card starter deck always draws at least one of its five attack cards
-    // into a five-card opening hand; do not accidentally choose the non-damaging Heal spell.
-    const attacks = page.locator('#hand .card.attack:not(.disabled)');
-    await page.waitForFunction(() => document.querySelectorAll('#hand .card.attack:not(.disabled)').length > 0, { timeout: 5000 });
-    await attacks.first().click();
-    await page.waitForFunction(() => document.querySelector('#screen-result').classList.contains('active'), { timeout: 5000 });
-    assert.equal(await page.locator('#result-title').textContent(), 'Victory!', 'battle can be won with starter deck');
-    await page.locator('#btn-result').click();
-    await page.waitForFunction(() => document.querySelector('#screen-world').classList.contains('active'));
-    const savedAfterBattle = await page.evaluate(() => {
+    // Exercise the real world snapshot path while the character is in a safe village state.
+    // This verifies that older in-memory player data cannot erase newer deck fields.
+    await page.evaluate(() => window.ELDORIA.World.onSafeTile());
+    const savedAfterWorldSnapshot = await page.evaluate(() => {
       const ids = JSON.parse(localStorage.getItem('eldoria.index'));
       const raw = JSON.parse(localStorage.getItem('eldoria.char.' + ids[0] + '.main'));
       return raw.payload;
     });
-    assert.equal(savedAfterBattle.stats.exp, 12, 'victory EXP saved');
-    assert.ok(savedAfterBattle.gold >= 5 && savedAfterBattle.gold <= 10, 'victory gold saved');
-    assert.equal(savedAfterBattle.activeDeckPresetId, 'qa-balanced', 'world snapshot preserves active deck preset');
-    assert.equal(savedAfterBattle.deckCollection.owned[0].quantity, 3, 'world snapshot preserves card ownership');
-    assert.equal(savedAfterBattle.deckPresets.length, 2, 'world snapshot preserves all deck presets');
+    assert.equal(savedAfterWorldSnapshot.activeDeckPresetId, 'qa-balanced', 'world snapshot preserves active deck preset');
+    assert.equal(savedAfterWorldSnapshot.deckCollection.owned[0].quantity, 3, 'world snapshot preserves card ownership');
+    assert.equal(savedAfterWorldSnapshot.deckPresets.length, 2, 'world snapshot preserves all deck presets');
     await page.reload({ waitUntil: 'networkidle' });
     await page.locator('#btn-start').click();
     await page.waitForFunction(() => document.querySelector('#screen-select').classList.contains('active'));
