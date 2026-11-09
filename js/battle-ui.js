@@ -39,8 +39,47 @@
   function statusText(u) {
     return effectDetails(u).map(function (e) { return e.label; }).join(' · ');
   }
+  function renderBattlefield() {
+    var arena = $('live-battlefield');
+    if (!arena) return;
+    arena.innerHTML = '';
+    for (var y = 0; y < 10; y++) {
+      for (var x = 0; x < 10; x++) {
+        var cell = document.createElement('div');
+        cell.className = 'live-cell ' + (x < 5 ? 'player-zone' : 'enemy-zone');
+        cell.setAttribute('role', 'gridcell');
+        var occupant = battle.state.units.find(function (u) { return u.alive && u.x === x && u.y === y; });
+        if (occupant) {
+          var marker = document.createElement('span');
+          marker.className = 'live-unit ' + occupant.side;
+          marker.textContent = occupant.side === 'player' ? '🛡️' : '🩷';
+          var hp = document.createElement('small');
+          hp.textContent = occupant.hp + '/' + occupant.maxHp;
+          marker.appendChild(hp);
+          cell.appendChild(marker);
+          var effects = effectDetails(occupant);
+          if (effects.length) {
+            var badges = document.createElement('small');
+            badges.className = 'live-unit-effects';
+            badges.textContent = effects.map(function (e) { return e.label; }).join(' · ');
+            badges.title = effects.map(function (e) { return e.detail; }).join(' | ');
+            cell.appendChild(badges);
+          }
+          if (occupant.side === 'enemy' && occupant.intent) {
+            var intent = document.createElement('small');
+            intent.className = 'live-unit-intent';
+            intent.textContent = occupant.intent.name + (Number.isFinite(occupant.intent.damage) ? ' ' + occupant.intent.damage : '');
+            intent.title = 'Next: ' + occupant.intent.name + (Number.isFinite(occupant.intent.damage) ? ' · ' + occupant.intent.damage + ' damage' : '');
+            cell.appendChild(intent);
+          }
+        }
+        arena.appendChild(cell);
+      }
+    }
+  }
   function render() {
     var s = battle.state, hero = unit('hero'), enemy = unit('enemy');
+    renderBattlefield();
     $('enemy-name').textContent = enemy.name;
     $('enemy-hp-fill').style.width = (100 * enemy.hp / enemy.maxHp) + '%';
     $('enemy-hp-text').textContent = enemy.hp + ' / ' + enemy.maxHp;
