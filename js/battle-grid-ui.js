@@ -21,7 +21,7 @@
         {id:'poring-b',name:'Poring',hp:20,maxHp:20,x:8,y:6,moves:E.MONSTERS.poring.moves}
       ],
       deck:['strike','strike','strike','strike','guard','guard','guard','bash','firebolt','heal'],
-      energy:3,drawPerTurn:5
+      energy:3,drawPerTurn:5,rng:function(){return 0;}
     });
     $('battle-log').textContent='Two Porings appear. Choose a card to begin.';
     render();
