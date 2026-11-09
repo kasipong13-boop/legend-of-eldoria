@@ -43,6 +43,9 @@
     }
   };
 
+  E.ENCOUNTERS = { whisperingForest: { monsterId:'poring', minCount:1, maxCount:3 } };
+  E.createForestEncounter = function(rng){ rng=typeof rng==='function'?rng:Math.random; var rule=E.ENCOUNTERS.whisperingForest; var count=rule.minCount+Math.floor(rng()*(rule.maxCount-rule.minCount+1)); return Array.from({length:count},function(){return rule.monsterId;}); };
+
   // Level up rules (Prototype 0.1 keeps these very small)
   E.expToNext = function (level) { return 20 * level; };
   E.levelUpMaxHp = 5;
