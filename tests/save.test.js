@@ -65,3 +65,9 @@ test('deck save rejects malformed ownership and missing active preset',()=>{
   assert.throws(()=>Save.saveDeckData(c,{owned:[{cardId:'strike',stars:4,quantity:1}],presets:[],activePresetId:null}),/Invalid owned-card/);
   assert.throws(()=>Save.saveDeckData(c,{owned:[],presets:[{id:'p1',name:'Test',cardRefs:[]}],activePresetId:'missing'}),/Active deck preset/);
 });
+
+test('deck save rejects presets larger than the confirmed 20-card deck size',()=>{
+  const {Save}=boot();const c=Save.createCharacter(profile);
+  const cardRefs=Array.from({length:21},()=>({cardId:'strike',stars:1}));
+  assert.throws(()=>Save.saveDeckData(c,{owned:[{cardId:'strike',stars:1,quantity:21}],presets:[{id:'p1',name:'Oversized',cardRefs}],activePresetId:'p1'}),/cannot exceed 20 cards/);
+});
