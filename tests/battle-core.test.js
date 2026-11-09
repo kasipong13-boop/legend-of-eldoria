@@ -126,3 +126,22 @@ test('status duration does not tick on the other side turn', () => {
   b.endTurn();
   assert.equal(hero.statuses.find(s => s.id === 'bleed').duration, 2);
 });
+
+
+test('battle setup rejects duplicate unit ids and overlapping living units', () => {
+  assert.throws(() => Core.create({
+    playerUnits: [{ id: 'same', hp: 10, maxHp: 10, x: 1, y: 1 }],
+    enemyUnits: [{ id: 'same', hp: 10, maxHp: 10, x: 8, y: 1 }]
+  }), /Duplicate battle unit id/);
+  assert.throws(() => Core.create({
+    playerUnits: [{ id: 'hero', hp: 10, maxHp: 10, x: 1, y: 1 }],
+    enemyUnits: [{ id: 'enemy', hp: 10, maxHp: 10, x: 1, y: 1 }]
+  }), /wrong side/);
+  assert.throws(() => Core.create({
+    playerUnits: [
+      { id: 'hero', hp: 10, maxHp: 10, x: 1, y: 1 },
+      { id: 'ally', hp: 10, maxHp: 10, x: 1, y: 1 }
+    ],
+    enemyUnits: [{ id: 'enemy', hp: 10, maxHp: 10, x: 8, y: 1 }]
+  }), /already occupied/);
+});
