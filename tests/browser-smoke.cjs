@@ -112,9 +112,11 @@ const assert = require('node:assert/strict');
     });
     await forest.waitForFunction(() => window.ELDORIA.World._debug.getMapId() === 'greenvale-village' && document.querySelector('#hud-zone').textContent === 'Greenvale Village', { timeout: 5000 });
 
-    // Re-enter through F with a deterministic RNG value that selects the maximum group size.
+    // Re-enter through F with deterministic maximum group size and harmless 1-HP QA enemies.
     await forest.evaluate(() => {
       Math.random = () => 0.999;
+      window.ELDORIA.MONSTERS.poring.hp = 1;
+      window.ELDORIA.MONSTERS.poring.moves = [{ name: 'QA Bounce', damage: 0 }];
       const h = window.ELDORIA.World._debug.hero;
       Object.assign(h, { c:10, r:10, x:10, y:10, path:[], moving:false });
     });
@@ -135,7 +137,43 @@ const assert = require('node:assert/strict');
     await forest.waitForFunction(() => document.querySelector('#screen-battle').classList.contains('active'), { timeout: 5000 });
     assert.equal(await forest.locator('#live-battlefield .live-unit.enemy').count(), 3, 'Touching one Poring starts battle with all three spawned Porings');
     assert.equal(await forest.locator('#live-battlefield .live-cell').count(), 100, 'Forest encounter uses the 10x10 battlefield');
-    assert.deepEqual(forestErrors, [], 'no uncaught errors in Forest portal or encounter flow');
+
+    // Win the actual three-enemy battle through the live card UI.
+    let groupTurns = 0;
+    while (groupTurns < 6 && !(await forest.locator('#screen-result').evaluate(e => e.classList.contains('active')))) {
+      const attacks = forest.locator('#hand .card.attack:not(:disabled), #hand .card.spell:not(:disabled)');
+      if (await attacks.count()) {
+        await attacks.first().click();
+        const targetCell = forest.locator('#live-battlefield .live-cell:has(.live-unit.enemy)').first();
+        if (await targetCell.count()) await targetCell.click();
+      } else {
+        const endTurn = forest.locator('#btn-end-turn');
+        if (!(await endTurn.isEnabled())) break;
+        await endTurn.click();
+        groupTurns++;
+      }
+      await forest.waitForTimeout(50);
+    }
+    await forest.waitForFunction(() => document.querySelector('#screen-result').classList.contains('active'), { timeout: 10000 });
+    assert.equal(await forest.locator('#result-title').textContent(), 'Victory!', 'three-Poring encounter can be defeated through the live UI');
+    const rewardLines = await forest.locator('#result-list').textContent();
+    assert.match(rewardLines, /36 EXP/, 'group victory aggregates 12 EXP per Poring');
+    await forest.locator('#btn-result').click();
+    await forest.waitForFunction(() => document.querySelector('#screen-world').classList.contains('active'));
+    const groupSave = await forest.evaluate(() => {
+      const ids = JSON.parse(localStorage.getItem('eldoria.index'));
+      return JSON.parse(localStorage.getItem('eldoria.char.' + ids[0] + '.main')).payload;
+    });
+    assert.equal(groupSave.stats.level, 2, 'aggregated group EXP triggers level-up');
+    assert.equal(groupSave.stats.exp, 16, 'remaining EXP is saved after group level-up');
+    assert.ok(groupSave.gold >= 15, 'group Gold reward is saved');
+    await forest.reload({ waitUntil: 'networkidle' });
+    await forest.locator('#btn-start').click();
+    await forest.waitForFunction(() => document.querySelector('#screen-select').classList.contains('active'));
+    const persistedGroup = await forest.locator('#character-list').textContent();
+    assert.match(persistedGroup, /Lv 2/, 'level from group reward survives reload');
+    assert.match(persistedGroup, /Gold/, 'group Gold remains visible after reload');
+    assert.deepEqual(forestErrors, [], 'no uncaught errors in Forest portal, battle, rewards, or reload');
     await forest.close();
 
     // Exercise the isolated Battle Core v2 multi-unit battlefield UI.
