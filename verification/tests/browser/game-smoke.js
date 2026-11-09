@@ -58,6 +58,8 @@ const server = http.createServer((req, res) => {
       await page.locator('#btn-menu').click();
       await page.getByRole('button', { name:'Save & Return to Title' }).click();
       await page.locator('#screen-title.active').waitFor();
+      await page.getByRole('button', { name:'Continue' }).click();
+      await page.locator('#screen-select.active').waitFor();
       await page.getByRole('button', { name:'Create New Character' }).click();
       await page.locator('#screen-create.active').waitFor();
       await page.getByRole('button', { name:'Back' }).click();
@@ -75,7 +77,7 @@ const server = http.createServer((req, res) => {
       const count = await page.locator('.character-row:not(.blocked)').count();
       if (count !== 2) throw new Error(viewport.name + ': expected two selectable characters, found ' + count);
       const damagedId = await page.evaluate(() => {
-        const key = Object.keys(localStorage).find(k => /^eldoria\\.char\\.[a-f0-9]{32}\\.main$/.test(k));
+        const key = Object.keys(localStorage).find(k => /^eldoria\.char\.[a-f0-9]{32}\.main$/.test(k));
         return key && key.split('.')[2];
       });
       if (!damagedId) throw new Error(viewport.name + ': unable to locate a character save for recovery test');
