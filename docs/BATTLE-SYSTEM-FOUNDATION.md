@@ -70,3 +70,25 @@ Build the separate-screen, turn-based deck-building battle system without changi
 - Battle is stationary and supports fixed unit slots on both sides.
 - Mobile viewport has no horizontal overflow.
 - Existing character creation, loading, world movement, and autosave regressions pass.
+
+
+## Implementation update — Battle Core v2 (2026-11-09)
+Status: IMPLEMENTED CORE MODULE / NOT YET INTEGRATED INTO THE LIVE BATTLE UI
+
+Added `js/battle-core.js` as a separate, backward-compatible engine module and loaded it after the legacy engine. The legacy `E.createBattle` adapter remains active until the multi-unit battlefield UI and full regression path are ready.
+
+Implemented in the v2 module:
+- 10x10 coordinate validation, fixed unit positions, 5-unit side caps and 10-unit total cap.
+- Multiple player/enemy units and summon slot/occupied-cell checks.
+- 3 Energy, 5-card turn draw, 10-card hand cap and automatic discard-pile recycling.
+- 20-card deck validator with Common / Monster Special / Legendary copy limits; card star level is part of the duplicate key.
+- Target selection contract, All Enemies/AoE support, Multi-Hit, and configurable Near/Middle/Far band mapping. No unapproved range-to-cell distances are hardcoded.
+- Status stack cap 99, additive stacks, Vulnerable +50%, Stun attack prevention, and Bleed after each attack action by the afflicted unit.
+- Enemy intents are generated and exposed before enemy turns.
+
+Important limitations still open:
+- Existing 10-card legacy starter deck is intentionally not silently expanded to 20; the live adapter still uses legacy battle.js.
+- Live battle UI is still single-enemy and does not yet render the 10x10 field, multiple units, target selection, range indicators, status/buff icons or summon placement.
+- Buff lifecycle/effects, Accuracy/Evasion/Critical/Lucky, element multipliers, stat scaling, boss resistance data, multi-enemy AI target priorities, reward/card-drop integration and 500-seed simulation remain to implement/validate.
+- Range bands remain configuration-only until the user-approved card/range data is authored.
+- The module has automated tests, but must pass CI and browser integration before it is marked TESTED or exposed for user play.
