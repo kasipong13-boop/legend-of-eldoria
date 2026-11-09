@@ -25,7 +25,7 @@ Do not invent these values or mechanics in code. They require separate approval.
 
 ## Save compatibility
 
-The existing Save schema and character Gold field remain unchanged. New monster-victory transactions do not contain a Gold reward, so claiming them preserves the character's existing Gold balance. The existing generic pending-reward claim behavior is retained for backward compatibility with already-persisted transactions; this task does not rewrite old saves or existing Gold balances.
+The existing Save schema and character Gold field remain unchanged. New monster-victory transactions do not contain a Gold reward. For compatibility, an older pending reward may still contain a legacy `gold` field; claiming it now ignores that field while still applying eligible EXP, item, and card rewards. This prevents a pre-update unclaimed monster reward from violating the confirmed NPC-only Gold rule. Gold already stored in the character save is preserved and is not deducted or rewritten.
 
 ## Verification requirements
 
