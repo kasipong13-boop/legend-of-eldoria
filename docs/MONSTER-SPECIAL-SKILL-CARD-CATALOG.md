@@ -42,7 +42,7 @@ Every catalog entry should define:
 
 ## 3. Initial candidate catalog
 
-The two candidates below continue earlier concept exploration for Poring and Wolf. They are proposals, not approved final content.
+The two approved entries below continue earlier concept exploration for Poring and Wolf. Their listed identities and effects are approved content.
 
 ### MSC-POR-001 — Slime Splash
 
@@ -132,7 +132,7 @@ After catalog approval, each approved entry can be represented in `E.CARDS` with
 
 The monster-specific card-drop table in `js/card-acquisition.js` should reference only approved card IDs. Each entry's `chance` remains a separate numeric value to be decided in the Drop Rate & Balance task.
 
-Both approved card definitions are now registered in `E.CARDS` as catalog content with stable IDs `msc-por-001` and `msc-wolf-001`. They carry `implementationStatus: 'catalog-only'` while combat execution for these status effects and star evolutions is pending. Neither card is active in the live drop table because no numeric drop chance has been approved. The Wolf monster's runtime encounter definition is also not added by this catalog task.
+Both approved card definitions are registered in `E.CARDS` with stable IDs `msc-por-001` and `msc-wolf-001`. Their combat effects and star evolutions are implemented in the separate Combat Effect Integration branch. They remain `implementationStatus: 'catalog-only'` in the acquisition pipeline and are not active in the live drop table because no numeric drop chance has been approved. The Wolf monster's runtime encounter definition is not added by this catalog task.
 
 ## 7. Open decisions before content activation
 
@@ -140,7 +140,6 @@ The following are intentionally unresolved:
 
 - Numeric drop chance for each eligible card.
 - Crafting recipes and which Monster Special Skill Cards can be crafted.
-- Combat execution and UI support for these catalog-defined effects and star evolutions.
 - Additional monster-specific cards beyond Poring and Wolf.
 - Drop chance for each eligible card.
 - Crafting recipes and which Monster Special Skill Cards can be crafted.
