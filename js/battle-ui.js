@@ -20,11 +20,24 @@
   }
   function setLog(messages) { $('battle-log').textContent = messages.join(' '); }
   function unit(id) { return battle.state.units.find(function (u) { return u.id === id; }); }
-  function statusText(u) {
-    return (u.statuses || []).map(function (s) {
+  function effectDetails(u) {
+    var effects = [];
+    (u.statuses || []).forEach(function (s) {
       var label = s.id === 'vulnerable' ? 'VUL' : s.id === 'bleed' ? 'BLD' : s.id === 'stun' ? 'STN' : s.id.toUpperCase();
-      return label + ' ' + s.stacks;
-    }).join(' · ');
+      effects.push({ label: label + ' ' + s.stacks, detail: s.id + ' · ' + s.stacks + ' stack(s)' + (s.duration === null ? '' : ' · ' + s.duration + ' turn(s)') });
+    });
+    (u.buffs || []).forEach(function (b) {
+      effects.push({ label: (b.id || 'BUFF').toUpperCase() + ' ' + (b.stacks || 1), detail: (b.id || 'Buff') + ' · ' + (b.stacks || 1) + ' stack(s)' + (b.duration === null || b.duration === undefined ? '' : ' · ' + b.duration + ' turn(s)') + (b.disabled ? ' · disabled' : '') + (Number.isInteger(b.charges) ? ' · ' + b.charges + ' charge(s)' : '') });
+    });
+    return effects;
+  }
+  function renderEffects(id, u) {
+    var host = $(id), effects = effectDetails(u);
+    host.textContent = effects.length ? 'Effects: ' + effects.map(function (e) { return e.label; }).join(' · ') : '';
+    host.title = effects.map(function (e) { return e.detail; }).join(' | ');
+  }
+  function statusText(u) {
+    return effectDetails(u).map(function (e) { return e.label; }).join(' · ');
   }
   function render() {
     var s = battle.state, hero = unit('hero'), enemy = unit('enemy');
@@ -34,9 +47,10 @@
     $('enemy-intent').textContent = s.over || !enemy.intent ? '' :
       'Next: ' + enemy.intent.name + (Number.isFinite(enemy.intent.damage) ? ', ' + enemy.intent.damage + ' damage' : '');
     $('enemy-intent').style.visibility = s.over ? 'hidden' : 'visible';
-    $('enemy-status').textContent = statusText(enemy) ? 'Effects: ' + statusText(enemy) : '';
+    renderEffects('enemy-status', enemy);
     $('player-hp-fill').style.width = (100 * hero.hp / hero.maxHp) + '%';
-    $('player-hp-text').textContent = 'You  ' + hero.hp + ' / ' + hero.maxHp + (statusText(hero) ? ' · ' + statusText(hero) : '');
+    $('player-hp-text').textContent = 'You  ' + hero.hp + ' / ' + hero.maxHp;
+    renderEffects('player-status', hero);
     var blk = $('player-block'); blk.textContent = '\uD83D\uDEE1\uFE0F ' + hero.block;
     blk.classList.toggle('zero', hero.block === 0);
     var orbs = '';
