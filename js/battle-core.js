@@ -154,9 +154,15 @@
     if (!playerUnits.length || !enemyUnits.length) throw new Error('Battle requires at least one unit on each side.');
     if (playerUnits.length > LIMITS.unitsPerSide || enemyUnits.length > LIMITS.unitsPerSide || playerUnits.length + enemyUnits.length > LIMITS.totalUnits) throw new Error('Battle unit slot limit exceeded.');
     var units = playerUnits.concat(enemyUnits);
+    var unitIds = Object.create(null), occupied = Object.create(null);
     units.forEach(function (u) {
+      if (unitIds[u.id]) throw new Error('Duplicate battle unit id: ' + u.id);
+      unitIds[u.id] = true;
       if (u.x < 0 || u.x >= LIMITS.width || u.y < 0 || u.y >= LIMITS.height) throw new Error('Unit position is outside the 10x10 battlefield: ' + u.id);
       if ((u.side === 'player' && u.x >= 5) || (u.side === 'enemy' && u.x < 5)) throw new Error('Unit is placed on the wrong side of the battlefield: ' + u.id);
+      var cell = u.x + ',' + u.y;
+      if (u.alive && occupied[cell]) throw new Error('Battlefield cell is already occupied: ' + cell);
+      if (u.alive) occupied[cell] = true;
     });
     var state = {
       turn: 0, round: 1, activeSide: 'player', over: null, winner: null,
