@@ -11,3 +11,5 @@ button#end-turn,button#restart{border:1px solid #d6b56e;border-radius:10px;paddi
 @media(max-width:390px){#battle-test{padding-left:9px;padding-right:9px;gap:8px}.arena-wrap{padding:7px}.arena{gap:2px;aspect-ratio:1.45}.hand{gap:4px}.card{min-height:88px}.card small{font-size:9px}.meters{gap:7px}.meters span{font-size:10px}}
 
 .unit-effects{display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:6px;line-height:1.2;color:#f3d58c;text-shadow:0 1px 2px #000;margin-top:2px}.unit-effects[title]{cursor:help}
+
+.unit-intent{display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:6px;line-height:1.2;color:#ffb2a5;text-shadow:0 1px 2px #000;margin-top:1px}
