@@ -14,6 +14,7 @@
   var saveLocked = false;
   var pendingSaveTx = null;
   var screens = ['screen-title', 'screen-select', 'screen-create', 'screen-world', 'screen-battle', 'screen-result'];
+  var characterCreationReturnScreen = 'screen-title';
 
   function show(id) {
     screens.forEach(function (s) { $(s).classList.toggle('active', s === id); });
@@ -209,6 +210,18 @@
       $('save-status').textContent = 'Save storage is unavailable in this browser.';
       return;
     }
+    var listed = saveSystem.listCharacters();
+    var chars = listed.characters || [];
+    var blocked = chars.filter(function (c) { return c.state === 'damaged' || c.state === 'recoveryIncomplete' || c.state === 'creating'; });
+    if (blocked.length) {
+      refreshTitleState();
+      $('create-error').textContent = 'Recovery required. Existing character data is protected; creating another character is temporarily disabled.';
+      return;
+    }
+    screens.forEach(function (screen) {
+      if ($(screen).classList.contains('active')) characterCreationReturnScreen = screen;
+    });
+    $('btn-create-confirm').disabled = false;
     $('create-error').textContent = '';
     $('character-name').value = '';
     updateCreationPreview();
@@ -240,6 +253,11 @@
         NO_SECURE_RANDOM: 'Secure character ID generation is unavailable. No save was created.'
       };
       $('create-error').textContent = messages[created.reason] || ('Could not create character (' + created.reason + ').');
+      refreshTitleState();
+      var afterFailure = saveSystem.listCharacters().characters || [];
+      var recoveryBlocked = afterFailure.some(function (c) { return c.state === 'damaged' || c.state === 'recoveryIncomplete' || c.state === 'creating'; });
+      $('btn-create-confirm').disabled = recoveryBlocked;
+      if (recoveryBlocked) $('create-error').textContent = 'Character creation was interrupted. The save is protected; reload to retry recovery before creating another character.';
       return;
     }
     beginFromSave(created.save);
@@ -282,8 +300,9 @@
       label.textContent = entry.save && entry.save.profile ? entry.save.profile.name + ' — Recovery required' : 'Character save requires recovery';
       row.appendChild(label); host.appendChild(row);
     });
+    $('btn-new-character').disabled = blocked.length > 0;
     $('select-warning').textContent = blocked.length
-      ? 'Some character records need recovery. They are protected and cannot be loaded.'
+      ? 'Some character records need recovery. They are protected and cannot be loaded or replaced. Reload to retry recovery.'
       : '';
   }
 
@@ -445,7 +464,14 @@
   $('btn-continue').addEventListener('click', continueGame);
   $('btn-new-character').addEventListener('click', openCharacterCreation);
   $('btn-select-back').addEventListener('click', function () { show('screen-title'); });
-  $('btn-create-back').addEventListener('click', function () { continueGame(); });
+  $('btn-create-back').addEventListener('click', function () {
+    if (characterCreationReturnScreen === 'screen-select') {
+      renderCharacterSelection();
+      show('screen-select');
+    } else {
+      show('screen-title');
+    }
+  });
   $('btn-create-confirm').addEventListener('click', createCharacter);
   ['character-gender', 'character-hair', 'character-color'].forEach(function (id) {
     $(id).addEventListener('change', updateCreationPreview);
@@ -477,6 +503,8 @@
     var blocked = chars.filter(function (c) { return c.state === 'damaged' || c.state === 'recoveryIncomplete' || c.state === 'creating'; });
     $('btn-continue').hidden = ready.length === 0;
     $('btn-start').disabled = blocked.length > 0;
+    $('btn-new-character').disabled = blocked.length > 0;
+    $('btn-create-confirm').disabled = blocked.length > 0;
     $('btn-start').textContent = 'Create New Character';
     if (blocked.length) {
       $('save-status').textContent = 'Recovery required. Existing save data is protected; New Game is disabled to prevent overwriting it.';
