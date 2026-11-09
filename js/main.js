@@ -5,7 +5,7 @@
   function $(id) { return document.getElementById(id); }
   var player = { level:1, exp:0, gold:0, jelly:0, maxHp:E.RULES.playerMaxHp, hp:E.RULES.playerMaxHp };
   var current = null;
-  var screens = ['screen-title','screen-select','screen-create','screen-world','screen-battle','screen-result'];
+  var screens = ['screen-title','screen-select','screen-create','screen-world','screen-card-collection','screen-battle','screen-result'];
   function show(id) { screens.forEach(function(s){$(s).classList.toggle('active',s===id);}); }
   function toast(msg,ms) { var t=$('toast');t.textContent=msg;t.classList.add('show');clearTimeout(toast.timer);toast.timer=setTimeout(function(){t.classList.remove('show');},ms||4000); }
   function updateHud() {
