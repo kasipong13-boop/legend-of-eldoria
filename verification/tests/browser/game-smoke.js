@@ -89,7 +89,14 @@ const server = http.createServer((req, res) => {
         if (await page.locator('#screen-result.active').count()) break;
         const playable = page.locator('#hand .card:not(.disabled)');
         if (await playable.count()) await playable.first().click();
-        else await page.locator('#btn-end-turn').click();
+        else {
+          const endTurn = page.locator('#btn-end-turn');
+          if (await endTurn.isDisabled()) {
+            await page.locator('#screen-result.active').waitFor({ timeout:3000 });
+            break;
+          }
+          await endTurn.click();
+        }
         await page.waitForTimeout(80);
       }
       await page.locator('#screen-result.active').waitFor({ timeout:15000 });
