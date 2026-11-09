@@ -48,6 +48,10 @@
     var cardId=battle.state.hand[selectedCard],meta=cardMeta(cardId);
     var valid=targetIds(cardId).some(u=>u.id===id);
     if(!valid)return;
+    if(selectedTargets.indexOf(id)!==-1){
+      $('battle-log').textContent='That enemy is already selected. Choose a different target.';
+      return;
+    }
     selectedTargets.push(id);
     if(selectedTargets.length>=Math.max(1,meta.targetCount||1))resolveCard(selectedCard,selectedTargets.slice());
     else $('battle-log').textContent='Choose '+(Math.max(1,meta.targetCount||1)-selectedTargets.length)+' more target(s).';
