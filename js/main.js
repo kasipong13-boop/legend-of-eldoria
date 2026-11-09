@@ -73,7 +73,7 @@
       $('character-name').value='';enterWorld(c);
     } catch(e){$('create-error').textContent=e.message||'Unable to create character.';}
   }
-  function startBattle(monsterId){E.World.pause();show('screen-battle');E.BattleUI.start({hp:player.hp,maxHp:player.maxHp},monsterId,onBattleEnd);}
+  function startBattle(monsterId){E.World.pause();show('screen-battle');E.BattleUI.startEncounter({hp:player.hp,maxHp:player.maxHp},[{id:'world-'+monsterId+'-1',monsterId:monsterId}],onBattleEnd);}
   function onBattleEnd(result){
     var list=$('result-list');list.innerHTML='';
     function line(text,cls){var li=document.createElement('li');li.textContent=text;if(cls)li.className=cls;list.appendChild(li);}
