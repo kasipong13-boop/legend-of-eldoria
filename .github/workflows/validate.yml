@@ -2,7 +2,7 @@ name: Validate Prototype
 
 on:
   push:
-    branches: [main, feature/prototype-0.2-character-save, feature/card-collection-foundation, feature/card-acquisition-foundation, feature/monster-special-skill-catalog]
+    branches: [main, feature/prototype-0.2-character-save, feature/card-collection-foundation, feature/card-acquisition-foundation, feature/monster-special-skill-catalog, feature/combat-effect-integration]
   pull_request:
     branches: [main, feature/card-acquisition-foundation, feature/monster-special-skill-catalog]
   workflow_dispatch:
@@ -39,6 +39,8 @@ jobs:
           test -f tests/save.test.js
           test -f tests/card-acquisition.test.js
           test -f tests/card-catalog.test.js
+          test -f tests/battle.test.js
+          test -f docs/COMBAT-EFFECT-INTEGRATION.md
 
       - name: Check JavaScript syntax
         run: |

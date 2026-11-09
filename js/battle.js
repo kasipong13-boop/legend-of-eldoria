@@ -1,5 +1,5 @@
-/* Legend of Eldoria - Prototype 0.1
-   battle.js: turn-based card battle rules. No DOM here, so it can be tested alone. */
+/* Legend of Eldoria - Combat Effect Integration
+   Deterministic turn-based combat rules; no DOM dependencies. */
 (function (root) {
   var E = root.ELDORIA = root.ELDORIA || {};
 
@@ -11,20 +11,65 @@
     return arr;
   }
 
-  // cfg: { player: {hp, maxHp}, monsterId, deck: [cardIds], rng? }
+  function cloneCardInstance(value) {
+    if (typeof value === 'string') return { id: value, stars: 1 };
+    return { id: value.id || value.cardId, stars: Math.max(1, Math.min(3, Number(value.stars) || 1)) };
+  }
+
+  function statusOf(target, type) {
+    return target.statuses && target.statuses[type] ? target.statuses[type] : null;
+  }
+
+  function applyStatus(target, type, stacks, duration) {
+    if (!target.statuses) target.statuses = {};
+    var current = target.statuses[type];
+    var nextStacks = Math.max(0, Math.min(99, (current ? current.stacks : 0) + stacks));
+    if (!nextStacks) {
+      delete target.statuses[type];
+      return nextStacks;
+    }
+    // Bleed is explicitly permanent; Vulnerable uses its supplied finite duration.
+    var nextDuration = type === 'bleed' ? null : duration;
+    if (current && type !== 'bleed') nextDuration = duration;
+    target.statuses[type] = { stacks: nextStacks, duration: nextDuration == null ? null : Math.max(1, nextDuration) };
+    return nextStacks;
+  }
+
+  function removeOneStack(target, type) {
+    var current = statusOf(target, type);
+    if (!current) return 0;
+    current.stacks = Math.max(0, current.stacks - 1);
+    if (!current.stacks) delete target.statuses[type];
+    return current.stacks;
+  }
+
+  function decayTimedStatuses(target) {
+    if (!target.statuses) return;
+    Object.keys(target.statuses).forEach(function (type) {
+      var status = target.statuses[type];
+      if (status.duration == null) return;
+      status.duration -= 1;
+      if (status.duration <= 0) delete target.statuses[type];
+    });
+  }
+
+  function damageMultiplier(target) {
+    return statusOf(target, 'vulnerable') ? 1.5 : 1;
+  }
+
+  // Exposed for deterministic tests and future status-effect integrations.
+  E.applyCombatStatus = applyStatus;
+
   E.createBattle = function (cfg) {
     var rng = cfg.rng || Math.random;
     var def = E.MONSTERS[cfg.monsterId];
     var rules = E.RULES;
-
     var s = {
-      turn: 0,
-      over: null, // null | 'win' | 'lose'
-      player: { hp: cfg.player.hp, maxHp: cfg.player.maxHp, block: 0, energy: rules.energy },
-      enemy: { id: def.id, name: def.name, hp: def.hp, maxHp: def.hp, intent: null },
-      drawPile: shuffle(cfg.deck.slice(), rng),
-      discardPile: [],
-      hand: []
+      turn: 0, over: null,
+      player: { hp: cfg.player.hp, maxHp: cfg.player.maxHp, block: 0, energy: rules.energy, statuses: {} },
+      enemy: { id: def.id, name: def.name, hp: def.hp, maxHp: def.hp, intent: null, statuses: {} },
+      drawPile: shuffle(cfg.deck.map(cloneCardInstance), rng),
+      discardPile: [], hand: []
     };
 
     function drawCards(n) {
@@ -50,26 +95,45 @@
       drawCards(rules.handSize);
     }
 
-    // Returns { ok, reason?, msgs: [], pops: [{who, text, cls}] }
+    function dealDamage(target, baseDamage) {
+      var actual = Math.max(0, Math.round(baseDamage * damageMultiplier(target)));
+      var dealt = Math.min(actual, target.hp);
+      target.hp = Math.max(0, target.hp - dealt);
+      return { amount: dealt, calculated: actual };
+    }
+
     function playCard(handIndex) {
       var res = { ok: false, msgs: [], pops: [] };
       if (s.over) { res.reason = 'over'; return res; }
-      var id = s.hand[handIndex];
-      if (id === undefined) { res.reason = 'nocard'; return res; }
-      var card = E.CARDS[id];
+      var instance = s.hand[handIndex];
+      if (!instance) { res.reason = 'nocard'; return res; }
+      var card = E.CARDS[instance.id];
+      if (!card) { res.reason = 'unknown-card'; return res; }
       if (card.cost > s.player.energy) { res.reason = 'energy'; return res; }
 
+      var stars = instance.stars || 1;
+      var prePlayHp = s.enemy.hp;
+      var hadVulnerable = !!statusOf(s.enemy, 'vulnerable');
+      var hadBleed = !!statusOf(s.enemy, 'bleed');
       s.player.energy -= card.cost;
       s.hand.splice(handIndex, 1);
-      s.discardPile.push(id);
+      s.discardPile.push(instance);
       res.ok = true;
+      res.element = card.element || 'neutral';
+      if (card.id === 'msc-por-001' && stars >= 2) res.element = 'water';
 
-      if (card.damage) {
-        var dealt = Math.min(card.damage, s.enemy.hp);
-        s.enemy.hp -= dealt;
-        res.msgs.push(card.name + ' hits ' + s.enemy.name + ' for ' + card.damage + '.');
-        res.pops.push({ who: 'enemy', text: '-' + card.damage, cls: 'dmg' });
+      var damage = card.damage || 0;
+      if (damage) {
+        var hit = dealDamage(s.enemy, damage);
+        res.msgs.push(card.name + ' hits ' + s.enemy.name + ' for ' + hit.amount + ' damage.');
+        res.pops.push({ who: 'enemy', text: '-' + hit.amount, cls: 'dmg' });
       }
+      if (card.id === 'msc-por-001' && stars >= 3 && hadVulnerable && s.enemy.hp > 0) {
+        var bonusHit = dealDamage(s.enemy, 3);
+        res.msgs.push('Slime Splash bonus hit deals ' + bonusHit.amount + ' damage.');
+        res.pops.push({ who: 'enemy', text: '-' + bonusHit.amount, cls: 'dmg' });
+      }
+
       if (card.block) {
         s.player.block += card.block;
         res.msgs.push('You gain ' + card.block + ' block.');
@@ -81,6 +145,26 @@
         var healed = s.player.hp - before;
         res.msgs.push('You restore ' + healed + ' HP.');
         res.pops.push({ who: 'player', text: '+' + healed, cls: 'heal' });
+      }
+
+      (card.statusEffects || []).forEach(function (effect) {
+        if (effect.type === 'bleed' || effect.type === 'vulnerable') {
+          applyStatus(s.enemy, effect.type, effect.stacks || 1, effect.duration);
+          var statusLabel = effect.type.charAt(0).toUpperCase() + effect.type.slice(1);
+          res.msgs.push(s.enemy.name + ' gains ' + statusLabel + ' (' + s.enemy.statuses[effect.type].stacks + ').');
+        }
+      });
+
+      if (card.id === 'msc-wolf-001' && stars >= 2 && prePlayHp * 100 <= s.enemy.maxHp * 50) {
+        applyStatus(s.enemy, 'bleed', 1);
+        res.msgs.push('Savage Bite applies 1 additional Bleed stack.');
+      }
+      if (card.id === 'msc-wolf-001' && stars >= 3 && hadBleed) {
+        applyStatus(s.enemy, 'vulnerable', 1, 1);
+        res.msgs.push(s.enemy.name + ' becomes Vulnerable.');
+      }
+      if (card.id === 'msc-por-001' && stars >= 2) {
+        res.msgs.push('Slime Splash deals Water-element damage.');
       }
 
       if (s.enemy.hp <= 0) {
@@ -95,13 +179,29 @@
       if (s.over) return res;
       res.ok = true;
 
-      // discard hand
       while (s.hand.length) s.discardPile.push(s.hand.pop());
+      // Timed effects on the player expire at the end of the player's turn.
+      decayTimedStatuses(s.player);
 
-      // enemy acts
       var it = s.enemy.intent;
-      var absorbed = Math.min(s.player.block, it.damage);
-      var through = it.damage - absorbed;
+      var bleed = statusOf(s.enemy, 'bleed');
+      if (bleed) {
+        var bleedHit = dealDamage(s.enemy, bleed.stacks);
+        var bleedDamage = bleedHit.amount;
+        var remaining = removeOneStack(s.enemy, 'bleed');
+        res.msgs.push(s.enemy.name + ' takes ' + bleedDamage + ' Bleed damage' + (remaining ? ' (' + remaining + ' stacks left).' : '.'));
+        res.pops.push({ who: 'enemy', text: '-' + bleedDamage, cls: 'dmg' });
+        if (s.enemy.hp <= 0) {
+          s.over = 'win';
+          res.msgs.push(s.enemy.name + ' is defeated by Bleed before it can attack!');
+          return res;
+        }
+      }
+
+      var rawDamage = it.damage;
+      var modifiedDamage = Math.round(rawDamage * damageMultiplier(s.player));
+      var absorbed = Math.min(s.player.block, modifiedDamage);
+      var through = modifiedDamage - absorbed;
       s.player.block -= absorbed;
       s.player.hp = Math.max(0, s.player.hp - through);
       res.attack = true;
@@ -110,12 +210,13 @@
         (absorbed > 0 && through > 0 ? ' (' + absorbed + ' blocked)' : '') + '.');
       res.pops.push({ who: 'player', text: through > 0 ? '-' + through : 'Blocked', cls: through > 0 ? 'dmg' : 'blk' });
 
+      // Enemy's finite-duration effects expire after its action. Bleed has no timer.
+      decayTimedStatuses(s.enemy);
       if (s.player.hp <= 0) {
         s.over = 'lose';
         res.msgs.push('You fall...');
         return res;
       }
-
       pickIntent();
       startPlayerTurn();
       return res;
@@ -123,11 +224,9 @@
 
     pickIntent();
     startPlayerTurn();
-
     return { state: s, playCard: playCard, endTurn: endTurn };
   };
 
-  // Rewards after a win: returns { exp, gold, drops: [{id,name}] }
   E.rollRewards = function (monsterId, rng) {
     rng = rng || Math.random;
     var def = E.MONSTERS[monsterId];
