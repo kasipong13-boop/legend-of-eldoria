@@ -107,3 +107,30 @@ test('live battle UI displays status effects and Buff details for both sides', (
   assert.match(ui, /function renderEffects\(id, u\)/);
   assert.match(ui, /\.title = effects\.map/);
 });
+
+
+test('multi-enemy encounter rewards aggregate EXP, Gold, and duplicate drops', () => {
+  const E = boot();
+  const values = [0, 0, 0, 0, 0, 0];
+  let index = 0;
+  const reward = E.rollEncounterRewards(['poring', 'poring'], () => values[index++] || 0);
+  assert.equal(reward.exp, 24);
+  assert.equal(reward.gold, 10);
+  assert.deepEqual(JSON.parse(JSON.stringify(reward.drops)), [
+    { id: 'jelly', name: 'Poring Jelly', quantity: 2 }
+  ]);
+});
+
+test('multi-enemy reward aggregation rejects empty, oversized, and unknown encounters', () => {
+  const E = boot();
+  assert.throws(() => E.rollEncounterRewards([]), /1–5/);
+  assert.throws(() => E.rollEncounterRewards(['poring','poring','poring','poring','poring','poring']), /1–5/);
+  assert.throws(() => E.rollEncounterRewards(['missing']), TypeError);
+});
+
+test('world result handler uses all defeated monster IDs and preserves drop quantities', () => {
+  const main = fs.readFileSync(require.resolve('../js/main.js'), 'utf8');
+  assert.match(main, /E\.rollEncounterRewards\(defeatedIds\)/);
+  assert.match(main, /quantity:d\.quantity\|\|1/);
+  assert.match(main, /d\.quantity>1\?' ×'\+d\.quantity/);
+});
