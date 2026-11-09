@@ -325,9 +325,22 @@
       ctx.fillStyle = '#60452b'; ctx.fillRect(p.x - 5 * s, p.y - 23 * s, 10 * s, 27 * s);
       ctx.fillStyle = '#765333'; ctx.fillRect(p.x - 2 * s, p.y - 19 * s, 4 * s, 20 * s);
       ctx.fillStyle = crown;
-      ctx.beginPath(); ctx.ellipse(p.x, p.y - 43 * s, 25 * s, 22 * s, 0, 0, Math.PI * 2); ctx.fill();
-      ctx.beginPath(); ctx.ellipse(p.x - 15 * s, p.y - 31 * s, 17 * s, 17 * s, 0, 0, Math.PI * 2); ctx.fill();
-      ctx.beginPath(); ctx.ellipse(p.x + 15 * s, p.y - 31 * s, 17 * s, 17 * s, 0, 0, Math.PI * 2); ctx.fill();
+      if (variant === 0) {
+        // Broad old-growth crown.
+        ctx.beginPath(); ctx.ellipse(p.x, p.y - 43 * s, 29 * s, 21 * s, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(p.x - 18 * s, p.y - 31 * s, 18 * s, 16 * s, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(p.x + 18 * s, p.y - 31 * s, 18 * s, 16 * s, 0, 0, Math.PI * 2); ctx.fill();
+      } else if (variant === 1) {
+        // Taller, layered crown.
+        ctx.beginPath(); ctx.ellipse(p.x, p.y - 48 * s, 21 * s, 25 * s, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(p.x - 16 * s, p.y - 32 * s, 16 * s, 17 * s, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(p.x + 16 * s, p.y - 32 * s, 16 * s, 17 * s, 0, 0, Math.PI * 2); ctx.fill();
+      } else {
+        // Rounded, compact crown.
+        ctx.beginPath(); ctx.ellipse(p.x, p.y - 40 * s, 25 * s, 20 * s, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(p.x - 14 * s, p.y - 29 * s, 16 * s, 15 * s, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(p.x + 14 * s, p.y - 29 * s, 16 * s, 15 * s, 0, 0, Math.PI * 2); ctx.fill();
+      }
       ctx.fillStyle = variant === 1 ? '#477d43' : '#3e7540';
       ctx.beginPath(); ctx.ellipse(p.x - 5 * s, p.y - 48 * s, 14 * s, 11 * s, -0.25, 0, Math.PI * 2); ctx.fill();
       ctx.fillStyle = '#6d9650';
@@ -399,6 +412,31 @@
     ctx.strokeStyle = '#3a1a28'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(p.x, p.y - h + 5, 3, 0.1 * Math.PI, 0.9 * Math.PI); ctx.stroke();
   }
 
+  function drawForestAtmosphere() {
+    if (currentMapId !== 'whispering-forest') return;
+    // Soft shafts of canopy light, kept behind actors and limited to the forest map.
+    ctx.save();
+    var pulse = 0.5 + Math.sin(time * 0.35) * 0.08;
+    var beams = [
+      { x: -115, w: 52, a: 0.10 },
+      { x: 105, w: 38, a: 0.08 },
+      { x: 300, w: 58, a: 0.07 }
+    ];
+    for (var i = 0; i < beams.length; i++) {
+      var b = beams[i], grad = ctx.createLinearGradient(b.x, -150, b.x + b.w, 260);
+      grad.addColorStop(0, 'rgba(213,229,151,0)');
+      grad.addColorStop(0.48, 'rgba(213,229,151,' + (b.a * pulse) + ')');
+      grad.addColorStop(1, 'rgba(213,229,151,0)');
+      poly([b.x, -160, b.x + b.w, -160, b.x + b.w + 105, 280, b.x + 35, 280], grad);
+    }
+    var mist = ctx.createLinearGradient(0, 95, 0, 270);
+    mist.addColorStop(0, 'rgba(190,211,164,0)');
+    mist.addColorStop(1, 'rgba(190,211,164,0.075)');
+    ctx.fillStyle = mist;
+    ctx.fillRect(-420, 95, 900, 175);
+    ctx.restore();
+  }
+
   function render() {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, vw, vh);
@@ -408,6 +446,7 @@
 
     var r, c;
     for (r = 0; r < ROWS; r++) for (c = 0; c < COLS; c++) drawGround(c, r);
+    drawForestAtmosphere();
 
     if (marker) {
       var mp = iso(marker.x, marker.y), k = marker.t / 0.8;
