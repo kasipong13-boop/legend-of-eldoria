@@ -75,7 +75,8 @@ test('Slime Splash ★★★ adds a 3-damage bonus hit only if Vulnerable existe
   const E = loadGame();
   const b = battleWith(E, Array(5).fill({ id: 'msc-por-001', stars: 3 }));
   E.applyCombatStatus(b.state.enemy, 'vulnerable', 1, 1);
-  b.playCard(0);
+  const result = b.playCard(0);
+  assert.equal(result.element, 'water');
   assert.equal(b.state.enemy.hp, 7); // separate hits: round(5 x 1.5)=8, round(3 x 1.5)=5
 });
 
