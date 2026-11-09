@@ -86,6 +86,14 @@ Implemented in the v2 module:
 - Status stack cap 99, additive stacks, Vulnerable +50%, Stun attack prevention, and Bleed after each attack action by the afflicted unit.
 - Enemy intents are generated and exposed before enemy turns.
 
+
+Buff lifecycle implementation update (2026-11-09):
+- Added explicit per-Buff stacking policies: stack, refresh, replace, independent.
+- Added per-Buff duration policies: reset, extend, keep, independent.
+- Added explicit charge consumption and per-Buff zero-charge behavior: remove, keep, disable.
+- Definitions missing required policies are rejected rather than silently receiving a universal default.
+- These are lifecycle primitives only. Numeric Buff effect application to damage, block, healing, or Secondary Stats remains a separate implementation task; no unapproved balance values were introduced.
+
 Important limitations still open:
 - Existing 10-card legacy starter deck is intentionally not silently expanded to 20; the live adapter still uses legacy battle.js.
 - Live battle UI is still single-enemy and does not yet render the 10x10 field, multiple units, target selection, range indicators, status/buff icons or summon placement.
