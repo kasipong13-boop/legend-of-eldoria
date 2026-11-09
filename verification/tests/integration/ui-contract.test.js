@@ -53,7 +53,7 @@ test('Character creation and selection screens are wired to the current Save API
 });
 
 test('Character UI preserves save recovery boundaries and does not replace the Save Engine', () => {
-  assert.match(main, /entry\.state !== 'ready'/);
+  assert.match(main, /c\.state !== 'ready'/);
   assert.match(main, /saveSystem\.loadCharacter\(id\)/);
   assert.match(main, /settlePendingReward\(loaded\.save\)/);
   assert.doesNotMatch(main, /localStorage\.(setItem|removeItem)/);
