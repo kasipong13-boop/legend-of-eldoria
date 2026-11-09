@@ -150,7 +150,8 @@
       (card.statusEffects || []).forEach(function (effect) {
         if (effect.type === 'bleed' || effect.type === 'vulnerable') {
           applyStatus(s.enemy, effect.type, effect.stacks || 1, effect.duration);
-          res.msgs.push(s.enemy.name + ' gains ' + effect.type + ' (' + s.enemy.statuses[effect.type].stacks + ').');
+          var statusLabel = effect.type.charAt(0).toUpperCase() + effect.type.slice(1);
+          res.msgs.push(s.enemy.name + ' gains ' + statusLabel + ' (' + s.enemy.statuses[effect.type].stacks + ').');
         }
       });
 
