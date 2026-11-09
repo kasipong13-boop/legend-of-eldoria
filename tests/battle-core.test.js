@@ -201,6 +201,9 @@ test('configured Buff effects modify damage, block and healing with flat-before-
   const hero = b.state.units.find(u => u.id === 'hero');
   const target = b.state.units.find(u => u.id === 'p1');
   hero.hp = 30;
+  // Pin the hand order so this test validates effects, not shuffle order.
+  b.state.hand = ['strike', 'guard', 'heal'];
+  b.state.energy = 3;
   b.applyBuff(hero, {
     id: 'combat-training', stacking: 'replace', durationPolicy: 'reset', duration: null,
     effects: [
