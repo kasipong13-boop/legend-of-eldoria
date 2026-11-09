@@ -76,7 +76,10 @@
             cell.appendChild(intent);
           }
         }
-        if (occupant && occupant.side === 'enemy') cell.addEventListener('click', function () { chooseTarget(occupant.id); });
+        if (occupant && occupant.side === 'enemy') {
+          var targetId = occupant.id;
+          cell.addEventListener('click', function () { chooseTarget(targetId); });
+        }
         arena.appendChild(cell);
       }
     }
