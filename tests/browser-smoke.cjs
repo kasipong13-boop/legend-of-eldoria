@@ -61,7 +61,12 @@ const assert = require('node:assert/strict');
 
     // Exercise the real world-to-battle transition, win flow, reward persistence, and reload.
     await page.evaluate(() => {
-      const debug = window.ELDORIA.World._debug;
+      const E = window.ELDORIA;
+      // Test-only catalog fixture: verify that only explicitly eligible special cards enter the reward flow.
+      E.CARDS.bash.acquisitionType = 'monster-special-skill';
+      E.CARDS.bash.rarity = 'Rare';
+      E.MONSTER_CARD_DROP_TABLE.poring = [{ cardId: 'bash', chance: 1 }];
+      const debug = E.World._debug;
       const poring = debug.getPoring();
       Object.assign(debug.hero, { c: poring.c, r: poring.r, x: poring.x, y: poring.y, path: [], moving: false });
     });
@@ -93,14 +98,21 @@ const assert = require('node:assert/strict');
     });
     assert.equal(savedAfterBattle.stats.exp, 12, 'victory EXP saved');
     assert.ok(savedAfterBattle.gold >= 5 && savedAfterBattle.gold <= 10, 'victory gold saved');
+    assert.deepEqual(savedAfterBattle.deckCollection.owned, [{ cardId: 'bash', stars: 1, quantity: 1 }], 'monster special skill card saved to collection');
     await page.reload({ waitUntil: 'networkidle' });
     await page.locator('#btn-start').click();
     await page.waitForFunction(() => document.querySelector('#screen-select').classList.contains('active'));
     const savedMeta = await page.locator('#character-list').textContent();
     assert.match(savedMeta, /Lv 1|Lv 2/, 'saved character remains selectable after battle reload');
     assert.match(savedMeta, /Gold/, 'saved gold remains visible after reload');
+    await page.locator('#character-list .btn').click();
+    await page.waitForFunction(() => document.querySelector('#screen-world').classList.contains('active'));
+    await page.locator('#btn-card-collection').click();
+    await page.waitForFunction(() => document.querySelector('#screen-card-collection').classList.contains('active'));
+    assert.match(await page.locator('#collection-owned').textContent(), /Bash/, 'card collection shows acquired card after reload');
+    assert.match(await page.locator('#collection-summary').textContent(), /1 owned card copies/, 'card quantity persists after reload');
     assert.deepEqual(errors, [], 'no uncaught desktop browser errors after battle');
-    console.log('Browser smoke passed: character create/reload/continue, desktop and mobile Card Collection navigation, mobile preview, Poring battle victory, rewards and post-battle reload');
+    console.log('Browser smoke passed: character create/reload/continue, desktop and mobile Card Collection navigation, mobile preview, Poring battle victory, item and card rewards, and post-battle reload');
   } finally {
     if (browser) await browser.close();
     server.kill();
