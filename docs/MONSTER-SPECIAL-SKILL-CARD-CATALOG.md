@@ -88,7 +88,7 @@ The two candidates below continue earlier concept exploration for Poring and Wol
 
 **Design intent:** A higher-rarity damage-over-time skill that rewards attacking enemies already under pressure. The ★★ property is conditional and does not directly raise base damage. The ★★★ effect creates synergy between Bleed and Vulnerable without consuming existing Bleed stacks.
 
-**Rules note:** Bleed triggers according to the confirmed rule: each time the affected target attacks. Stack addition and duration reset follow the global status rules.
+**Rules note:** Bleed triggers each time the affected target attacks. It deals 1 HP per current stack, then consumes exactly 1 stack. Bleed has no duration timer; it remains until stacks are consumed. Status stack cap is 99.
 
 ## 4. Monster-to-card eligibility matrix
 
