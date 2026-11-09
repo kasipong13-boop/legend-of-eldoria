@@ -330,6 +330,29 @@
   function drawTree(c, r) {
     var p = iso(c, r), h = hash(c, r), s = 0.9 + (h % 5) * 0.06;
     if (currentMapId === 'whispering-forest') {
+      // One ancient landmark tree gives the forest a memorable visual focal point.
+      if (c === 5 && r === 1) {
+        shadow(p.x, p.y + 5, 34, 12);
+        ctx.fillStyle = '#493923';
+        ctx.fillRect(p.x - 11, p.y - 45, 22, 49);
+        ctx.fillStyle = '#735334';
+        ctx.fillRect(p.x - 4, p.y - 39, 8, 42);
+        ctx.fillStyle = '#385d35';
+        ctx.beginPath(); ctx.ellipse(p.x, p.y - 73, 42, 32, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(p.x - 25, p.y - 57, 27, 24, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(p.x + 25, p.y - 57, 27, 24, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#567c42';
+        ctx.beginPath(); ctx.ellipse(p.x - 7, p.y - 83, 22, 16, -0.2, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#9eaa61';
+        ctx.fillRect(p.x - 21, p.y - 71, 6, 4);
+        ctx.fillRect(p.x + 13, p.y - 59, 5, 4);
+        ctx.fillRect(p.x + 1, p.y - 94, 5, 4);
+        // Subtle ancient amber markings on the trunk.
+        ctx.fillStyle = 'rgba(224,190,104,0.75)';
+        ctx.fillRect(p.x - 2, p.y - 30, 4, 2);
+        ctx.fillRect(p.x - 5, p.y - 22, 3, 2);
+        return;
+      }
       // Layered canopy with a dark crown, mid-tone foliage and pixel-like highlights.
       var variant = h % 3, crown = variant === 0 ? '#244f32' : variant === 1 ? '#285a38' : '#315f36';
       shadow(p.x, p.y + 4, 23 * s, 9 * s);
