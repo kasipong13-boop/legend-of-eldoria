@@ -129,6 +129,17 @@ const assert = require('node:assert/strict');
     assert.equal(forestState.mapId, 'whispering-forest', 'Forest map loads through the village portal');
     assert.equal(forestState.label, 'Whispering Forest', 'HUD reflects the active map');
     assert.equal(forestState.count, 3, 'Forest supports a maximum three-Poring group');
+    const forestCanvas = await forest.locator('#world-canvas').evaluate(canvas => {
+      const ctx = canvas.getContext('2d');
+      const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+      const colors = new Set();
+      for (let i = 0; i < pixels.length; i += 4 * 97) {
+        if (pixels[i + 3] > 0) colors.add(pixels[i] + ',' + pixels[i + 1] + ',' + pixels[i + 2]);
+      }
+      return { width: canvas.width, height: canvas.height, colorCount: colors.size };
+    });
+    assert.ok(forestCanvas.width > 0 && forestCanvas.height > 0, 'Forest canvas has a valid mobile render surface');
+    assert.ok(forestCanvas.colorCount > 12, 'Forest scene renders varied ground, foliage, and atmospheric colors');
 
     await forest.evaluate(() => {
       const d = window.ELDORIA.World._debug, p = d.getPorings()[0];
