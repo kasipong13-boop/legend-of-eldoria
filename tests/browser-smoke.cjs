@@ -83,7 +83,29 @@ const assert = require('node:assert/strict');
     assert.match(savedMeta, /Lv 1|Lv 2/, 'saved character remains selectable after battle reload');
     assert.match(savedMeta, /Gold/, 'saved gold remains visible after reload');
     assert.deepEqual(errors, [], 'no uncaught desktop browser errors after battle');
-    console.log('Browser smoke passed: character create/reload/continue, mobile preview, Poring battle victory, rewards and post-battle reload');
+    // Exercise the isolated Battle Core v2 multi-unit battlefield UI.
+    const grid = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+    const gridErrors = [];
+    grid.on('pageerror', e => gridErrors.push(e.message));
+    await grid.goto('http://127.0.0.1:4173/battle-grid-test.html', { waitUntil: 'networkidle' });
+    assert.equal(await grid.locator('#arena .cell').count(), 100, 'battlefield renders 10x10 cells');
+    assert.equal(await grid.locator('#arena .cell .unit').count(), 3, 'hero and two enemies render');
+    const strike = grid.locator('#hand .card').filter({ hasText: 'Strike' }).first();
+    if (await strike.count()) {
+      await strike.click();
+      await grid.locator('#arena .cell').nth(38).click(); // Poring A at x=8, y=3
+      await grid.waitForFunction(() => document.querySelector('#battle-log').textContent.includes('Damage to poring-a'));
+      assert.equal(await grid.locator('#arena .cell').nth(38).locator('.unit').count(), 1, 'target remains visible after damage');
+    }
+    const gridMobile = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
+    await gridMobile.goto('http://127.0.0.1:4173/battle-grid-test.html', { waitUntil: 'networkidle' });
+    assert.equal(await gridMobile.locator('#arena .cell').count(), 100, 'mobile battlefield renders all cells');
+    const gridLayout = await gridMobile.evaluate(() => ({ width: document.documentElement.clientWidth, scroll: document.documentElement.scrollWidth }));
+    assert.ok(gridLayout.scroll <= gridLayout.width + 1, 'battlefield has no horizontal overflow on mobile');
+    assert.deepEqual(gridErrors, [], 'no uncaught errors in multi-unit battlefield');
+    await gridMobile.close();
+    await grid.close();
+    console.log('Browser smoke passed: character create/reload/continue, mobile preview, legacy Poring battle, rewards, and Battle Core v2 10x10 multi-unit UI');
   } finally {
     if (browser) await browser.close();
     server.kill();
