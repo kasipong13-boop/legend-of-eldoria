@@ -60,7 +60,8 @@
     if (s) {
       s.stacks = clamp(s.stacks + stacks, 1, LIMITS.statusStacks);
       if (effect.duration !== undefined) s.duration = effect.duration;
-    } else unit.statuses.push({ id: effect.id, stacks: stacks, duration: effect.duration === undefined ? null : effect.duration });
+      if (effect.tickAt !== undefined) s.tickAt = effect.tickAt;
+    } else unit.statuses.push({ id: effect.id, stacks: stacks, duration: effect.duration === undefined ? null : effect.duration, tickAt: effect.tickAt === undefined ? null : effect.tickAt });
   }
   function damage(state, target, amount, kind) {
     amount = Math.max(0, integer(amount, 0));
