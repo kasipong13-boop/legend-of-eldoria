@@ -59,3 +59,18 @@ test('Character UI preserves save recovery boundaries and does not replace the S
   assert.doesNotMatch(main, /localStorage\.(setItem|removeItem)/);
   assert.match(html, /css\/character\.css/);
 });
+
+
+test('Character creation returns to the screen it was opened from', () => {
+  assert.match(main, /var characterCreationReturnScreen = 'screen-title'/);
+  assert.match(main, /characterCreationReturnScreen = screen/);
+  assert.match(main, /characterCreationReturnScreen === 'screen-select'/);
+  assert.match(main, /show\('screen-title'\)/);
+});
+
+test('Recovery-blocked records disable character creation on every entry point', () => {
+  assert.match(main, /\$\('btn-new-character'\)\.disabled = blocked\.length > 0/);
+  assert.match(main, /\$\('btn-create-confirm'\)\.disabled = blocked\.length > 0/);
+  assert.match(main, /var blocked = chars\.filter\(function \(c\) \{ return c\.state === 'damaged' \|\| c\.state === 'recoveryIncomplete' \|\| c\.state === 'creating'; \}\)/);
+  assert.match(html, /id="character-name" type="text" maxlength="16"/);
+});
