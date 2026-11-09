@@ -149,7 +149,7 @@
   function switchMap(mapId) {
     if (!MAPS[mapId] || mapId === currentMapId) return;
     currentMapId = mapId; ROWS = activeMap().length; COLS = activeMap()[0].length;
-    var start = mapId === 'whispering-forest' ? {c:1,r:10} : START;
+    var start = mapId === 'whispering-forest' ? {c:2,r:10} : START;
     hero.c = hero.x = start.c; hero.r = hero.y = start.r; hero.path = []; hero.moving = false;
     lastSafeTile = null; spawnPoring();
     if (W.onMapChange) W.onMapChange(currentMapId);
