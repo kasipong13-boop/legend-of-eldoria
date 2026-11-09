@@ -359,3 +359,79 @@ test('All Enemies targeting hits every eligible enemy without manual selection',
   assert.equal(result.events.filter(e => e.type === 'damage').length, 3);
   assert.ok(b.state.units.filter(u => u.side === 'enemy').every(u => u.hp === 18));
 });
+
+
+test('deck validator supports star-specific references and distinguishes duplicate identities', () => {
+  const cards = {
+    common: { id: 'common', name: 'Test Common', rarity: 'Common', category: 'standard' },
+    skill: { id: 'skill', name: 'Monster Skill', rarity: 'Rare', category: 'monster-special' },
+    legendary: { id: 'legendary', name: 'Legendary', rarity: 'Legendary', category: 'standard' },
+    rare: { id: 'rare', name: 'Rare', rarity: 'Rare', category: 'standard' }
+  };
+  const deck = [
+    ...Array(3).fill({ cardId: 'common', stars: 1 }),
+    ...Array(3).fill({ cardId: 'common', stars: 2 }),
+    ...Array(2).fill({ cardId: 'skill', stars: 1 }),
+    { cardId: 'legendary', stars: 1 },
+    ...Array(11).fill({ cardId: 'rare', stars: 1 })
+  ];
+  assert.equal(deck.length, 20);
+  assert.equal(Core.validateDeck(deck, cards).valid, true);
+  const tooManyCommon = deck.concat([{ cardId: 'common', stars: 1 }]).slice(0, 20);
+  // Replace one Rare copy, preserving the exact deck size.
+  tooManyCommon[19] = { cardId: 'common', stars: 1 };
+  const result = Core.validateDeck(tooManyCommon, cards);
+  assert.equal(result.valid, false);
+  assert.ok(result.errors.some(x => x.includes('Copy limit')));
+});
+
+test('deck validator enforces Monster Special Skill and Legendary copy caps', () => {
+  const cards = {
+    skill: { id: 'skill', rarity: 'Epic', category: 'monster-special' },
+    legendary: { id: 'legendary', rarity: 'Legendary', category: 'standard' },
+    filler: { id: 'filler', rarity: 'Rare', category: 'standard' }
+  };
+  const deck = [
+    ...Array(3).fill('skill'),
+    'legendary',
+    ...Array(16).fill('filler')
+  ];
+  const result = Core.validateDeck(deck, cards);
+  assert.equal(result.valid, false);
+  assert.ok(result.errors.some(x => x.includes('skill@1') && x.includes('max 2')));
+});
+
+test('deck validator checks owned quantities for each card star level', () => {
+  const cards = {
+    strike: { id: 'strike', rarity: 'Common', category: 'standard' },
+    guard: { id: 'guard', rarity: 'Common', category: 'standard' }
+  };
+  const deck = [
+    ...Array(3).fill({ cardId: 'strike', stars: 1 }),
+    ...Array(3).fill({ cardId: 'strike', stars: 2 }),
+    ...Array(3).fill({ cardId: 'guard', stars: 1 }),
+    ...Array(3).fill({ cardId: 'guard', stars: 2 }),
+    ...Array(8).fill({ cardId: 'guard', stars: 3 })
+  ];
+  const owned = [
+    { cardId: 'strike', stars: 1, quantity: 3 },
+    { cardId: 'strike', stars: 2, quantity: 2 },
+    { cardId: 'guard', stars: 1, quantity: 3 },
+    { cardId: 'guard', stars: 2, quantity: 3 },
+    { cardId: 'guard', stars: 3, quantity: 8 }
+  ];
+  const result = Core.validateDeck(deck, cards, { owned });
+  assert.equal(result.valid, false);
+  assert.ok(result.errors.some(x => x.includes('unowned cards: strike@2')));
+});
+
+test('deck validator rejects malformed star levels and unknown card references', () => {
+  const cards = { strike: { id: 'strike', rarity: 'Common', category: 'standard' } };
+  const deck = Array(20).fill({ cardId: 'strike', stars: 1 });
+  deck[0] = { cardId: 'strike', stars: 4 };
+  deck[1] = { cardId: 'missing', stars: 1 };
+  const result = Core.validateDeck(deck, cards);
+  assert.equal(result.valid, false);
+  assert.ok(result.errors.some(x => x.includes('Invalid star level')));
+  assert.ok(result.errors.some(x => x.includes('Unknown card')));
+});
