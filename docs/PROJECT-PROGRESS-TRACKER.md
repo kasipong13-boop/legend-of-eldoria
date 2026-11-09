@@ -36,7 +36,7 @@ PR #16 remains **open and Draft**. It has not been merged.
 | Battlefield UI | IMPLEMENTED / NEEDS MORE QA | 10x10 battlefield and multi-unit live adapter tested; complete targeting/range/effects remain. |
 | Multi-enemy battle and rewards | COMPLETED (prototype scenario) | Live three-Poring battle, aggregate EXP, level-up and save persistence covered by browser smoke. |
 | HP continuity / defeat handling | IMPLEMENTED / NEEDS MORE QA | Foundation documents and tests exist; continue edge-case regression and confirm no automatic heal. |
-| Deck architecture | NOT STARTED / PARTIAL FOUNDATION | 20-card deck, 10-card hand, shuffle and duplicate validation have core foundations; full collection/deck editing UI not complete. |
+| Deck architecture | NOT STARTED / PARTIAL FOUNDATION | 20-card validator and 10-card hand/shuffle foundations exist, but the live starter deck in `js/data.js` is still 10 cards and card metadata/copy caps are not yet fully authored. Do not claim the live game enforces the complete 20-card rule until integration and a full valid starter list are implemented. |
 | Card collection and inventory | NOT STARTED | Build inventory data/UI, item stacking, card collection and deck presets. |
 | Card rarity and monster skill-card drops | DESIGN CONFIRMED | Chance and rarity are separate; monsters drop special/skill cards only. Full implementation and balancing remain. |
 | Card stars and upgrade system | DESIGN CONFIRMED | Unique 2-star property and 3-star effect per card; full content and upgrade UI remain. |
@@ -77,3 +77,13 @@ Suggested formula once weights are approved:
 
 - 2026-11-09 — Initial tracker created from verified repository files, current Draft PR #16, and successful CI run #296.
 - 2026-11-09 — Whispering Forest visuals extended with landmark tree, roots/rune and drifting leaf motes; forest canvas smoke assertion added.
+
+## Audit note — deck/live battle integration (2026-11-09)
+
+A source review after CI run #298 confirms:
+- `js/battle-core.js` exposes a 20-card deck validator and the core test suite covers the exact-size and rarity-copy-cap rejection path.
+- `js/data.js` still defines a 10-card `STARTER_DECK`; this is legacy prototype content, not a completed 20-card player deck.
+- Card definitions in the current prototype do not yet contain a complete authored rarity/category/star catalog.
+- The live battle UI supports multi-enemy presentation/targeting in tested scenarios, but the overall card collection, deck editing, and complete 20-card enforcement path are not yet complete.
+
+This is a known implementation gap, not a change to confirmed game rules. Next deck milestone requires an authored 20-card starter list consistent with copy caps, complete card metadata, validation at deck save/equip time, and mobile UI regression. Avoid inventing the starter card list or changing card balance without a separate design decision.
