@@ -63,6 +63,55 @@
       if (effect.tickAt !== undefined) s.tickAt = effect.tickAt;
     } else unit.statuses.push({ id: effect.id, stacks: stacks, duration: effect.duration === undefined ? null : effect.duration, tickAt: effect.tickAt === undefined ? null : effect.tickAt });
   }
+  // Buff lifecycle is data-driven: every rule must be declared by the Buff definition.
+  // This avoids silently imposing one stacking, duration, or charge policy on all Buffs.
+  function applyBuff(unit, definition) {
+    if (!unit || !Array.isArray(unit.buffs) || !definition || !definition.id) return { ok: false, reason: 'invalid-buff' };
+    var stacking = definition.stacking;
+    var durationPolicy = definition.durationPolicy;
+    if (['stack', 'refresh', 'replace', 'independent'].indexOf(stacking) < 0) return { ok: false, reason: 'stacking-policy-required' };
+    if (['reset', 'extend', 'keep', 'independent'].indexOf(durationPolicy) < 0) return { ok: false, reason: 'duration-policy-required' };
+    if (definition.duration !== null && definition.duration !== undefined && (!Number.isFinite(definition.duration) || definition.duration < 1)) return { ok: false, reason: 'invalid-duration' };
+    if (definition.charges !== undefined && (!Number.isInteger(definition.charges) || definition.charges < 0)) return { ok: false, reason: 'invalid-charges' };
+    if (definition.charges !== undefined && ['remove', 'keep', 'disable'].indexOf(definition.onZero) < 0) return { ok: false, reason: 'charge-zero-policy-required' };
+    var existing = stacking === 'independent' ? null : unit.buffs.find(function (b) { return b.id === String(definition.id); });
+    var incoming = clone(definition);
+    incoming.id = String(definition.id);
+    incoming.stacks = Math.max(1, integer(definition.stacks, 1));
+    if (!existing || stacking === 'replace') {
+      if (existing) unit.buffs.splice(unit.buffs.indexOf(existing), 1);
+      unit.buffs.push(incoming);
+      return { ok: true, buff: incoming, created: true };
+    }
+    if (stacking === 'stack') {
+      var cap = Number.isInteger(definition.stackCap) && definition.stackCap > 0 ? definition.stackCap : Infinity;
+      existing.stacks = Math.min(cap, (existing.stacks || 1) + incoming.stacks);
+    }
+    if (durationPolicy === 'reset') existing.duration = definition.duration === undefined ? null : definition.duration;
+    else if (durationPolicy === 'extend' && definition.duration !== null && definition.duration !== undefined) {
+      existing.duration = existing.duration === null || existing.duration === undefined ? definition.duration : existing.duration + definition.duration;
+    } else if (durationPolicy === 'independent') {
+      unit.buffs.push(incoming);
+      return { ok: true, buff: incoming, created: true };
+    }
+    if (definition.tickAt !== undefined) existing.tickAt = definition.tickAt;
+    if (definition.charges !== undefined) existing.charges = definition.charges;
+    if (definition.onZero !== undefined) existing.onZero = definition.onZero;
+    return { ok: true, buff: existing, created: false };
+  }
+  function consumeBuffCharge(unit, buffId, amount) {
+    amount = amount === undefined ? 1 : amount;
+    if (!unit || !Array.isArray(unit.buffs) || !Number.isInteger(amount) || amount < 1) return { ok: false, reason: 'invalid-charge-use' };
+    var buff = unit.buffs.find(function (b) { return b.id === String(buffId); });
+    if (!buff || !Number.isInteger(buff.charges)) return { ok: false, reason: 'no-charge-buff' };
+    if (buff.charges < amount) return { ok: false, reason: 'insufficient-charges' };
+    buff.charges -= amount;
+    if (buff.charges === 0) {
+      if (buff.onZero === 'remove') unit.buffs.splice(unit.buffs.indexOf(buff), 1);
+      else if (buff.onZero === 'disable') buff.disabled = true;
+    }
+    return { ok: true, remaining: buff.charges, removed: unit.buffs.indexOf(buff) < 0, disabled: !!buff.disabled };
+  }
   function damage(state, target, amount, kind) {
     amount = Math.max(0, integer(amount, 0));
     if (!target || !target.alive || target.hp <= 0) return { amount: 0, blocked: 0, hpDamage: 0, defeated: !!target && !target.alive };
@@ -243,13 +292,15 @@ function playCard(index, sourceId, selectedIds) {
       var added = normalizeUnit(Object.assign({}, unit, { summoned: true }), side, same.length);
       state.units.push(added); return { ok: true, unit: added };
     }
-    return { state: state, playCard: playCard, endTurn: endTurn, summon: summon, applyStatus: applyStatus };
+    return { state: state, playCard: playCard, endTurn: endTurn, summon: summon, applyStatus: applyStatus, applyBuff: applyBuff, consumeBuffCharge: consumeBuffCharge };
   }
 
   BattleCore.LIMITS = LIMITS;
   BattleCore.validateDeck = validateDeck;
   BattleCore.create = create;
   BattleCore.applyStatus = applyStatus;
+  BattleCore.applyBuff = applyBuff;
+  BattleCore.consumeBuffCharge = consumeBuffCharge;
   BattleCore.damage = damage;
   E.BattleCore = BattleCore;
   if (typeof module !== 'undefined' && module.exports) module.exports = BattleCore;
