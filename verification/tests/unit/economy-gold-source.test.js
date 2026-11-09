@@ -53,8 +53,9 @@ test('new pending monster rewards satisfy the unchanged Save Schema and preserve
     '2026-11-09T00:01:00.000Z'
   );
   assert.equal(staged.ok, true);
-  assert.equal(E.Save.validateSave(staged.save).ok, true);
-  const claimed = E.Save.withClaim(staged.save, applyRewardToSave);
+  const stagedSave = E.Save.seal(staged.save);
+  assert.equal(E.Save.validateSave(stagedSave).ok, true);
+  const claimed = E.Save.withClaim(stagedSave, applyRewardToSave);
   assert.equal(claimed.ok, true);
   assert.equal(claimed.save.gold, 37);
   assert.equal(claimed.save.stats.exp, 12);
@@ -71,7 +72,9 @@ test('legacy pending combat Gold is ignored while EXP and item drops are still c
     '2026-11-09T00:02:00.000Z'
   );
   assert.equal(legacy.ok, true);
-  const claimed = E.Save.withClaim(legacy.save, applyRewardToSave);
+  const legacySave = E.Save.seal(legacy.save);
+  assert.equal(E.Save.validateSave(legacySave).ok, true);
+  const claimed = E.Save.withClaim(legacySave, applyRewardToSave);
   assert.equal(claimed.ok, true);
   assert.equal(claimed.save.gold, 37, 'legacy pending Gold must never increase the stored balance');
   assert.equal(claimed.save.stats.exp, 12);
