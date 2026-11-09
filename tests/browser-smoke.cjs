@@ -86,7 +86,7 @@ const assert = require('node:assert/strict');
     assert.match(savedMeta, /Lv 1|Lv 2/, 'saved character remains selectable after battle reload');
     assert.match(savedMeta, /Gold/, 'saved gold remains visible after reload');
     assert.deepEqual(errors, [], 'no uncaught desktop browser errors after battle');
-    // Exercise the playable Whispering Forest map, random Poring groups, and live encounter handoff.
+    // Exercise both real portal tiles, force a three-Poring spawn, and verify grouped battle handoff.
     const forest = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
     const forestErrors = [];
     forest.on('pageerror', e => forestErrors.push(e.message));
@@ -95,22 +95,47 @@ const assert = require('node:assert/strict');
     await forest.locator('#character-name').fill('Forest QA');
     await forest.locator('#btn-create-confirm').click();
     await forest.waitForFunction(() => document.querySelector('#screen-world').classList.contains('active'));
-    const forestState = await forest.evaluate(() => {
-      const W = window.ELDORIA.World, debug = W._debug;
-      debug.switchMap('whispering-forest');
-      return { mapId: debug.getMapId(), count: debug.getPorings().length, label: document.querySelector('#hud-zone').textContent };
+
+    // Stand on the village F tile; the world update loop must perform the map transition.
+    await forest.evaluate(() => {
+      const h = window.ELDORIA.World._debug.hero;
+      Object.assign(h, { c:10, r:10, x:10, y:10, path:[], moving:false });
     });
-    assert.equal(forestState.mapId, 'whispering-forest', 'Forest map loads');
+    await forest.waitForFunction(() => window.ELDORIA.World._debug.getMapId() === 'whispering-forest' && document.querySelector('#hud-zone').textContent === 'Whispering Forest', { timeout: 5000 });
+    const arrival = await forest.evaluate(() => ({ x:window.ELDORIA.World._debug.hero.c, y:window.ELDORIA.World._debug.hero.r }));
+    assert.deepEqual(arrival, { x:2, y:10 }, 'Forest arrival is beside, not on, the return portal');
+
+    // Stand on the Forest E tile and confirm the return transition.
+    await forest.evaluate(() => {
+      const h = window.ELDORIA.World._debug.hero;
+      Object.assign(h, { c:1, r:10, x:1, y:10, path:[], moving:false });
+    });
+    await forest.waitForFunction(() => window.ELDORIA.World._debug.getMapId() === 'greenvale-village' && document.querySelector('#hud-zone').textContent === 'Greenvale Village', { timeout: 5000 });
+
+    // Re-enter through F with a deterministic RNG value that selects the maximum group size.
+    await forest.evaluate(() => {
+      Math.random = () => 0.999;
+      const h = window.ELDORIA.World._debug.hero;
+      Object.assign(h, { c:10, r:10, x:10, y:10, path:[], moving:false });
+    });
+    await forest.waitForFunction(() => window.ELDORIA.World._debug.getMapId() === 'whispering-forest', { timeout: 5000 });
+    const forestState = await forest.evaluate(() => ({
+      mapId: window.ELDORIA.World._debug.getMapId(),
+      count: window.ELDORIA.World._debug.getPorings().length,
+      label: document.querySelector('#hud-zone').textContent
+    }));
+    assert.equal(forestState.mapId, 'whispering-forest', 'Forest map loads through the village portal');
     assert.equal(forestState.label, 'Whispering Forest', 'HUD reflects the active map');
-    assert.ok(forestState.count >= 1 && forestState.count <= 3, 'Forest spawns one to three Porings');
+    assert.equal(forestState.count, 3, 'Forest supports a maximum three-Poring group');
+
     await forest.evaluate(() => {
       const d = window.ELDORIA.World._debug, p = d.getPorings()[0];
       Object.assign(d.hero, { c:p.c, r:p.r, x:p.x, y:p.y, path:[], moving:false });
     });
     await forest.waitForFunction(() => document.querySelector('#screen-battle').classList.contains('active'), { timeout: 5000 });
-    assert.equal(await forest.locator('#live-battlefield .live-unit.enemy').count(), forestState.count, 'Touching one Poring starts battle with the whole spawned group');
+    assert.equal(await forest.locator('#live-battlefield .live-unit.enemy').count(), 3, 'Touching one Poring starts battle with all three spawned Porings');
     assert.equal(await forest.locator('#live-battlefield .live-cell').count(), 100, 'Forest encounter uses the 10x10 battlefield');
-    assert.deepEqual(forestErrors, [], 'no uncaught errors in Forest map or encounter');
+    assert.deepEqual(forestErrors, [], 'no uncaught errors in Forest portal or encounter flow');
     await forest.close();
 
     // Exercise the isolated Battle Core v2 multi-unit battlefield UI.
