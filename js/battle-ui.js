@@ -34,6 +34,7 @@
     $('enemy-intent').textContent = s.over || !enemy.intent ? '' :
       'Next: ' + enemy.intent.name + (Number.isFinite(enemy.intent.damage) ? ', ' + enemy.intent.damage + ' damage' : '');
     $('enemy-intent').style.visibility = s.over ? 'hidden' : 'visible';
+    $('enemy-status').textContent = statusText(enemy) ? 'Effects: ' + statusText(enemy) : '';
     $('player-hp-fill').style.width = (100 * hero.hp / hero.maxHp) + '%';
     $('player-hp-text').textContent = 'You  ' + hero.hp + ' / ' + hero.maxHp + (statusText(hero) ? ' · ' + statusText(hero) : '');
     var blk = $('player-block'); blk.textContent = '\uD83D\uDEE1\uFE0F ' + hero.block;
