@@ -112,6 +112,21 @@
     }
     return { ok: true, remaining: buff.charges, removed: unit.buffs.indexOf(buff) < 0, disabled: !!buff.disabled };
   }
+  // Apply only explicitly authored Buff effects. Flat modifiers are applied before
+  // percentage modifiers; percentage entries in the same channel are additive.
+  function buffValue(unit, channel, base, stat) {
+    var flat = 0, percent = 0;
+    (unit && Array.isArray(unit.buffs) ? unit.buffs : []).forEach(function (buff) {
+      if (buff.disabled) return;
+      (buff.effects || []).forEach(function (effect) {
+        if (effect.channel !== channel || (stat && effect.stat !== stat)) return;
+        if (!Number.isFinite(effect.value) || ['flat', 'percent'].indexOf(effect.mode) < 0) return;
+        if (effect.mode === 'flat') flat += effect.value;
+        else percent += effect.value;
+      });
+    });
+    return Math.round((base + flat) * (1 + percent / 100));
+  }
   function damage(state, target, amount, kind) {
     amount = Math.max(0, integer(amount, 0));
     if (!target || !target.alive || target.hp <= 0) return { amount: 0, blocked: 0, hpDamage: 0, defeated: !!target && !target.alive };
@@ -245,14 +260,14 @@ function playCard(index, sourceId, selectedIds) {
       targets.forEach(function (target) {
         var hits = Math.max(1, integer(card.hits, 1));
         for (var h = 0; h < hits && target.alive; h++) {
-          if (card.damage) events.push({ type: 'damage', target: target.id, result: damage(state, target, card.damage, card.damageType || 'physical') });
+          if (card.damage) events.push({ type: 'damage', target: target.id, result: damage(state, target, buffValue(source, 'damage', card.damage), card.damageType || 'physical') });
         }
         // Card-applied statuses resolve once per target per card, not once per hit.
         (card.statuses || []).forEach(function (effect) { if (target.alive) applyStatus(target, effect); });
       });
       if (madeAttack) triggerBleed(source, events);
-      if (card.block) { source.block += card.block; events.push({ type: 'block', target: source.id, amount: card.block }); }
-      if (card.heal) { var before = source.hp; source.hp = Math.min(source.maxHp, source.hp + card.heal); events.push({ type: 'heal', target: source.id, amount: source.hp - before }); }
+      if (card.block) { var blockAmount = buffValue(source, 'block', card.block); source.block += blockAmount; events.push({ type: 'block', target: source.id, amount: blockAmount }); }
+      if (card.heal) { var before = source.hp; source.hp = Math.min(source.maxHp, source.hp + buffValue(source, 'healing', card.heal)); events.push({ type: 'heal', target: source.id, amount: source.hp - before }); }
       finishCheck(); state.log.push({ turn: state.turn, card: id, events: clone(events) });
       return { ok: true, events: events, over: state.over };
     }
@@ -292,7 +307,7 @@ function playCard(index, sourceId, selectedIds) {
       var added = normalizeUnit(Object.assign({}, unit, { summoned: true }), side, same.length);
       state.units.push(added); return { ok: true, unit: added };
     }
-    return { state: state, playCard: playCard, endTurn: endTurn, summon: summon, applyStatus: applyStatus, applyBuff: applyBuff, consumeBuffCharge: consumeBuffCharge };
+    return { state: state, playCard: playCard, endTurn: endTurn, summon: summon, applyStatus: applyStatus, applyBuff: applyBuff, consumeBuffCharge: consumeBuffCharge, buffValue: buffValue };
   }
 
   BattleCore.LIMITS = LIMITS;
@@ -300,7 +315,7 @@ function playCard(index, sourceId, selectedIds) {
   BattleCore.create = create;
   BattleCore.applyStatus = applyStatus;
   BattleCore.applyBuff = applyBuff;
-  BattleCore.consumeBuffCharge = consumeBuffCharge;
+  BattleCore.consumeBuffCharge = consumeBuffCharge;\n  BattleCore.buffValue = buffValue;
   BattleCore.damage = damage;
   E.BattleCore = BattleCore;
   if (typeof module !== 'undefined' && module.exports) module.exports = BattleCore;
