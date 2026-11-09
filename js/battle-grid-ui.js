@@ -85,6 +85,12 @@
           unitView.appendChild(badges);
         }
         cell.appendChild(unitView);
+        if(unit.side==='enemy'&&unit.intent){
+          var intent=document.createElement('span');intent.className='unit-intent';
+          intent.textContent=(unit.intent.name||'Intent')+(Number.isFinite(unit.intent.damage)?' · '+unit.intent.damage+' DMG':'');
+          intent.title='Next action: '+(unit.intent.name||'Unknown')+(Number.isFinite(unit.intent.damage)?' · '+unit.intent.damage+' damage':'');
+          cell.appendChild(intent);
+        }
         if(unit.side==='enemy')cell.addEventListener('click',()=>chooseTarget(unit.id));
       }
       arena.appendChild(cell);
