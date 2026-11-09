@@ -95,3 +95,14 @@ This is a known implementation gap, not a change to confirmed game rules. Next d
 - The document records the current live integration gap, additive Save compatibility requirements, proposed ownership/preset data shape, card metadata requirements, shared validation rules, migration safety, implementation order, and acceptance tests.
 - This is a technical contract/proposal only. It does not add card content, change card balance, alter Save schema, or claim the live game now enforces a 20-card deck.
 - Next: implement pure validators and unit tests first; only connect persisted decks to battle after the user-approved starter content is available.
+
+
+## Deck validator implementation update (2026-11-09)
+
+- Updated js/battle-core.js so validateDeck accepts legacy card-ID strings and star-specific { cardId, stars } references.
+- Validation now supports optional owned-card quantities and rejects references that exceed the owned quantity for that card ID + star level.
+- Copy-limit handling follows the confirmed defined caps: Legendary max 1, Monster Special Skill max 2, Common max 3. Other rarity categories are not assigned an invented cap in this validator.
+- Added unit coverage for star-specific identities, Common copy limits, Monster Special Skill limits, owned quantity, malformed stars, and unknown IDs.
+- Commit: d434c15a3616850378d4f9b9cd479069208e1f08.
+- GitHub Actions run 42588680150: JavaScript syntax and Save/Battle unit-test steps completed successfully; browser dependency installation was still in progress at the last check.
+- This is engine-level validation only. Live deck editing, collection persistence, and battle use of a selected preset remain unimplemented.
