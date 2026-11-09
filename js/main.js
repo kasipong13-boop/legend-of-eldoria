@@ -79,7 +79,8 @@
     function line(text,cls){var li=document.createElement('li');li.textContent=text;if(cls)li.className=cls;list.appendChild(li);}
     player.hp=Number.isFinite(result.hp)?Math.max(0,Math.min(player.maxHp,result.hp)):player.hp;
     if(result.won){
-      var defeatedIds=Array.isArray(result.monsterIds)&&result.monsterIds.length?result.monsterIds:[result.monsterId];\n      var rw=defeatedIds.length>1?E.rollEncounterRewards(defeatedIds):E.rollRewards(defeatedIds[0]);
+      var defeatedIds=Array.isArray(result.monsterIds)&&result.monsterIds.length?result.monsterIds:[result.monsterId];
+      var rw=defeatedIds.length>1?E.rollEncounterRewards(defeatedIds):E.rollRewards(defeatedIds[0]);
       // Persist the reward intent before the result screen can be shown.
       current.stats={level:player.level,exp:player.exp,hp:player.hp,maxHp:player.maxHp};
       current.gold=player.gold;current.items={jelly:player.jelly};
