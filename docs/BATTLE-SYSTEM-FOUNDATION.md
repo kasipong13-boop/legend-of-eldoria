@@ -92,6 +92,9 @@ Buff lifecycle implementation update (2026-11-09):
 - Added per-Buff duration policies: reset, extend, keep, independent.
 - Added explicit charge consumption and per-Buff zero-charge behavior: remove, keep, disable.
 - Definitions missing required policies are rejected rather than silently receiving a universal default.
+- Explicit effect channels now apply to combat actions: outgoing damage, incoming damage, Block, and Healing.
+- Effect entries support Flat and Percentage values; flat modifiers are applied first, then percentages in the same channel are additive.
+- These are generic configurable primitives, not final class/card balance values.
 - These are lifecycle primitives only. Numeric Buff effect application to damage, block, healing, or Secondary Stats remains a separate implementation task; no unapproved balance values were introduced.
 
 Important limitations still open:
