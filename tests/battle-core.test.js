@@ -35,6 +35,30 @@ test('multi-unit battle starts with 3 Energy and draws at most five cards', () =
   assert.equal(b.state.activeSide, 'player');
 });
 
+
+test('hand never exceeds the confirmed 10-card limit when drawing', () => {
+  const b = setup({ deck: Array(30).fill('strike') });
+  b.state.hand = Array(9).fill('strike');
+  b.state.drawPile = Array(10).fill('guard');
+  b.state.discardPile = [];
+  b.endTurn();
+  assert.equal(b.state.hand.length, 0); // End turn discards the previous hand.
+  assert.equal(b.state.activeSide, 'player');
+  assert.ok(b.state.hand.length <= 10);
+});
+
+test('Block resets at the start of each side turn', () => {
+  const b = setup();
+  const hero = b.state.units.find(u => u.id === 'hero');
+  const enemy = b.state.units.find(u => u.id === 'p1');
+  hero.block = 7;
+  enemy.block = 5;
+  b.endTurn();
+  assert.equal(hero.block, 7, 'player Block is retained during the enemy turn');
+  assert.equal(enemy.block, 0, 'enemy Block resets when enemy turn begins');
+  assert.equal(hero.block, 0, 'player Block resets when the next player turn begins');
+});
+
 test('target selection is required when eligible enemies exceed target count', () => {
   const b = setup();
   const result = b.playCard(b.state.hand.indexOf('strike'), 'hero');
