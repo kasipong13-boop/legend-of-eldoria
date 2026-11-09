@@ -71,3 +71,18 @@ test('deck save rejects presets larger than the confirmed 20-card deck size',()=
   const cardRefs=Array.from({length:21},()=>({cardId:'strike',stars:1}));
   assert.throws(()=>Save.saveDeckData(c,{owned:[{cardId:'strike',stars:1,quantity:21}],presets:[{id:'p1',name:'Oversized',cardRefs}],activePresetId:'p1'}),/cannot exceed 20 cards/);
 });
+
+test('Card Collection is registered as a read-only screen with world navigation',()=>{
+  const html=fs.readFileSync(require.resolve('../index.html'),'utf8');
+  const main=fs.readFileSync(require.resolve('../js/main.js'),'utf8');
+  assert.match(html,/id="screen-card-collection"/);
+  assert.match(html,/id="btn-card-collection"/);
+  assert.match(html,/id="btn-card-collection-back"/);
+  assert.match(html,/id="collection-owned"/);
+  assert.match(html,/id="collection-presets"/);
+  assert.match(main,/function openCardCollection\(\)/);
+  assert.match(main,/function closeCardCollection\(\)/);
+  assert.match(main,/E\.World\.pause\(\);renderCardCollection\(\);show\('screen-card-collection'\)/);
+  assert.match(main,/function closeCardCollection\(\)\{show\('screen-world'\);E\.World\.resume\(\);\}/);
+  assert.doesNotMatch(main,/function openCardCollection\(\)[\s\S]*?saveDeckData/);
+});
