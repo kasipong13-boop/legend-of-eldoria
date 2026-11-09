@@ -478,6 +478,20 @@
       grad.addColorStop(1, 'rgba(213,229,151,0)');
       poly([b.x, -160, b.x + b.w, -160, b.x + b.w + 105, 280, b.x + 35, 280], grad);
     }
+    // A few drifting leaf motes add gentle motion without affecting actors or collision.
+    for (var leaf = 0; leaf < 7; leaf++) {
+      var lx = ((leaf * 79 + time * (7 + leaf % 3)) % 560) - 280;
+      var ly = ((leaf * 53 + time * (11 + leaf % 2)) % 390) - 35;
+      var sway = Math.sin(time * 1.4 + leaf * 2.1) * 7;
+      ctx.save();
+      ctx.translate(lx + sway, ly);
+      ctx.rotate(Math.sin(time * 0.9 + leaf) * 0.7);
+      ctx.fillStyle = leaf % 2 ? 'rgba(180,197,103,0.62)' : 'rgba(218,183,92,0.58)';
+      ctx.beginPath();
+      ctx.ellipse(0, 0, 3.2, 1.6, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
     var mist = ctx.createLinearGradient(0, 95, 0, 270);
     mist.addColorStop(0, 'rgba(190,211,164,0)');
     mist.addColorStop(1, 'rgba(190,211,164,0.075)');
