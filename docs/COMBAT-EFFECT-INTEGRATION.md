@@ -12,7 +12,7 @@
 - Maximum status stacks: 99.
 - Bleed triggers every time the affected target attacks.
 - Bleed has no duration timer.
-- Each Bleed stack deals 1 HP damage at the start of the affected target's attack action. Damage is calculated from the stack count before consumption.
+- Each Bleed stack deals 1 HP base damage at the start of the affected target's attack action. Damage is calculated from the stack count before consumption and is subject to Vulnerable's damage-taken multiplier.
 - After Bleed damage resolves, remove exactly 1 Bleed stack. Remove the status at 0 stacks.
 - If Bleed defeats the target, the target's attack is cancelled and the battle can end immediately.
 - Vulnerable increases damage received by 50% (multiplier 1.5); it does not multiply the number of Vulnerable stacks.
