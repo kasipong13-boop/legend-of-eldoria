@@ -73,7 +73,18 @@
         cell.classList.add(unit.alive?'living':'dead');
         if(unit.side==='enemy'&&selectedCard!==null)cell.classList.add('targetable');
         var glyph=unit.side==='player'?'🛡️':'🩷';
-        cell.innerHTML='<span class="unit">'+glyph+'<small>'+Math.max(0,unit.hp)+' HP</small></span>';
+        var unitView=document.createElement('span');unitView.className='unit';unitView.textContent=glyph;
+        var hp=document.createElement('small');hp.textContent=Math.max(0,unit.hp)+' HP';unitView.appendChild(hp);
+        var effects=[];
+        (unit.statuses||[]).forEach(function(s){effects.push({label:(s.id==='vulnerable'?'VUL':s.id==='bleed'?'BLD':s.id==='stun'?'STN':s.id.toUpperCase())+' '+s.stacks,detail:s.id+' · '+s.stacks+' stack(s)'+(s.duration===null?'':' · '+s.duration+' turn(s)')});});
+        (unit.buffs||[]).forEach(function(b){effects.push({label:(b.id||'BUFF').toUpperCase()+' '+(b.stacks||1),detail:(b.id||'Buff')+' · '+(b.stacks||1)+' stack(s)'+(b.duration===null||b.duration===undefined?'':' · '+b.duration+' turn(s)')+(b.disabled?' · disabled':'')});});
+        if(effects.length){
+          var badges=document.createElement('span');badges.className='unit-effects';
+          badges.textContent=effects.map(function(e){return e.label;}).join(' ');
+          badges.title=effects.map(function(e){return e.detail;}).join(' | ');
+          unitView.appendChild(badges);
+        }
+        cell.appendChild(unitView);
         if(unit.side==='enemy')cell.addEventListener('click',()=>chooseTarget(unit.id));
       }
       arena.appendChild(cell);
