@@ -54,7 +54,6 @@
       name: 'Poring',
       hp: 20,
       exp: 12,
-      gold: [5, 10],
       drops: [{ id: 'jelly', name: 'Poring Jelly', chance: 0.6 }],
       moves: [
         { name: 'Bounce', damage: 4 },
