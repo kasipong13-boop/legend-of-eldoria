@@ -86,8 +86,15 @@ const assert = require('node:assert/strict');
       } else {
         const endTurn = page.locator('#btn-end-turn');
         if (!(await endTurn.isEnabled())) {
-          await page.waitForFunction(() => document.querySelector('#screen-result').classList.contains('active'), { timeout: 3000 });
-          break;
+          // The enemy turn can temporarily disable input while its intent/animation resolves.
+          // Wait for either the result screen or the next player turn instead of assuming
+          // every disabled state means the battle has already ended.
+          await page.waitForFunction(() =>
+            document.querySelector('#screen-result').classList.contains('active') ||
+            document.querySelector('#btn-end-turn').disabled === false,
+            { timeout: 10000 }
+          );
+          continue;
         }
         await endTurn.click();
         turns++;
