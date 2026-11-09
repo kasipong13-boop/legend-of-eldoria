@@ -268,3 +268,5 @@ html, body {
   .poring .eye { top: 30px; } .poring .eye.l { left: 30px; } .poring .eye.r { right: 30px; }
   .poring .mouth { left: 42px; top: 46px; }
 }
+
+.battle-status{min-height:16px;max-width:90%;text-align:center;color:#f2c77b;font-size:12px;font-weight:700;letter-spacing:.3px}
