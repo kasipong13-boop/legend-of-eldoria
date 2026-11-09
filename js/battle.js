@@ -57,6 +57,9 @@
     return statusOf(target, 'vulnerable') ? 1.5 : 1;
   }
 
+  // Exposed for deterministic tests and future status-effect integrations.
+  E.applyCombatStatus = applyStatus;
+
   E.createBattle = function (cfg) {
     var rng = cfg.rng || Math.random;
     var def = E.MONSTERS[cfg.monsterId];
