@@ -158,3 +158,21 @@ test('Bash applies Vulnerable to a surviving target and gains its confirmed bloc
   assert.equal(target.statuses.some(s => s.id === 'vulnerable' && s.stacks === 1), true);
   assert.equal(hero.block, 4);
 });
+
+test('battle result resolves immediately when a side has no living units at setup', () => {
+  const won = Core.create({
+    playerUnits: [{ id: 'hero', hp: 10, maxHp: 10, x: 1, y: 1 }],
+    enemyUnits: [{ id: 'fallen-enemy', hp: 0, maxHp: 10, x: 8, y: 1 }],
+    deck: []
+  });
+  assert.equal(won.state.over, 'win');
+  assert.equal(won.state.winner, 'player');
+
+  const lost = Core.create({
+    playerUnits: [{ id: 'fallen-hero', hp: 0, maxHp: 10, x: 1, y: 1 }],
+    enemyUnits: [{ id: 'enemy', hp: 10, maxHp: 10, x: 8, y: 1 }],
+    deck: []
+  });
+  assert.equal(lost.state.over, 'lose');
+  assert.equal(lost.state.winner, 'enemy');
+});
