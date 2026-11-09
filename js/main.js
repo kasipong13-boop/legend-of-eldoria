@@ -85,10 +85,10 @@
       var rw=E.rollRewards(result.monsterId);
       var cardDrops=E.CardAcquisition.rollMonsterDrops(result.monsterId);
       // Persist item and card rewards together before the result screen can be shown.
-      current=S.setPendingReward(current,{exp:rw.exp,gold:rw.gold,drops:rw.drops.map(function(d){return {id:d.id,name:d.name,quantity:1};}),cardDrops:cardDrops});
+      current=S.setPendingReward(current,{exp:rw.exp,drops:rw.drops.map(function(d){return {id:d.id,name:d.name,quantity:1};}),cardDrops:cardDrops});
       var claimed=S.claimPendingReward(current);current=claimed.payload;
       $('result-title').textContent='Victory!';
-      line('+'+rw.exp+' EXP');line('+'+rw.gold+' gold');
+      line('+'+rw.exp+' EXP');
       rw.drops.forEach(function(d){line('Dropped: '+d.name,'loot');});
       cardDrops.forEach(function(card){line('Card acquired: '+card.name+' · '+card.rarity,'card-loot');});
       if(!rw.drops.length&&!cardDrops.length)line('No drops this time.');
