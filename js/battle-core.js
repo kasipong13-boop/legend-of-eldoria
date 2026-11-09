@@ -30,6 +30,7 @@
       race: input.race || null, element: input.element || null,
       boss: !!input.boss, resistance: clone(input.resistance || {}),
       statuses: clone(input.statuses || []), buffs: clone(input.buffs || []),
+      moves: clone(Array.isArray(input.moves) ? input.moves : []),
       intent: null, alive: hp > 0, summoned: !!input.summoned
     };
   }
@@ -63,6 +64,7 @@
   }
   function damage(state, target, amount, kind) {
     amount = Math.max(0, integer(amount, 0));
+    if (!target || !target.alive || target.hp <= 0) return { amount: 0, blocked: 0, hpDamage: 0, defeated: !!target && !target.alive };
     var vulnerable = status(target, 'vulnerable');
     if (vulnerable) amount = Math.round(amount * 1.5);
     var resistance = target.resistance[kind] || 0;
@@ -187,8 +189,9 @@
         var hits = Math.max(1, integer(card.hits, 1));
         for (var h = 0; h < hits && target.alive; h++) {
           if (card.damage) events.push({ type: 'damage', target: target.id, result: damage(state, target, card.damage, card.damageType || 'physical') });
-          (card.statuses || []).forEach(function (effect) { if (target.alive) applyStatus(target, effect); });
         }
+        // Card-applied statuses resolve once per target per card, not once per hit.
+        (card.statuses || []).forEach(function (effect) { if (target.alive) applyStatus(target, effect); });
       });
       if (madeAttack) triggerBleed(source, events);
       if (card.block) { source.block += card.block; events.push({ type: 'block', target: source.id, amount: card.block }); }
@@ -225,6 +228,8 @@
     function summon(unit) {
       if (state.over) return { ok: false, reason: 'over' };
       var side = unit.side || 'player', same = aliveUnits(state, side);
+      if (SIDES.indexOf(side) < 0 || !unit.id || state.units.some(function (u) { return u.id === String(unit.id); })) return { ok: false, reason: 'invalid-unit' };
+      if (!Number.isInteger(unit.x) || !Number.isInteger(unit.y) || unit.x < 0 || unit.x >= LIMITS.width || unit.y < 0 || unit.y >= LIMITS.height || (side === 'player' && unit.x >= 5) || (side === 'enemy' && unit.x < 5)) return { ok: false, reason: 'position' };
       if (same.length >= LIMITS.unitsPerSide || state.units.length >= LIMITS.totalUnits) return { ok: false, reason: 'slots' };
       if (state.units.some(function (u) { return u.x === unit.x && u.y === unit.y && u.alive; })) return { ok: false, reason: 'occupied' };
       var added = normalizeUnit(Object.assign({}, unit, { summoned: true }), side, same.length);
