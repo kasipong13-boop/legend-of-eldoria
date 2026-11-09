@@ -13,7 +13,8 @@
   var active = false;
   var saveLocked = false;
   var pendingSaveTx = null;
-  var screens = ['screen-title', 'screen-world', 'screen-battle', 'screen-result'];
+  var screens = ['screen-title', 'screen-select', 'screen-create', 'screen-world', 'screen-battle', 'screen-result'];
+  var characterCreationReturnScreen = 'screen-title';
 
   function show(id) {
     screens.forEach(function (s) { $(s).classList.toggle('active', s === id); });
@@ -174,31 +175,148 @@
     toast('Tap the ground to walk, or use the arrows. Touch the pink Poring to fight.', 5000);
   }
 
-  function startNewGame() {
+  var hairColors = ['#302018', '#65402a', '#e4c36b', '#a83f32', '#426fb7', '#43834c', '#b9c4cf', '#8052a2'];
+
+  function makeCharacterAvatar(profile, small) {
+    var avatar = document.createElement('div');
+    avatar.className = 'character-avatar' + (small ? ' small' : '') + (profile.gender === 'female' ? ' female' : '');
+    avatar.setAttribute('aria-hidden', 'true');
+    var body = document.createElement('span'); body.className = 'avatar-body';
+    var head = document.createElement('span'); head.className = 'avatar-head';
+    var hair = document.createElement('i'); hair.className = 'avatar-hair style-' + profile.hairStyle;
+    hair.style.backgroundColor = hairColors[profile.hairColor] || hairColors[0];
+    var eyeL = document.createElement('i'); eyeL.className = 'avatar-eye left';
+    var eyeR = document.createElement('i'); eyeR.className = 'avatar-eye right';
+    head.appendChild(hair); head.appendChild(eyeL); head.appendChild(eyeR);
+    avatar.appendChild(body); avatar.appendChild(head);
+    return avatar;
+  }
+
+  function updateCreationPreview() {
+    var host = $('creation-avatar');
+    if (!host) return;
+    var profile = {
+      gender: $('character-gender').value,
+      hairStyle: Number($('character-hair').value),
+      hairColor: Number($('character-color').value)
+    };
+    var avatar = makeCharacterAvatar(profile, false);
+    avatar.id = 'creation-avatar';
+    host.replaceWith(avatar);
+  }
+
+  function openCharacterCreation() {
     if (!saveSystem || !saveSystem.probe()) {
       $('save-status').textContent = 'Save storage is unavailable in this browser.';
       return;
     }
-    // Prototype 0.2 starts directly as a Novice; character creation UI is intentionally deferred.
-    var created = saveSystem.createCharacter({ name: 'Novice', gender: 'male', hairStyle: 0, hairColor: 0 }, {
-      maxHp: E.RULES.playerMaxHp, start: E.World.startPosition()
+    var listed = saveSystem.listCharacters();
+    var chars = listed.characters || [];
+    var blocked = chars.filter(function (c) { return c.state === 'damaged' || c.state === 'recoveryIncomplete' || c.state === 'creating'; });
+    if (blocked.length) {
+      refreshTitleState();
+      $('create-error').textContent = 'Recovery required. Existing character data is protected; creating another character is temporarily disabled.';
+      return;
+    }
+    screens.forEach(function (screen) {
+      if ($(screen).classList.contains('active')) characterCreationReturnScreen = screen;
     });
+    $('btn-create-confirm').disabled = false;
+    $('create-error').textContent = '';
+    $('character-name').value = '';
+    updateCreationPreview();
+    show('screen-create');
+    $('character-name').focus();
+  }
+
+  function createCharacter() {
+    $('create-error').textContent = '';
+    if (!saveSystem || !saveSystem.probe()) {
+      $('create-error').textContent = 'Save storage is unavailable in this browser.';
+      return;
+    }
+    var created = saveSystem.createCharacter({
+      name: $('character-name').value,
+      gender: $('character-gender').value,
+      hairStyle: Number($('character-hair').value),
+      hairColor: Number($('character-color').value)
+    }, { maxHp: E.RULES.playerMaxHp, start: E.World.startPosition() });
     if (!created.ok) {
-      $('save-status').textContent = 'Could not create save: ' + created.reason;
+      var messages = {
+        NAME_empty: 'Enter a character name.',
+        NAME_tooLong: 'Name must be 1–16 characters.',
+        NAME_control: 'Name contains an unsupported control character.',
+        NAME_format: 'Name contains unsupported formatting characters.',
+        APPEARANCE_gender: 'Choose a valid gender.',
+        APPEARANCE_hairStyle: 'Choose a valid hairstyle.',
+        APPEARANCE_hairColor: 'Choose a valid hair color.',
+        NO_SECURE_RANDOM: 'Secure character ID generation is unavailable. No save was created.'
+      };
+      $('create-error').textContent = messages[created.reason] || ('Could not create character (' + created.reason + ').');
+      refreshTitleState();
+      var afterFailure = saveSystem.listCharacters().characters || [];
+      var recoveryBlocked = afterFailure.some(function (c) { return c.state === 'damaged' || c.state === 'recoveryIncomplete' || c.state === 'creating'; });
+      $('btn-create-confirm').disabled = recoveryBlocked;
+      if (recoveryBlocked) $('create-error').textContent = 'Character creation was interrupted. The save is protected; reload to retry recovery before creating another character.';
       return;
     }
     beginFromSave(created.save);
+    refreshTitleState();
   }
 
-  function continueGame() {
+  function renderCharacterSelection() {
+    var host = $('character-list');
+    host.textContent = '';
+    var listed = saveSystem ? saveSystem.listCharacters() : { characters: [] };
+    var chars = listed.characters || [];
+    var ready = chars.filter(function (c) { return c.state === 'ready' && c.save; });
+    var blocked = chars.filter(function (c) { return c.state !== 'ready'; });
+
+    if (!chars.length) {
+      var empty = document.createElement('p');
+      empty.className = 'character-empty';
+      empty.textContent = 'No characters yet. Create a character to begin.';
+      host.appendChild(empty);
+    }
+
+    ready.forEach(function (entry) {
+      var row = document.createElement('div'); row.className = 'character-row';
+      var info = document.createElement('div'); info.className = 'character-info';
+      info.appendChild(makeCharacterAvatar(entry.save.profile, true));
+      var details = document.createElement('div');
+      var name = document.createElement('strong'); name.textContent = entry.save.profile.name;
+      var meta = document.createElement('small');
+      meta.textContent = entry.save.profile.job.toUpperCase() + ' · Lv ' + entry.save.stats.level;
+      details.appendChild(name); details.appendChild(meta);
+      info.appendChild(details);
+      var play = document.createElement('button'); play.type = 'button'; play.className = 'btn primary'; play.textContent = 'Play';
+      play.addEventListener('click', function () { loadSelectedCharacter(entry.id); });
+      row.appendChild(info); row.appendChild(play); host.appendChild(row);
+    });
+
+    blocked.forEach(function (entry) {
+      var row = document.createElement('div'); row.className = 'character-row blocked';
+      var label = document.createElement('span');
+      label.textContent = entry.save && entry.save.profile ? entry.save.profile.name + ' — Recovery required' : 'Character save requires recovery';
+      row.appendChild(label); host.appendChild(row);
+    });
+    $('btn-new-character').disabled = blocked.length > 0;
+    $('select-warning').textContent = blocked.length
+      ? 'Some character records need recovery. They are protected and cannot be loaded or replaced. Reload to retry recovery.'
+      : '';
+  }
+
+  function startNewGame() { openCharacterCreation(); }
+
+  function loadSelectedCharacter(id) {
     if (!saveSystem) return;
-    var chars = saveSystem.listCharacters().characters;
-    var blocked = chars.filter(function (c) { return c.state === 'damaged' || c.state === 'recoveryIncomplete' || c.state === 'creating'; });
-    var list = chars.filter(function (c) { return c.state === 'ready' && c.save; });
-    if (!list.length) { refreshTitleState(); $('save-status').textContent = blocked.length ? 'Recovery required. New Game remains disabled.' : 'No saved Novice adventure found.'; return; }
-    var selected = list[list.length - 1];
-    var loaded = saveSystem.loadCharacter(selected.id);
-    if (!loaded.ok) { $('save-status').textContent = 'Save recovery required: ' + loaded.reason + '. New Game is disabled to protect the existing data.'; refreshTitleState(); return; }
+    var loaded = saveSystem.loadCharacter(id);
+    if (!loaded.ok) {
+      $('select-warning').textContent = 'Save recovery required: ' + loaded.reason + '. Existing data remains protected.';
+      refreshTitleState();
+      renderCharacterSelection();
+      return;
+    }
     var settled = settlePendingReward(loaded.save);
     if (!settled) {
       beginFromSave(loaded.save);
@@ -206,6 +324,12 @@
       return;
     }
     beginFromSave(settled);
+  }
+
+  function continueGame() {
+    if (!saveSystem) return;
+    renderCharacterSelection();
+    show('screen-select');
   }
 
   function startBattle(monsterId) {
@@ -338,6 +462,24 @@
 
   $('btn-start').addEventListener('click', startNewGame);
   $('btn-continue').addEventListener('click', continueGame);
+  $('btn-new-character').addEventListener('click', openCharacterCreation);
+  $('btn-select-back').addEventListener('click', function () { show('screen-title'); });
+  $('btn-create-back').addEventListener('click', function () {
+    if (characterCreationReturnScreen === 'screen-select') {
+      renderCharacterSelection();
+      show('screen-select');
+    } else {
+      show('screen-title');
+    }
+  });
+  $('btn-create-confirm').addEventListener('click', createCharacter);
+  ['character-gender', 'character-hair', 'character-color'].forEach(function (id) {
+    $(id).addEventListener('change', updateCreationPreview);
+  });
+  $('character-name').addEventListener('keydown', function (event) {
+    if (event.key === 'Enter') createCharacter();
+  });
+  updateCreationPreview();
   E.World.init($('world-canvas'));
   E.World.onEncounter = function (monsterId) { startBattle(monsterId); };
   E.World.onMapChange = function (mapId, mapName) {
@@ -361,6 +503,9 @@
     var blocked = chars.filter(function (c) { return c.state === 'damaged' || c.state === 'recoveryIncomplete' || c.state === 'creating'; });
     $('btn-continue').hidden = ready.length === 0;
     $('btn-start').disabled = blocked.length > 0;
+    $('btn-new-character').disabled = blocked.length > 0;
+    $('btn-create-confirm').disabled = blocked.length > 0;
+    $('btn-start').textContent = 'Create New Character';
     if (blocked.length) {
       $('save-status').textContent = 'Recovery required. Existing save data is protected; New Game is disabled to prevent overwriting it.';
       var recovery = $('recovery-status');
@@ -370,7 +515,7 @@
       }
       recovery.textContent = blocked.length + ' save record(s) need recovery. Reload the page to retry automatic recovery. Do not clear website data.';
     } else {
-      $('save-status').textContent = ready.length ? 'Saved Novice adventure available.' : 'New adventure — Novice';
+      $('save-status').textContent = ready.length ? (ready.length + ' saved character(s) available.') : 'Create your first character';
       var recovery = $('recovery-status'); if (recovery) recovery.remove();
     }
   }

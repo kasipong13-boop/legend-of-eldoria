@@ -37,3 +37,40 @@ test('Defeat applies the confirmed 10% gold penalty before persisting', () => {
   assert.match(main, /line\(goldLost > 0 \? 'You lost '/);
   assert.match(main, /player\.gold -= goldLost;[\s\S]*?persist\('battle-defeat'\)/);
 });
+
+
+test('Character creation and selection screens are wired to the current Save API', () => {
+  assert.match(html, /id="screen-select"/);
+  assert.match(html, /id="screen-create"/);
+  assert.match(html, /id="character-name"/);
+  assert.match(html, /id="character-gender"/);
+  assert.match(html, /id="character-hair"/);
+  assert.match(html, /id="character-color"/);
+  assert.match(main, /saveSystem\.createCharacter\(\{[\s\S]*?hairStyle:/);
+  assert.match(main, /saveSystem\.loadCharacter\(id\)/);
+  assert.match(main, /function renderCharacterSelection\(\)/);
+  assert.match(main, /function loadSelectedCharacter\(id\)/);
+});
+
+test('Character UI preserves save recovery boundaries and does not replace the Save Engine', () => {
+  assert.match(main, /c\.state !== 'ready'/);
+  assert.match(main, /saveSystem\.loadCharacter\(id\)/);
+  assert.match(main, /settlePendingReward\(loaded\.save\)/);
+  assert.doesNotMatch(main, /localStorage\.(setItem|removeItem)/);
+  assert.match(html, /css\/character\.css/);
+});
+
+
+test('Character creation returns to the screen it was opened from', () => {
+  assert.match(main, /var characterCreationReturnScreen = 'screen-title'/);
+  assert.match(main, /characterCreationReturnScreen = screen/);
+  assert.match(main, /characterCreationReturnScreen === 'screen-select'/);
+  assert.match(main, /show\('screen-title'\)/);
+});
+
+test('Recovery-blocked records disable character creation on every entry point', () => {
+  assert.match(main, /\$\('btn-new-character'\)\.disabled = blocked\.length > 0/);
+  assert.match(main, /\$\('btn-create-confirm'\)\.disabled = blocked\.length > 0/);
+  assert.match(main, /var blocked = chars\.filter\(function \(c\) \{ return c\.state === 'damaged' \|\| c\.state === 'recoveryIncomplete' \|\| c\.state === 'creating'; \}\)/);
+  assert.match(html, /id="character-name" type="text" maxlength="16"/);
+});

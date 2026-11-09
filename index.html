@@ -12,6 +12,7 @@
   <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
   <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/character.css">
 </head>
 <body>
 <div id="app">
@@ -23,11 +24,56 @@
     <p class="subtitle">Chronicles of the Dragon Kingdom</p>
     <div class="title-actions">
       <button id="btn-continue" class="btn" type="button" hidden>Continue</button>
-      <button id="btn-start" class="btn primary" type="button">Begin the journey</button>
+      <button id="btn-start" class="btn primary" type="button">Create New Character</button>
       <a class="btn" href="greenvale-art-preview.html">Preview Greenvale Art</a>
     </div>
     <p id="save-status" class="version" aria-live="polite"></p>
     <p class="version">Prototype 0.2.3: Greenvale Village</p>
+  </section>
+
+  <!-- CHARACTER SELECTION -->
+  <section id="screen-select" class="screen center character-screen">
+    <div class="character-panel">
+      <h2>Select Character</h2>
+      <div id="character-list" class="character-list"></div>
+      <p id="select-warning" class="storage-warning" role="status"></p>
+      <button id="btn-new-character" class="btn primary" type="button">Create New Character</button>
+      <button id="btn-select-back" class="btn" type="button">Back</button>
+    </div>
+  </section>
+
+  <!-- CHARACTER CREATION -->
+  <section id="screen-create" class="screen center character-screen">
+    <div class="character-panel">
+      <h2>Create Character</h2>
+      <div class="avatar-preview-wrap">
+        <div id="creation-avatar" class="character-avatar" aria-label="Character preview">
+          <span class="avatar-body"></span><span class="avatar-head"><i class="avatar-hair style-0"></i><i class="avatar-eye left"></i><i class="avatar-eye right"></i></span>
+        </div>
+        <span class="preview-caption">Character Preview</span>
+      </div>
+      <label for="character-name">Character Name
+        <input id="character-name" type="text" maxlength="16" autocomplete="off" placeholder="Enter a name">
+      </label>
+      <label for="character-gender">Gender
+        <select id="character-gender"><option value="male">Male</option><option value="female">Female</option></select>
+      </label>
+      <label for="character-hair">Hairstyle
+        <select id="character-hair">
+          <option value="0">Style 1</option><option value="1">Style 2</option><option value="2">Style 3</option>
+          <option value="3">Style 4</option><option value="4">Style 5</option><option value="5">Style 6</option>
+        </select>
+      </label>
+      <label for="character-color">Hair Color
+        <select id="character-color">
+          <option value="0">Black</option><option value="1">Brown</option><option value="2">Blonde</option><option value="3">Red</option>
+          <option value="4">Blue</option><option value="5">Green</option><option value="6">Silver</option><option value="7">Purple</option>
+        </select>
+      </label>
+      <p id="create-error" class="storage-warning" role="alert"></p>
+      <button id="btn-create-confirm" class="btn primary" type="button">Create Character</button>
+      <button id="btn-create-back" class="btn" type="button">Back</button>
+    </div>
   </section>
 
   <!-- WORLD (isometric exploration) -->

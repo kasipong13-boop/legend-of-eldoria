@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// End-to-end smoke test for the actual game page on desktop and iPhone-sized Chromium.
+// End-to-end smoke test for character creation/selection and existing save flows.
 const { chromium } = require('playwright');
 const http = require('http');
 const fs = require('fs');
@@ -30,23 +30,73 @@ const server = http.createServer((req, res) => {
       page.on('console', m => { if (m.type()==='error') errors.push(viewport.name + ' console: ' + m.text()); });
       await page.goto('http://127.0.0.1:' + port + '/', { waitUntil:'networkidle' });
       await page.locator('#screen-title.active').waitFor();
-      await page.getByRole('button', { name:'Begin the journey' }).click();
+      await page.getByRole('button', { name:'Create New Character' }).click();
+      await page.locator('#screen-create.active').waitFor();
+      await page.getByRole('button', { name:'Back' }).click();
+      await page.locator('#screen-title.active').waitFor();
+      await page.getByRole('button', { name:'Create New Character' }).click();
+      await page.locator('#screen-create.active').waitFor();
+      await page.locator('#character-name').fill('Eldoria Hero');
+      await page.locator('#character-gender').selectOption('female');
+      await page.locator('#character-hair').selectOption('3');
+      await page.locator('#character-color').selectOption('6');
+      await page.getByRole('button', { name:'Create Character' }).click();
       await page.locator('#screen-world.active').waitFor();
       const hud = await page.locator('#hud-zone').textContent();
       if (!hud.includes('Greenvale Village')) throw new Error(viewport.name + ': village HUD missing');
+      const firstSave = await page.evaluate(() => JSON.parse(localStorage.getItem(Object.keys(localStorage).find(k => /^eldoria\.char\.[a-f0-9]{32}\.main$/.test(k)))).profile);
+      if (firstSave.name !== 'Eldoria Hero' || firstSave.gender !== 'female' || firstSave.hairStyle !== 3 || firstSave.hairColor !== 6) throw new Error(viewport.name + ': character profile not persisted');
       await page.locator('#btn-menu').click();
       await page.locator('#game-menu:not([hidden])').waitFor();
       await page.getByRole('button', { name:'Save & Return to Title' }).click();
       await page.locator('#screen-title.active').waitFor();
       await page.locator('#btn-continue:not([hidden])').waitFor();
       await page.getByRole('button', { name:'Continue' }).click();
+      await page.locator('#screen-select.active').waitFor();
+      await page.getByRole('button', { name:'Play' }).click();
       await page.locator('#screen-world.active').waitFor();
-      results.push({ viewport:viewport.name, title:'pass', newGame:'pass', village:'pass', menu:'pass', returnToTitle:'pass', continueAfterReload:'pass' });
+      await page.locator('#btn-menu').click();
+      await page.getByRole('button', { name:'Save & Return to Title' }).click();
+      await page.locator('#screen-title.active').waitFor();
+      await page.getByRole('button', { name:'Continue' }).click();
+      await page.locator('#screen-select.active').waitFor();
+      await page.getByRole('button', { name:'Create New Character' }).click();
+      await page.locator('#screen-create.active').waitFor();
+      await page.getByRole('button', { name:'Back' }).click();
+      await page.locator('#screen-select.active').waitFor();
+      await page.getByRole('button', { name:'Create New Character' }).click();
+      await page.locator('#screen-create.active').waitFor();
+      await page.locator('#character-name').fill('Second Hero');
+      await page.getByRole('button', { name:'Create Character' }).click();
+      await page.locator('#screen-world.active').waitFor();
+      await page.locator('#btn-menu').click();
+      await page.getByRole('button', { name:'Save & Return to Title' }).click();
+      await page.locator('#screen-title.active').waitFor();
+      await page.getByRole('button', { name:'Continue' }).click();
+      await page.locator('#screen-select.active').waitFor();
+      const count = await page.locator('.character-row:not(.blocked)').count();
+      if (count !== 2) throw new Error(viewport.name + ': expected two selectable characters, found ' + count);
+      const damagedId = await page.evaluate(() => {
+        const key = Object.keys(localStorage).find(k => /^eldoria\.char\.[a-f0-9]{32}\.main$/.test(k));
+        return key && key.split('.')[2];
+      });
+      if (!damagedId) throw new Error(viewport.name + ': unable to locate a character save for recovery test');
+      await page.evaluate(id => {
+        ['main','backup','guard'].forEach(part => localStorage.setItem('eldoria.char.' + id + '.' + part, '{damaged'));
+      }, damagedId);
+      await page.reload({ waitUntil:'networkidle' });
+      await page.locator('#screen-title.active').waitFor();
+      if (!(await page.locator('#btn-start').isDisabled())) throw new Error(viewport.name + ': title creation was not blocked during recovery');
+      await page.getByRole('button', { name:'Continue' }).click();
+      await page.locator('#screen-select.active').waitFor();
+      if (!(await page.locator('#btn-new-character').isDisabled())) throw new Error(viewport.name + ': selection creation was not blocked during recovery');
+      if ((await page.locator('.character-row.blocked').count()) !== 1) throw new Error(viewport.name + ': damaged character was not shown as blocked');
+      results.push({ viewport:viewport.name, creation:'pass', appearancePersistence:'pass', selection:'pass', multipleCharacters:'pass', backNavigation:'pass', recoveryCreationLock:'pass', menu:'pass', continueFlow:'pass' });
       await context.close();
     }
     if (errors.length) throw new Error(errors.join('\n'));
     console.log(JSON.stringify({ results, pageErrors:errors }, null, 2));
-    console.log('PASS  actual game smoke test on desktop and iPhone-sized Chromium');
+    console.log('PASS  character creation and selection smoke test on desktop and iPhone-sized Chromium');
   } finally {
     await browser.close();
     await new Promise(resolve => server.close(resolve));
