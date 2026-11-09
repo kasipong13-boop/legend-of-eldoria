@@ -1,6 +1,4 @@
-/* Legend of Eldoria - Prototype 0.1
-   world.js: isometric Greenvale Village. Tap/click to walk, or use the D-pad / arrow keys / WASD.
-   Touch the Poring to start a battle. Everything is drawn on one canvas (no image files needed). */
+/* Legend of Eldoria — isometric world maps: Greenvale Village and Whispering Forest. */
 (function (root) {
   var E = root.ELDORIA;
 
@@ -16,10 +14,13 @@
     '#.H..=..#..#',
     '#....=.....#',
     '#.......#..#',
-    '#..........#',
+    '#.........F#',
     '############'
   ];
+  var FOREST_MAP = ['############','#....#.....#','#..........#','#..##...##.#','#..........#','#.##....#..#','#..........#','#...#..##..#','#..........#','#..##......#','#E.........#','############'];
+  var MAPS = { 'greenvale-village': MAP, 'whispering-forest': FOREST_MAP };
   var ROWS = MAP.length, COLS = MAP[0].length;
+  var currentMapId = 'greenvale-village';
   var TW = 64, TH = 32;
   var START = { c: 5, r: 5 };
   var HERO_SPEED = 5.2, PORING_SPEED = 1.5;
@@ -27,7 +28,8 @@
   var DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]];
   var HELD = { up: [-1, -1], down: [1, 1], left: [-1, 1], right: [1, -1] };
 
-  function tile(c, r) { return (c < 0 || r < 0 || c >= COLS || r >= ROWS) ? '#' : MAP[r].charAt(c); }
+  function activeMap() { return MAPS[currentMapId] || MAP; }
+  function tile(c, r) { var map = activeMap(); return (c < 0 || r < 0 || c >= map[0].length || r >= map.length) ? '#' : map[r].charAt(c); }
   function walk(c, r) { var t = tile(c, r); return t !== '#' && t !== 'H' && t !== '~'; }
   function canMove(c, r, nc, nr) {
     if (!walk(nc, nr)) return false;
@@ -64,7 +66,7 @@
   var cv, ctx, dpr = 1, vw = 0, vh = 0, scale = 1;
   var running = false, lastT = 0, time = 0;
   var hero = { c: START.c, r: START.r, x: START.c, y: START.r, path: [], moving: false };
-  var poring = null;
+  var porings = [];
   var held = null;
   var marker = null, lastSafeTile = null;
   var appearance = { gender: 'male', hairstyle: 0, hairColor: 0 };
@@ -107,6 +109,7 @@
   }
 
   W.start = function () {
+    currentMapId = 'greenvale-village'; ROWS = activeMap().length; COLS = activeMap()[0].length;
     hero.c = START.c; hero.r = START.r; hero.x = START.c; hero.y = START.r; hero.path = [];
     spawnPoring();
     W.resume();
@@ -118,24 +121,39 @@
   };
   W.pause = function () { running = false; held = null; };
   // Public save API: only stable, completed tile positions are exposed.
-  W.getPosition = function () { return { mapId: 'greenvale-village', x: hero.c, y: hero.r, safe: !hero.moving && hero.path.length === 0 }; };
+  W.getPosition = function () { return { mapId: currentMapId, x: hero.c, y: hero.r, safe: !hero.moving && hero.path.length === 0 }; };
   W.setPosition = function (p) {
-    if (!p || p.mapId !== 'greenvale-village' || !Number.isInteger(p.x) || !Number.isInteger(p.y) || !walk(p.x, p.y)) return false;
-    hero.c = hero.x = p.x; hero.r = hero.y = p.y; hero.path = []; lastSafeTile = p.x + ',' + p.y; spawnPoring(); return true;
+    if (!p || !MAPS[p.mapId] || !Number.isInteger(p.x) || !Number.isInteger(p.y)) return false;
+    var old = currentMapId; currentMapId = p.mapId; ROWS = activeMap().length; COLS = activeMap()[0].length;
+    if (!walk(p.x, p.y)) { currentMapId = old; ROWS = activeMap().length; COLS = activeMap()[0].length; return false; }
+    hero.c = hero.x = p.x; hero.r = hero.y = p.y; hero.path = []; lastSafeTile = p.x + ',' + p.y; spawnPoring();
+    if (W.onMapChange) W.onMapChange(currentMapId); return true;
   };
   W.respawn = function (resetHero) {
-    if (resetHero) { hero.c = START.c; hero.r = START.r; hero.x = START.c; hero.y = START.r; }
-    hero.path = [];
-    spawnPoring();
+    if (resetHero) { currentMapId = 'greenvale-village'; ROWS = activeMap().length; COLS = activeMap()[0].length; hero.c = START.c; hero.r = START.r; hero.x = START.c; hero.y = START.r; if (W.onMapChange) W.onMapChange(currentMapId); }
+    hero.path = []; spawnPoring();
   };
 
   function spawnPoring() {
-    var c = [];
+    var candidates = [];
     for (var r = 0; r < ROWS; r++) for (var q = 0; q < COLS; q++) {
-      if (tile(q, r) === '.' && Math.max(Math.abs(q - hero.c), Math.abs(r - hero.r)) >= 4) c.push([q, r]);
+      if (tile(q, r) === '.' && Math.max(Math.abs(q - hero.c), Math.abs(r - hero.r)) >= 3) candidates.push([q, r]);
     }
-    var p = c.length ? c[Math.floor(Math.random() * c.length)] : [9, 9];
-    poring = { c: p[0], r: p[1], x: p[0], y: p[1], tc: p[0], tr: p[1], wait: 0.6 + Math.random() };
+    var count = currentMapId === 'whispering-forest' ? E.createForestEncounter().length : 1;
+    porings = [];
+    for (var n = 0; n < count && candidates.length; n++) {
+      var p = candidates.splice(Math.floor(Math.random() * candidates.length), 1)[0];
+      porings.push({ id:'world-poring-'+(n+1), c:p[0], r:p[1], x:p[0], y:p[1], tc:p[0], tr:p[1], wait:0.6+Math.random() });
+    }
+  }
+  function switchMap(mapId) {
+    if (!MAPS[mapId] || mapId === currentMapId) return;
+    currentMapId = mapId; ROWS = activeMap().length; COLS = activeMap()[0].length;
+    var start = mapId === 'whispering-forest' ? {c:2,r:10} : START;
+    hero.c = hero.x = start.c; hero.r = hero.y = start.r; hero.path = []; hero.moving = false;
+    lastSafeTile = null; spawnPoring();
+    if (W.onMapChange) W.onMapChange(currentMapId);
+    if (W.onSafeTile) W.onSafeTile();
   }
 
   /* ---------- input ---------- */
@@ -181,8 +199,12 @@
       if (safeKey !== lastSafeTile) { lastSafeTile = safeKey; if (W.onSafeTile) W.onSafeTile(); }
     }
 
-    // poring wanders
-    if (poring) {
+    if (!hero.moving && hero.path.length === 0) {
+      if (currentMapId === 'greenvale-village' && tile(hero.c, hero.r) === 'F') { switchMap('whispering-forest'); return; }
+      if (currentMapId === 'whispering-forest' && tile(hero.c, hero.r) === 'E') { switchMap('greenvale-village'); return; }
+    }
+    for (var pi = 0; pi < porings.length; pi++) {
+      var poring = porings[pi];
       var pdx = poring.tc - poring.x, pdy = poring.tr - poring.y, pd = Math.sqrt(pdx * pdx + pdy * pdy);
       if (pd > 0.001) {
         var ps = PORING_SPEED * dt;
@@ -200,14 +222,11 @@
           if (opts.length) { var o = opts[Math.floor(Math.random() * opts.length)]; poring.tc = o[0]; poring.tr = o[1]; }
         }
       }
-
-      // touching the poring starts a battle
       var ex = hero.x - poring.x, ey = hero.y - poring.y;
       if (Math.sqrt(ex * ex + ey * ey) < 1.15 && W.onEncounter) {
-        hero.path = []; held = null;
-        hero.x = hero.c; hero.y = hero.r; hero.moving = false;
-        running = false;
-        W.onEncounter('poring');
+        hero.path = []; held = null; hero.x = hero.c; hero.y = hero.r; hero.moving = false; running = false;
+        W.onEncounter({ mapId:currentMapId, monsterIds:currentMapId === 'whispering-forest' ? porings.map(function(){return 'poring';}) : ['poring'] });
+        break;
       }
     }
   }
@@ -240,21 +259,81 @@
     var p = iso(c, r), t = tile(c, r), h = hash(c, r), alt = (c + r) % 2 === 0;
     var fill;
     if (t === '=') fill = alt ? '#b99c6a' : '#c3a676';
+    else if (t === 'F' || t === 'E') fill = alt ? '#d7bd72' : '#c9a85c';
     else if (t === '~') fill = alt ? '#3d83b0' : '#4590bd';
     else if (t === '#' || t === 'H') fill = '#3f7440';
     else fill = alt ? '#4c8546' : '#538c4c';
     diamond(p.x, p.y, fill, 'rgba(0,0,0,0.10)');
 
     if (t === '.' && h % 3 === 0) {
-      ctx.strokeStyle = '#3a6f3b'; ctx.lineWidth = 1.5; ctx.beginPath();
+      ctx.strokeStyle = currentMapId === 'whispering-forest' ? '#285d35' : '#3a6f3b';
+      ctx.lineWidth = currentMapId === 'whispering-forest' ? 2 : 1.5; ctx.beginPath();
       var ox = (h % 17) - 8, oy = ((h >> 4) % 9) - 4;
       ctx.moveTo(p.x + ox, p.y + oy); ctx.lineTo(p.x + ox - 2, p.y + oy - 6);
       ctx.moveTo(p.x + ox + 3, p.y + oy); ctx.lineTo(p.x + ox + 4, p.y + oy - 6);
       ctx.stroke();
     }
-    if (t === '.' && h % 11 === 0) {
+    if (currentMapId === 'whispering-forest' && t === '.' && h % 7 === 0) {
+      // Small fern fronds add readable forest-floor texture without changing collision.
+      var fx = p.x + (h % 19) - 9, fy = p.y + ((h >> 5) % 7) - 3;
+      ctx.strokeStyle = '#2c673b'; ctx.lineWidth = 2; ctx.beginPath();
+      ctx.moveTo(fx, fy + 3);
+      ctx.lineTo(fx - 5, fy - 3); ctx.moveTo(fx, fy + 3); ctx.lineTo(fx + 1, fy - 6);
+      ctx.moveTo(fx, fy + 3); ctx.lineTo(fx + 6, fy - 2); ctx.stroke();
+      ctx.fillStyle = '#79a85a'; ctx.fillRect(fx - 6, fy - 4, 3, 2); ctx.fillRect(fx, fy - 7, 3, 2); ctx.fillRect(fx + 4, fy - 3, 3, 2);
+    } else if (t === '.' && h % 11 === 0) {
       ctx.fillStyle = (h % 2) ? '#f6e27a' : '#f4a9c4';
       ctx.beginPath(); ctx.arc(p.x + ((h >> 3) % 15) - 7, p.y + ((h >> 7) % 7) - 3, 2.4, 0, Math.PI * 2); ctx.fill();
+    }
+    if (currentMapId === 'whispering-forest' && t === '.' && h % 29 === 0) {
+      // A tiny mushroom pair, purely decorative.
+      var mx = p.x + (h % 13) - 6, my = p.y + 4;
+      ctx.fillStyle = '#e7d6b5'; ctx.fillRect(mx - 1, my - 4, 2, 5);
+      ctx.fillStyle = '#c85c50'; ctx.fillRect(mx - 4, my - 5, 8, 2);
+      ctx.fillStyle = '#f3dcae'; ctx.fillRect(mx + 5, my - 2, 2, 3);
+      ctx.fillStyle = '#d5b66d'; ctx.fillRect(mx + 3, my - 4, 6, 2);
+    }
+    if (currentMapId === 'whispering-forest' && t === '.' && h % 17 === 0) {
+      // Mossy stone cluster, drawn low on the tile so it never obscures actors.
+      var sx = p.x + (h % 15) - 7, sy = p.y + 7;
+      ctx.fillStyle = '#315b3b'; ctx.fillRect(sx - 7, sy + 1, 15, 3);
+      ctx.fillStyle = '#71836a'; ctx.fillRect(sx - 5, sy - 2, 5, 4);
+      ctx.fillStyle = '#8b9874'; ctx.fillRect(sx + 1, sy - 4, 6, 6);
+      ctx.fillStyle = '#a6ad83'; ctx.fillRect(sx + 2, sy - 4, 2, 2);
+    }
+    if (currentMapId === 'whispering-forest' && t === '.' && h % 23 === 0) {
+      // Low fern bush with three chunky leaf clusters.
+      var bx = p.x + ((h >> 2) % 17) - 8, by = p.y + 3;
+      ctx.fillStyle = '#285638'; ctx.fillRect(bx - 8, by, 17, 3);
+      ctx.fillStyle = '#477d43'; ctx.fillRect(bx - 7, by - 4, 6, 5);
+      ctx.fillStyle = '#5d9149'; ctx.fillRect(bx - 1, by - 7, 6, 8);
+      ctx.fillStyle = '#3b703d'; ctx.fillRect(bx + 5, by - 3, 5, 4);
+    }
+    if (currentMapId === 'whispering-forest' && t === '.' && h % 41 === 0) {
+      // Firefly glow is decorative and time-driven; it does not affect gameplay.
+      var glow = 0.35 + (Math.sin(time * 2.1 + (h % 31)) + 1) * 0.25;
+      var lx = p.x + ((h >> 6) % 19) - 9, ly = p.y - 8 + ((h >> 3) % 9);
+      var halo = ctx.createRadialGradient(lx, ly, 1, lx, ly, 9);
+      halo.addColorStop(0, 'rgba(222,245,137,' + glow + ')');
+      halo.addColorStop(1, 'rgba(222,245,137,0)');
+      ctx.fillStyle = halo; ctx.beginPath(); ctx.arc(lx, ly, 9, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = 'rgba(239,255,177,' + Math.min(1, glow + 0.2) + ')';
+      ctx.fillRect(lx - 1, ly - 1, 2, 2);
+    }
+    if (currentMapId === 'whispering-forest' && c === 5 && r === 2 && t === '.') {
+      // Ancient roots and a faint rune mark the landmark approach; this is visual only.
+      ctx.strokeStyle = 'rgba(91,65,39,0.9)'; ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(p.x - 20, p.y - 4); ctx.quadraticCurveTo(p.x - 9, p.y - 1, p.x - 7, p.y + 8);
+      ctx.moveTo(p.x + 20, p.y - 3); ctx.quadraticCurveTo(p.x + 8, p.y + 1, p.x + 7, p.y + 8);
+      ctx.stroke();
+      ctx.strokeStyle = 'rgba(210,171,91,0.72)'; ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(p.x - 5, p.y + 1); ctx.lineTo(p.x, p.y - 3); ctx.lineTo(p.x + 5, p.y + 1);
+      ctx.lineTo(p.x + 3, p.y + 6); ctx.moveTo(p.x - 3, p.y + 6); ctx.lineTo(p.x - 5, p.y + 1);
+      ctx.stroke();
+      ctx.fillStyle = 'rgba(226,190,112,0.55)';
+      ctx.fillRect(p.x - 1, p.y - 1, 2, 2);
     }
     if (t === '~') {
       var w = Math.sin(time * 2 + c * 1.3 + r * 0.7);
@@ -265,6 +344,61 @@
 
   function drawTree(c, r) {
     var p = iso(c, r), h = hash(c, r), s = 0.9 + (h % 5) * 0.06;
+    if (currentMapId === 'whispering-forest') {
+      // One ancient landmark tree gives the forest a memorable visual focal point.
+      if (c === 5 && r === 1) {
+        shadow(p.x, p.y + 5, 34, 12);
+        ctx.fillStyle = '#493923';
+        ctx.fillRect(p.x - 11, p.y - 45, 22, 49);
+        ctx.fillStyle = '#735334';
+        ctx.fillRect(p.x - 4, p.y - 39, 8, 42);
+        ctx.fillStyle = '#385d35';
+        ctx.beginPath(); ctx.ellipse(p.x, p.y - 73, 42, 32, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(p.x - 25, p.y - 57, 27, 24, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(p.x + 25, p.y - 57, 27, 24, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#567c42';
+        ctx.beginPath(); ctx.ellipse(p.x - 7, p.y - 83, 22, 16, -0.2, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#9eaa61';
+        ctx.fillRect(p.x - 21, p.y - 71, 6, 4);
+        ctx.fillRect(p.x + 13, p.y - 59, 5, 4);
+        ctx.fillRect(p.x + 1, p.y - 94, 5, 4);
+        // Subtle ancient amber markings on the trunk.
+        ctx.fillStyle = 'rgba(224,190,104,0.75)';
+        ctx.fillRect(p.x - 2, p.y - 30, 4, 2);
+        ctx.fillRect(p.x - 5, p.y - 22, 3, 2);
+        return;
+      }
+      // Layered canopy with a dark crown, mid-tone foliage and pixel-like highlights.
+      var variant = h % 3, crown = variant === 0 ? '#244f32' : variant === 1 ? '#285a38' : '#315f36';
+      shadow(p.x, p.y + 4, 23 * s, 9 * s);
+      ctx.fillStyle = '#60452b'; ctx.fillRect(p.x - 5 * s, p.y - 23 * s, 10 * s, 27 * s);
+      ctx.fillStyle = '#765333'; ctx.fillRect(p.x - 2 * s, p.y - 19 * s, 4 * s, 20 * s);
+      ctx.fillStyle = crown;
+      if (variant === 0) {
+        // Broad old-growth crown.
+        ctx.beginPath(); ctx.ellipse(p.x, p.y - 43 * s, 29 * s, 21 * s, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(p.x - 18 * s, p.y - 31 * s, 18 * s, 16 * s, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(p.x + 18 * s, p.y - 31 * s, 18 * s, 16 * s, 0, 0, Math.PI * 2); ctx.fill();
+      } else if (variant === 1) {
+        // Taller, layered crown.
+        ctx.beginPath(); ctx.ellipse(p.x, p.y - 48 * s, 21 * s, 25 * s, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(p.x - 16 * s, p.y - 32 * s, 16 * s, 17 * s, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(p.x + 16 * s, p.y - 32 * s, 16 * s, 17 * s, 0, 0, Math.PI * 2); ctx.fill();
+      } else {
+        // Rounded, compact crown.
+        ctx.beginPath(); ctx.ellipse(p.x, p.y - 40 * s, 25 * s, 20 * s, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(p.x - 14 * s, p.y - 29 * s, 16 * s, 15 * s, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(p.x + 14 * s, p.y - 29 * s, 16 * s, 15 * s, 0, 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.fillStyle = variant === 1 ? '#477d43' : '#3e7540';
+      ctx.beginPath(); ctx.ellipse(p.x - 5 * s, p.y - 48 * s, 14 * s, 11 * s, -0.25, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#6d9650';
+      ctx.fillRect(p.x - 16 * s, p.y - 43 * s, 6 * s, 4 * s);
+      ctx.fillRect(p.x + 7 * s, p.y - 34 * s, 5 * s, 4 * s);
+      ctx.fillRect(p.x - 2 * s, p.y - 58 * s, 5 * s, 4 * s);
+      if (variant === 2) { ctx.fillStyle = '#b0bd68'; ctx.fillRect(p.x + 13 * s, p.y - 50 * s, 4 * s, 4 * s); }
+      return;
+    }
     shadow(p.x, p.y + 4, 20 * s, 8 * s);
     ctx.fillStyle = '#6b4a2b'; ctx.fillRect(p.x - 4, p.y - 18 * s, 8, 22 * s);
     var greens = ['#2f6b35', '#38783d', '#2a5f31'];
@@ -312,7 +446,7 @@
 
   W.setAppearance = function(profile) { if(!profile)return; appearance={gender:profile.gender==='female'?'female':'male',hairstyle:Number.isInteger(profile.hairstyle)?Math.max(0,Math.min(5,profile.hairstyle)):0,hairColor:Number.isInteger(profile.hairColor)?Math.max(0,Math.min(7,profile.hairColor)):0}; };
 
-  function drawPoring() {
+  function drawPoring(poring) {
     var p = iso(poring.x, poring.y);
     var sq = Math.sin(time * 4 + poring.c);
     var w = 17 + sq * 1.5, h = 13 - sq * 1.5;
@@ -327,6 +461,45 @@
     ctx.strokeStyle = '#3a1a28'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(p.x, p.y - h + 5, 3, 0.1 * Math.PI, 0.9 * Math.PI); ctx.stroke();
   }
 
+  function drawForestAtmosphere() {
+    if (currentMapId !== 'whispering-forest') return;
+    // Soft shafts of canopy light, kept behind actors and limited to the forest map.
+    ctx.save();
+    var pulse = 0.5 + Math.sin(time * 0.35) * 0.08;
+    var beams = [
+      { x: -115, w: 52, a: 0.10 },
+      { x: 105, w: 38, a: 0.08 },
+      { x: 300, w: 58, a: 0.07 }
+    ];
+    for (var i = 0; i < beams.length; i++) {
+      var b = beams[i], grad = ctx.createLinearGradient(b.x, -150, b.x + b.w, 260);
+      grad.addColorStop(0, 'rgba(213,229,151,0)');
+      grad.addColorStop(0.48, 'rgba(213,229,151,' + (b.a * pulse) + ')');
+      grad.addColorStop(1, 'rgba(213,229,151,0)');
+      poly([b.x, -160, b.x + b.w, -160, b.x + b.w + 105, 280, b.x + 35, 280], grad);
+    }
+    // A few drifting leaf motes add gentle motion without affecting actors or collision.
+    for (var leaf = 0; leaf < 7; leaf++) {
+      var lx = ((leaf * 79 + time * (7 + leaf % 3)) % 560) - 280;
+      var ly = ((leaf * 53 + time * (11 + leaf % 2)) % 390) - 35;
+      var sway = Math.sin(time * 1.4 + leaf * 2.1) * 7;
+      ctx.save();
+      ctx.translate(lx + sway, ly);
+      ctx.rotate(Math.sin(time * 0.9 + leaf) * 0.7);
+      ctx.fillStyle = leaf % 2 ? 'rgba(180,197,103,0.62)' : 'rgba(218,183,92,0.58)';
+      ctx.beginPath();
+      ctx.ellipse(0, 0, 3.2, 1.6, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+    var mist = ctx.createLinearGradient(0, 95, 0, 270);
+    mist.addColorStop(0, 'rgba(190,211,164,0)');
+    mist.addColorStop(1, 'rgba(190,211,164,0.075)');
+    ctx.fillStyle = mist;
+    ctx.fillRect(-420, 95, 900, 175);
+    ctx.restore();
+  }
+
   function render() {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, vw, vh);
@@ -336,6 +509,7 @@
 
     var r, c;
     for (r = 0; r < ROWS; r++) for (c = 0; c < COLS; c++) drawGround(c, r);
+    drawForestAtmosphere();
 
     if (marker) {
       var mp = iso(marker.x, marker.y), k = marker.t / 0.8;
@@ -350,9 +524,9 @@
       else if (t === 'H') objs.push({ d: c + r, fn: drawHouse, c: c, r: r });
     }
     objs.push({ d: hero.x + hero.y + 0.01, fn: drawHero });
-    if (poring) objs.push({ d: poring.x + poring.y, fn: drawPoring });
+    porings.forEach(function(poring){ objs.push({ d: poring.x + poring.y, fn: drawPoring, p: poring }); });
     objs.sort(function (a, b) { return a.d - b.d; });
-    for (var i = 0; i < objs.length; i++) objs[i].fn(objs[i].c, objs[i].r);
+    for (var i = 0; i < objs.length; i++) { if (objs[i].p) objs[i].fn(objs[i].p); else objs[i].fn(objs[i].c, objs[i].r); }
   }
 
   function frame(now) {
@@ -364,5 +538,6 @@
     if (running) requestAnimationFrame(frame);
   }
 
-  W._debug = { MAP: MAP, walk: walk, bfs: bfs, hero: hero, getPoring: function () { return poring; } };
+  W.onMapChange = null;
+  W._debug = { MAP:MAP, FOREST_MAP:FOREST_MAP, walk:walk, bfs:bfs, hero:hero, getPoring:function(){return porings[0]||null;}, getPorings:function(){return porings.slice();}, switchMap:switchMap, getMapId:function(){return currentMapId;} };
 })(typeof window !== 'undefined' ? window : globalThis);

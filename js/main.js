@@ -5,7 +5,7 @@
   function $(id) { return document.getElementById(id); }
   var player = { level:1, exp:0, gold:0, jelly:0, maxHp:E.RULES.playerMaxHp, hp:E.RULES.playerMaxHp };
   var current = null;
-  var screens = ['screen-title','screen-select','screen-create','screen-world','screen-battle','screen-result'];
+  var screens = ['screen-title','screen-select','screen-create','screen-world','screen-card-collection','screen-battle','screen-result'];
   function show(id) { screens.forEach(function(s){$(s).classList.toggle('active',s===id);}); }
   function toast(msg,ms) { var t=$('toast');t.textContent=msg;t.classList.add('show');clearTimeout(toast.timer);toast.timer=setTimeout(function(){t.classList.remove('show');},ms||4000); }
   function updateHud() {
@@ -22,6 +22,10 @@
     if(!current) return;
     var pos=E.World.getPosition();
     if(!pos.safe) return;
+    // Merge against the newest persisted character so optional systems (such as
+    // Card Collection and Deck Presets) are not erased by an older in-memory copy.
+    var latest=S.loadCharacter(current.characterId);
+    if(latest) current=latest;
     current.stats={level:player.level,exp:player.exp,hp:player.hp,maxHp:player.maxHp};
     current.gold=player.gold;current.items={jelly:player.jelly};current.world=pos;
     current=S.saveCharacter(current);
@@ -73,18 +77,21 @@
       $('character-name').value='';enterWorld(c);
     } catch(e){$('create-error').textContent=e.message||'Unable to create character.';}
   }
-  function startBattle(monsterId){E.World.pause();show('screen-battle');E.BattleUI.start({hp:player.hp,maxHp:player.maxHp},monsterId,onBattleEnd);}
+  function startBattle(encounter){E.World.pause();show('screen-battle');var ids=encounter&&Array.isArray(encounter.monsterIds)?encounter.monsterIds:[encounter];var units=ids.map(function(id,index){return {id:'world-'+id+'-'+(index+1),monsterId:id};});E.BattleUI.startEncounter({hp:player.hp,maxHp:player.maxHp},units,onBattleEnd);}
   function onBattleEnd(result){
     var list=$('result-list');list.innerHTML='';
     function line(text,cls){var li=document.createElement('li');li.textContent=text;if(cls)li.className=cls;list.appendChild(li);}
+    player.hp=Number.isFinite(result.hp)?Math.max(0,Math.min(player.maxHp,result.hp)):player.hp;
     if(result.won){
-      var rw=E.rollRewards(result.monsterId);
-      // Persist the reward intent before the result screen can be shown.
-      current=S.setPendingReward(current,{exp:rw.exp,gold:rw.gold,drops:rw.drops.map(function(d){return {id:d.id,name:d.name,quantity:1};})});
+      var defeatedIds=Array.isArray(result.monsterIds)&&result.monsterIds.length?result.monsterIds:[result.monsterId];
+      var rw=defeatedIds.length>1?E.rollEncounterRewards(defeatedIds):E.rollRewards(defeatedIds[0]);
+      current.stats={level:player.level,exp:player.exp,hp:player.hp,maxHp:player.maxHp};
+      current.gold=player.gold;current.items={jelly:player.jelly};
+      current=S.setPendingReward(current,{exp:rw.exp,gold:rw.gold,drops:rw.drops.map(function(d){return {id:d.id,name:d.name,quantity:d.quantity||1};})});
       var claimed=S.claimPendingReward(current);current=claimed.payload;
       $('result-title').textContent='Victory!';
       line('+'+rw.exp+' EXP');line('+'+rw.gold+' gold');
-      rw.drops.forEach(function(d){line('Dropped: '+d.name,'loot');});
+      rw.drops.forEach(function(d){line('Dropped: '+d.name+(d.quantity>1?' ×'+d.quantity:''),'loot');});
       if(!rw.drops.length)line('No drops this time.');
       player.level=current.stats.level;player.exp=current.stats.exp;player.gold=current.gold;player.jelly=current.items.jelly;
       while(player.exp>=E.expToNext(player.level)){
@@ -94,15 +101,53 @@
       $('btn-result').textContent='Return to the village';
     } else {
       $('result-title').textContent='Defeated';
-      line('You wake up safe in Greenvale Village.');line('Nothing was lost.');
+      var penalty=Math.floor(player.gold*0.10);player.gold-=penalty;
+      line('You wake up safe in Greenvale Village.');line('Lost '+penalty+' Gold (10%).');
       $('btn-result').textContent='Wake up';
     }
-    player.hp=player.maxHp;
     snapshot();
     $('btn-result').onclick=function(){backToVillage(!result.won);};
     show('screen-result');
   }
+  function renderCardCollection(){
+    if(!current)return;
+    var data=S.getDeckData(current),owned=$('collection-owned'),presets=$('collection-presets');
+    owned.innerHTML='';presets.innerHTML='';
+    var total=data.owned.reduce(function(sum,item){return sum+item.quantity;},0);
+    $('collection-summary').textContent=total+' owned card copies · '+data.owned.length+' card variants · '+data.presets.length+' deck presets';
+    if(!data.owned.length){
+      var empty=document.createElement('p');empty.className='collection-empty';empty.textContent='No cards collected yet. Card rewards and acquisition will be added in a later milestone.';owned.appendChild(empty);
+    }else{
+      data.owned.forEach(function(item){
+        var def=E.CARDS[item.cardId]||{},row=document.createElement('div');row.className='collection-row';
+        var info=document.createElement('div'),name=document.createElement('strong'),meta=document.createElement('small'),qty=document.createElement('span');
+        name.textContent=def.name||item.cardId;meta.textContent='Star '+item.stars+' · '+(def.kind||'Card');
+        info.appendChild(name);info.appendChild(meta);qty.className='collection-quantity';qty.textContent='×'+item.quantity;
+        row.appendChild(info);row.appendChild(qty);owned.appendChild(row);
+      });
+    }
+    if(!data.presets.length){
+      var noPresets=document.createElement('p');noPresets.className='collection-empty';noPresets.textContent='No saved deck presets yet.';presets.appendChild(noPresets);
+    }else{
+      data.presets.forEach(function(preset){
+        var row=document.createElement('div');row.className='collection-row';
+        var info=document.createElement('div'),name=document.createElement('strong'),meta=document.createElement('small');
+        name.textContent=preset.name;meta.textContent=preset.cardRefs.length+' / 20 cards';
+        info.appendChild(name);info.appendChild(meta);
+        var state=document.createElement('span');state.className='collection-state';
+        state.textContent=preset.id===data.activePresetId?'Active':'Saved';
+        row.appendChild(info);row.appendChild(state);presets.appendChild(row);
+      });
+    }
+  }
+  function openCardCollection(){
+    if(!current||!$('screen-world').classList.contains('active'))return;
+    E.World.pause();renderCardCollection();show('screen-card-collection');
+  }
+  function closeCardCollection(){show('screen-world');E.World.resume();}
   function backToVillage(resetHero){if(resetHero)E.World.respawn(true);updateHud();snapshot();show('screen-world');E.World.resume();}
+  $('btn-card-collection').addEventListener('click',openCardCollection);
+  $('btn-card-collection-back').addEventListener('click',closeCardCollection);
   $('btn-start').addEventListener('click',openSelect);
   $('btn-new').addEventListener('click',function(){show('screen-create');});
   $('btn-new-character').addEventListener('click',function(){show('screen-create');});
@@ -113,7 +158,8 @@
   updateCreationPreview();
   $('character-name').addEventListener('keydown',function(e){if(e.key==='Enter')createCharacter();});
   E.World.init($('world-canvas'));
-  E.World.onEncounter=function(monsterId){startBattle(monsterId);};
+  E.World.onEncounter=function(encounter){startBattle(encounter);};
+  E.World.onMapChange=function(mapId){$('hud-zone').textContent=mapId==='whispering-forest'?'Whispering Forest':'Greenvale Village';};
   E.World.onSafeTile=function(){if(current&&$('screen-world').classList.contains('active'))snapshot();};
   window.addEventListener('pagehide',function(){if(current&&$('screen-world').classList.contains('active'))snapshot();});
   updateHud();

@@ -13,11 +13,12 @@
 
   // kind only affects the card border colour
   E.CARDS = {
-    strike:   { id: 'strike',   name: 'Strike',    cost: 1, kind: 'attack', icon: '\u2694\uFE0F', damage: 6,           text: 'Deal 6 damage.' },
-    guard:    { id: 'guard',    name: 'Guard',     cost: 1, kind: 'skill',  icon: '\uD83D\uDEE1\uFE0F', block: 5,       text: 'Gain 5 block.' },
-    bash:     { id: 'bash',     name: 'Bash',      cost: 2, kind: 'attack', icon: '\uD83D\uDD28', damage: 8, block: 4, text: 'Deal 8 damage. Gain 4 block.' },
-    firebolt: { id: 'firebolt', name: 'Fire Bolt', cost: 2, kind: 'spell',  icon: '\uD83D\uDD25', damage: 12,          text: 'Deal 12 damage.' },
-    heal:     { id: 'heal',     name: 'Heal',      cost: 1, kind: 'spell',  icon: '\uD83D\uDC9A', heal: 8,             text: 'Restore 8 HP.' }
+    strike:   { id: 'strike',   name: 'Strike',    cost: 1, kind: 'attack', icon: '\\u2694\\uFE0F', damage: 6,           text: 'Deal 6 damage.' },
+    guard:    { id: 'guard',    name: 'Guard',     cost: 1, kind: 'skill',  icon: '\\uD83D\\uDEE1\\uFE0F', block: 5,       text: 'Gain 5 block.' },
+    bash:     { id: 'bash',     name: 'Bash',      cost: 2, kind: 'attack', icon: '\\uD83D\\uDD28', damage: 8, block: 4,
+      statuses: [{ id: 'vulnerable', stacks: 1 }], text: 'Deal 8 damage, apply Vulnerable, and gain 4 block.' },
+    firebolt: { id: 'firebolt', name: 'Fire Bolt', cost: 2, kind: 'spell',  icon: '\\uD83D\\uDD25', damage: 12,          text: 'Deal 12 damage.' },
+    heal:     { id: 'heal',     name: 'Heal',      cost: 1, kind: 'spell',  icon: '\\uD83D\\uDC9A', heal: 8,             text: 'Restore 8 HP.' }
   };
 
   E.STARTER_DECK = [
@@ -41,6 +42,9 @@
       ]
     }
   };
+
+  E.ENCOUNTERS = { whisperingForest: { monsterId:'poring', minCount:1, maxCount:3 } };
+  E.createForestEncounter = function(rng){ rng=typeof rng==='function'?rng:Math.random; var rule=E.ENCOUNTERS.whisperingForest; var count=rule.minCount+Math.floor(rng()*(rule.maxCount-rule.minCount+1)); return Array.from({length:count},function(){return rule.monsterId;}); };
 
   // Level up rules (Prototype 0.1 keeps these very small)
   E.expToNext = function (level) { return 20 * level; };

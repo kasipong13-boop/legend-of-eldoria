@@ -13,6 +13,7 @@
   <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
   <link rel="stylesheet" href="css/style.css">
   <link rel="stylesheet" href="css/character.css">
+  <link rel="stylesheet" href="css/battle-layout.css">
 </head>
 <body>
 <div id="app">
@@ -60,6 +61,7 @@
       <div class="hud-block right">
         <span id="hud-gold">0 gold</span>
         <span id="hud-jelly">0 jelly</span>
+        <button id="btn-card-collection" class="btn collection-open" type="button">Cards</button>
       </div>
     </div>
     <div id="toast"></div>
@@ -71,8 +73,28 @@
     </div>
   </section>
 
+  <!-- CARD COLLECTION (read-only foundation; deck editing is a later milestone) -->
+  <section id="screen-card-collection" class="screen center collection-screen">
+    <div class="collection-panel">
+      <header class="collection-header">
+        <div><p class="collection-kicker">ADVENTURER'S ARCHIVE</p><h2>Card Collection</h2></div>
+        <button id="btn-card-collection-back" class="btn" type="button">Return</button>
+      </header>
+      <p id="collection-summary" class="collection-summary"></p>
+      <h3>Owned Cards</h3>
+      <div id="collection-owned" class="collection-list"></div>
+      <h3>Deck Presets</h3>
+      <div id="collection-presets" class="collection-list"></div>
+      <p class="collection-note">Deck editing unlocks in a future update. A complete 20-card deck and card rules must be available before presets can be changed.</p>
+    </div>
+  </section>
+
   <!-- BATTLE -->
   <section id="screen-battle" class="screen">
+    <div class="live-battlefield-wrap">
+      <div class="live-side-labels"><span>PLAYER SIDE</span><span>ENEMY SIDE</span></div>
+      <div id="live-battlefield" class="live-battlefield" role="grid" aria-label="10 by 10 battlefield"></div>
+    </div>
     <div class="battle-enemy">
       <div id="enemy-name"></div>
       <div id="enemy-stage">
@@ -80,12 +102,14 @@
       </div>
       <div class="bar hp"><span id="enemy-hp-fill"></span><b id="enemy-hp-text"></b></div>
       <div id="enemy-intent"></div>
+      <div id="enemy-status" class="battle-status" aria-live="polite"></div>
     </div>
 
     <div id="battle-log"></div>
 
     <div class="battle-player" id="player-panel">
       <div class="bar hp"><span id="player-hp-fill"></span><b id="player-hp-text"></b></div>
+      <div id="player-status" class="battle-status" aria-live="polite"></div>
       <div class="status-row">
         <span id="player-block" class="chip block">0</span>
         <span id="player-energy" class="chip energy"></span>
@@ -112,6 +136,7 @@
 
 <script src="js/data.js"></script>
 <script src="js/battle.js"></script>
+<script src="js/battle-core.js"></script>
 <script src="js/battle-ui.js"></script>
 <script src="js/world.js"></script>
 <script src="js/save.js"></script>

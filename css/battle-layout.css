@@ -1,0 +1,39 @@
+/* Mobile-first live battle viewport refinements. Keep legacy battle selectors intact. */
+#screen-battle { overflow: hidden; min-height: 0; }
+.live-battlefield-wrap { flex: 0 0 auto; width: min(100%, 460px); padding: 6px; }
+.live-battlefield { aspect-ratio: 2.05; gap: 2px; }
+.live-cell { border-radius: 2px; }
+.battle-enemy { flex: 1 1 0; min-height: 0; gap: 4px; }
+#enemy-stage { min-height: 76px; }
+.poring { width: 92px; height: 68px; }
+.poring .eye { top: 28px; }
+.poring .eye.l { left: 28px; }
+.poring .eye.r { right: 28px; }
+.poring .mouth { left: 39px; top: 42px; }
+#enemy-name { font-size: 18px; }
+#screen-battle .bar { height: 18px; }
+#battle-log { min-height: 28px; font-size: 12px; }
+#screen-battle .card { height: 104px; padding-top: 14px; }
+#screen-battle .card .icon { font-size: 23px; }
+#screen-battle .card .text { font-size: 9px; }
+#screen-battle .battle-player { gap: 4px; }
+@media (max-height: 720px) {
+  #screen-battle { gap: 5px; padding-top: calc(var(--safe-t) + 5px); padding-bottom: calc(var(--safe-b) + 6px); }
+  .live-battlefield-wrap { width: min(100%, 390px); padding: 4px; }
+  .live-battlefield { aspect-ratio: 2.5; }
+  .live-side-labels { margin-bottom: 3px; font-size: 8px; }
+  #enemy-stage { min-height: 54px; }
+  .poring { width: 76px; height: 56px; }
+  .poring .eye { top: 22px; }
+  .poring .eye.l { left: 23px; }
+  .poring .eye.r { right: 23px; }
+  .poring .mouth { left: 32px; top: 35px; }
+  #screen-battle .card { height: 88px; }
+  #screen-battle .card .icon { font-size: 20px; }
+  #battle-log { min-height: 22px; }
+}
+@media (max-width: 390px) {
+  .live-battlefield-wrap { padding: 4px; }
+  .live-unit small { font-size: 5px; }
+  .live-unit-effects, .live-unit-intent { font-size: 4px; }
+}

@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#101b20">
+<title>Legend of Eldoria — Battlefield Test</title>
+<link rel="stylesheet" href="css/battle-grid.css">
+</head>
+<body>
+<main id="battle-test">
+  <header class="topbar"><div><strong>LEGEND OF ELDORIA</strong><span>Battlefield prototype · 10×10</span></div><a href="index.html">Return to game</a></header>
+  <section class="battle-info"><div><b id="round-label">Round 1</b><span id="phase-label">Player turn</span></div><div class="meters"><span id="energy">Energy 3</span><span id="piles">Draw 0 · Discard 0</span></div></section>
+  <section class="arena-wrap">
+    <div class="side-labels"><span>PLAYER SIDE</span><span>ENEMY SIDE</span></div>
+    <div id="arena" class="arena" role="grid" aria-label="10 by 10 battlefield"></div>
+    <p class="arena-help" id="arena-help">Select an enemy when a card requires a target.</p>
+  </section>
+  <section class="combat-bottom">
+    <div class="battle-log" id="battle-log" aria-live="polite">A group of Porings approaches!</div>
+    <div class="player-stats"><div><b id="hero-name">Novice</b><span id="hero-hp">50 / 50 HP</span></div><span id="hero-block">Block 0</span></div>
+    <div id="hand" class="hand" aria-label="Your hand"></div>
+    <button id="end-turn" type="button">End turn</button>
+    <button id="restart" type="button" class="secondary">Restart test battle</button>
+  </section>
+</main>
+<script src="js/data.js"></script>
+<script src="js/battle-core.js"></script>
+<script src="js/battle-grid-ui.js"></script>
+</body>
+</html>

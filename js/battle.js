@@ -139,5 +139,29 @@
     return { exp: def.exp, gold: gold, drops: drops };
   };
 
+  // Aggregate the independently rolled rewards for every defeated enemy.
+  // Duplicate drops are represented as one item with a quantity for the existing save transaction.
+  E.rollEncounterRewards = function (monsterIds, rng) {
+    if (!Array.isArray(monsterIds) || monsterIds.length < 1 || monsterIds.length > 5) {
+      throw new Error('Encounter rewards require 1–5 defeated monsters.');
+    }
+    rng = rng || Math.random;
+    var total = { exp: 0, gold: 0, drops: [] }, byDrop = Object.create(null);
+    monsterIds.forEach(function (monsterId) {
+      var reward = E.rollRewards(monsterId, rng);
+      total.exp += reward.exp;
+      total.gold += reward.gold;
+      reward.drops.forEach(function (drop) {
+        var key = drop.id;
+        if (!byDrop[key]) {
+          byDrop[key] = { id: drop.id, name: drop.name, quantity: 0 };
+          total.drops.push(byDrop[key]);
+        }
+        byDrop[key].quantity++;
+      });
+    });
+    return total;
+  };
+
   if (typeof module !== 'undefined' && module.exports) module.exports = E;
 })(typeof window !== 'undefined' ? window : globalThis);
