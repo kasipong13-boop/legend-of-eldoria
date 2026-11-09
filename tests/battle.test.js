@@ -12,6 +12,8 @@ function boot() {
   return context.ELDORIA;
 }
 
+test('Whispering Forest encounter size is randomly selected from one to three Porings',()=>{const E=boot();assert.equal(E.createForestEncounter(()=>0).length,1);assert.equal(E.createForestEncounter(()=>0.34).length,2);assert.equal(E.createForestEncounter(()=>0.99).length,3);assert.deepEqual(JSON.parse(JSON.stringify(E.createForestEncounter(()=>0.5))),['poring','poring']);});
+
 test('battle starts with confirmed 3 Energy and 5 drawn cards', () => {
   const E = boot();
   const battle = E.createBattle({
