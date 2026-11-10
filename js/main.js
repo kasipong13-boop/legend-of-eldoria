@@ -594,6 +594,7 @@
   }
 
   function onBattleEnd(result) {
+    if (!active) return Promise.resolve(); // An explicit Return to Title abandons the active encounter.
     var list = $('result-list');
     list.innerHTML = '';
     function line(text, cls) {
