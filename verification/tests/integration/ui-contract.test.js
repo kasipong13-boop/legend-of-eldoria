@@ -17,7 +17,7 @@ test('World and Battle screens expose an in-game menu', () => {
 
 test('Return to Title persists before leaving the active game', () => {
   assert.match(main, /persist\('menu-return-title'\)/);
-  assert.match(main, /if \(!saved\.ok\) return;[\s\S]{0,120}active = false/);
+  assert.match(main, /persist\('menu-return-title'\)[\s\S]*?if \(!saved\.ok\) return;[\s\S]*?active = false/);
 });
 
 test('A pending victory reward blocks Continue when claim cannot commit', () => {
