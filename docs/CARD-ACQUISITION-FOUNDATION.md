@@ -17,7 +17,7 @@ Legacy source reviewed: PR #23 (`feature/card-acquisition-foundation`).
 
 - `js/card-acquisition.js` owns rarity labels, the empty monster drop table and fail-closed monster drop validation.
 - `js/card-collection.js` remains Card Collection Sidecar schema v2 at `eldoria.cards.<characterId>`. It stores collection data, pending card rewards and claimed receipts only.
-- `js/reward-recovery.js` implements the approved IndexedDB Companion Journal and Web Locks coordinator.
+- `js/reward-recovery.js` implements the approved IndexedDB Companion Journal and Web Locks coordinator, including payload checksum/canonical validation, lock-required mutation methods and fault-injection checkpoints.
 - IndexedDB database `eldoria-reward-recovery` stores full battle reward payloads and lifecycle states separately from both Save and Sidecar.
 - Reward lifecycle: `prepared -> sidecarStaged -> savePending -> cardsClaimed -> saveClaimed -> completed`; conflicts move to `quarantined`.
 - A localStorage activation marker stores only the fact that Journal-based rewards have been activated. It contains no reward payload and ensures loss of IndexedDB cannot be silently treated as legacy success.
