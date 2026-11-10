@@ -654,7 +654,7 @@ const server = http.createServer((req, res) => {
       const staleAttempt = E.Save.withPendingReward(stale, { exp:9, gold:0, drops:[] }, 'poring', new Date().toISOString());
       if (!staleAttempt.ok) throw new Error('FI-17 stale transform failed: ' + staleAttempt.reason);
       const rejected = system.commit(stale, staleAttempt.save);
-      const durable = system.load(stale.characterId);
+      const durable = system.loadCharacter(stale.characterId);
       if (!durable.ok) throw new Error('FI-17 durable read failed: ' + durable.reason);
       return { rejected:{ ok:rejected.ok, reason:rejected.reason },
         expectedSeq:first.save.pendingReward.seq, expectedExp:first.save.pendingReward.exp,
