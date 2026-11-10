@@ -19,6 +19,7 @@
     try { return root.localStorage || null; } catch (error) { return null; }
   }
   function keyFor(characterId) { return PREFIX + characterId; }
+  function isKnownCard(cardId) { return !!E.CARDS && Object.prototype.hasOwnProperty.call(E.CARDS, cardId); }
 
   function starterData(characterId) {
     var quantities = Object.create(null);
@@ -50,7 +51,7 @@
     for (var i = 0; i < data.owned.length; i++) {
       var item = data.owned[i];
       if (!exactKeys(item, ['cardId', 'stars', 'quantity']) ||
-          typeof item.cardId !== 'string' || !E.CARDS[item.cardId] ||
+          typeof item.cardId !== 'string' || !isKnownCard(item.cardId) ||
           !Number.isInteger(item.stars) || item.stars < 1 || item.stars > 3 ||
           !Number.isInteger(item.quantity) || item.quantity < 0 || item.quantity > 1000000000) return 'owned';
       var ownedKey = item.cardId + '@' + item.stars;
@@ -70,7 +71,7 @@
       for (var c = 0; c < preset.cardRefs.length; c++) {
         var ref = preset.cardRefs[c];
         if (!exactKeys(ref, ['cardId', 'stars']) || typeof ref.cardId !== 'string' ||
-            !E.CARDS[ref.cardId] || !Number.isInteger(ref.stars) || ref.stars < 1 || ref.stars > 3) return 'cardRef';
+            !isKnownCard(ref.cardId) || !Number.isInteger(ref.stars) || ref.stars < 1 || ref.stars > 3) return 'cardRef';
         var refKey = ref.cardId + '@' + ref.stars;
         used[refKey] = (used[refKey] || 0) + 1;
         if (used[refKey] > (owned[refKey] || 0)) return 'unownedReference';
