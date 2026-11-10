@@ -47,7 +47,7 @@ const server = http.createServer((req, res) => {
         const key = Object.keys(localStorage).find(k => /^eldoria\.char\.[a-f0-9]{32}\.main$/.test(k));
         return localStorage.getItem(key);
       });
-      await page.locator('#btn-card-collection').click();
+      if (viewport.name === 'iphone') await page.locator('#btn-card-collection').tap(); else await page.locator('#btn-card-collection').click();
       await page.locator('#screen-card-collection.active').waitFor();
       assert.match(await page.locator('#collection-summary').textContent(), /10 owned card copies · 5 card variants · 1 deck preset/);
       assert.match(await page.locator('#collection-owned').textContent(), /Strike/);
@@ -65,7 +65,7 @@ const server = http.createServer((req, res) => {
         return localStorage.getItem(key);
       });
       assert.equal(coreSaveAfterCollection, coreSaveBeforeCollection, 'collection must not touch the character Save Engine record');
-      await page.locator('#btn-card-collection-back').click();
+      if (viewport.name === 'iphone') await page.locator('#btn-card-collection-back').tap(); else await page.locator('#btn-card-collection-back').click();
       await page.locator('#screen-world.active').waitFor();
       const hud = await page.locator('#hud-zone').textContent();
       if (!hud.includes('Greenvale Village')) throw new Error(viewport.name + ': village HUD missing');
@@ -126,14 +126,14 @@ const server = http.createServer((req, res) => {
       for (let turn = 0; turn < 30; turn++) {
         if (await page.locator('#screen-result.active').count()) break;
         const playable = page.locator('#hand .card:not(.disabled)');
-        if (await playable.count()) await playable.first().click();
+        if (await playable.count()) { if (viewport.name === 'iphone') await playable.first().tap(); else await playable.first().click(); }
         else {
           const endTurn = page.locator('#btn-end-turn');
           if (await endTurn.isDisabled()) {
             await page.locator('#screen-result.active').waitFor({ timeout:3000 });
             break;
           }
-          await endTurn.click();
+          if (viewport.name === 'iphone') await endTurn.tap(); else await endTurn.click();
         }
         await page.waitForTimeout(80);
       }
@@ -153,8 +153,47 @@ const server = http.createServer((req, res) => {
       const afterVictorySave = afterVictory.save;
       if (afterVictorySave.gold !== 37 || afterVictorySave.pendingReward !== null) throw new Error(viewport.name + ': monster victory changed existing Gold or left a pending reward');
       if (!(await page.locator('#hud-gold').textContent()).includes('37 gold')) throw new Error(viewport.name + ': Gold HUD did not preserve the existing balance');
-      await page.locator('#btn-result').click();
+
+      // Crash-recovery scenario: persist a complete battle intent to the sidecar,
+      // then reload before the character Save Engine receives its Pending Reward.
+      const crashIntent = await page.evaluate(() => {
+        const E = window.ELDORIA;
+        const save = E.GameSave.getCurrentSave();
+        const intent = {
+          rewardId: String(save.nextRewardSeq), monsterId: 'poring',
+          reward: { exp: 1, gold: 0, drops: [{ id: 'jelly', name: 'Poring Jelly' }] },
+          cards: [{ cardId: 'bash', stars: 1, quantity: 1 }],
+          createdAt: new Date().toISOString()
+        };
+        const staged = E.CardCollection.stageBattleReward(save.characterId, intent);
+        if (!staged.ok) throw new Error('could not stage crash-recovery fixture: ' + staged.reason);
+        return { rewardId: intent.rewardId, beforeJelly: save.items.jelly };
+      });
+      await page.reload({ waitUntil:'networkidle' });
+      await page.locator('#screen-title.active').waitFor();
+      await page.getByRole('button', { name:'Continue' }).click();
+      await page.locator('#screen-select.active').waitFor();
+      await page.getByRole('button', { name:'Play' }).click();
       await page.locator('#screen-world.active').waitFor();
+      const afterCrashRecovery = await page.evaluate(() => {
+        const E = window.ELDORIA;
+        const save = E.GameSave.getCurrentSave();
+        const collection = E.CardCollection.get(save.characterId);
+        const bash = collection.data.owned.find(card => card.cardId === 'bash' && card.stars === 1);
+        const journal = E.CardCollection.getRewardJournal(save.characterId);
+        return { save, bash, journal: journal.entries };
+      });
+      if (afterCrashRecovery.save.lastClaimedSeq !== Number(crashIntent.rewardId) ||
+          afterCrashRecovery.save.pendingReward !== null ||
+          afterCrashRecovery.save.items.jelly !== crashIntent.beforeJelly + 1) {
+        throw new Error(viewport.name + ': journal reward did not recover EXP/item claim after reload');
+      }
+      if (!afterCrashRecovery.bash || afterCrashRecovery.bash.quantity !== 3 ||
+          afterCrashRecovery.journal.find(entry => entry.rewardId === crashIntent.rewardId).status !== 'completed') {
+        throw new Error(viewport.name + ': journal reward card was not granted exactly once and finalized');
+      }
+      if (afterCrashRecovery.save.gold !== 37) throw new Error(viewport.name + ': crash recovery changed existing Gold');
+
       await page.locator('#btn-menu').click();
       await page.locator('#game-menu:not([hidden])').waitFor();
       await page.getByRole('button', { name:'Save & Return to Title' }).click();
