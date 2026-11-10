@@ -189,14 +189,11 @@ const server = http.createServer((req, res) => {
           createdAt: new Date().toISOString()
         };
         const journal = E.RewardRecovery.create();
-        const staged = await journal.runExclusive(save.characterId, async () => {
-          const prepared = await journal.prepare(save.characterId, intent);
-          if (!prepared.ok) return prepared;
-          const sidecar = E.CardCollection.stageReward(save.characterId, intent.rewardId, intent.cards);
-          if (!sidecar.ok) return sidecar;
-          return journal.transition(save.characterId, intent.rewardId, 'sidecarStaged');
-        });
-        if (!staged.ok) throw new Error('could not stage IndexedDB crash-recovery fixture: ' + staged.reason);
+        const staged = await journal.runExclusive(save.characterId, async () =>
+          journal.prepare(save.characterId, intent)
+        );
+        if (!staged.ok) throw new Error('could not persist PREPARED IndexedDB crash-recovery fixture: ' + staged.reason);
+        // Simulate a crash immediately after PREPARED: no Sidecar stage or Save pending write exists yet.
         return { rewardId: intent.rewardId, beforeJelly: save.items.jelly };
       });
       await page.reload({ waitUntil:'networkidle' });
