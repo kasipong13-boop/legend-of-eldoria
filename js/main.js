@@ -13,6 +13,7 @@
   var active = false;
   var saveLocked = false;
   var pendingSaveTx = null;
+  var pendingBattleReward = null;
   var screens = ['screen-title', 'screen-select', 'screen-create', 'screen-world', 'screen-card-collection', 'screen-battle', 'screen-result'];
   var characterCreationReturnScreen = 'screen-title';
 
@@ -87,7 +88,9 @@
       $('app').appendChild(overlay);
       $('btn-save-retry').addEventListener('click', function () {
         var result = persist('manual-retry');
-        if (result && result.ok && currentSave && currentSave.pendingReward) {
+        if (result && result.ok && pendingBattleReward) {
+          if (!retryPendingBattleReward()) result = { ok: false };
+        } else if (result && result.ok && currentSave && currentSave.pendingReward) {
           var settled = settlePendingReward(currentSave);
           if (settled && !settled.pendingReward) currentSave = settled;
           else result = { ok: false };
@@ -168,6 +171,35 @@
       pendingSaveTx = committed.tx;
     }
     return null;
+  }
+
+  function retryPendingBattleReward() {
+    var intent = pendingBattleReward;
+    if (!intent || !currentSave) return false;
+    var stagedCards = E.CardCollection.stageReward(currentSave.characterId, intent.rewardId, intent.cards);
+    if (!stagedCards.ok) return false;
+    if (!currentSave.pendingReward) {
+      var pending = E.Save.withPendingReward(currentSave,
+        { exp: intent.reward.exp, gold: 0, drops: intent.reward.drops }, intent.monsterId, new Date().toISOString());
+      if (!pending.ok) return false;
+      var staged = saveSystem.commit(currentSave, pending.save);
+      if (staged.ok) currentSave = staged.save;
+      else if (staged.tx && staged.durable) {
+        var resumed = saveSystem.resume(staged.tx);
+        if (resumed.ok) currentSave = resumed.save;
+        else { pendingSaveTx = staged.tx; return false; }
+      } else return false;
+    }
+    if (!currentSave.pendingReward || String(currentSave.pendingReward.seq) !== intent.rewardId) return false;
+    var settled = settlePendingReward(currentSave);
+    if (!settled) return false;
+    currentSave = settled;
+    player.exp = currentSave.stats.exp; player.level = currentSave.stats.level;
+    player.gold = currentSave.gold; player.items = JSON.parse(JSON.stringify(currentSave.items)); player.jelly = currentSave.items.jelly;
+    player.maxHp = currentSave.stats.maxHp; player.hp = currentSave.stats.hp;
+    pendingBattleReward = null;
+    updateHud();
+    return true;
   }
 
   function beginFromSave(save) {
@@ -356,6 +388,7 @@
       $('result-title').textContent = 'Victory!';
       var rewardId = String(currentSave.nextRewardSeq);
       var rolledCards = E.CardAcquisition.rollMonsterDrops(result.monsterId);
+      pendingBattleReward = { rewardId: rewardId, monsterId: result.monsterId, reward: rw, cards: rolledCards };
       // Stage card rewards outside Save Schema before issuing the transactional Save reward.
       // Repeated attempts reuse the same staged result instead of rerolling.
       var stagedCards = E.CardCollection.stageReward(currentSave.characterId, rewardId, rolledCards);
@@ -387,6 +420,7 @@
         stagedCards.cards.forEach(function (card) { var def = E.CARDS[card.cardId] || {}; line('Card acquired: ' + (def.name || card.cardId) + ' · ' + (def.rarity || 'Rarity unassigned'), 'card-loot'); });
         if (!rw.drops.length && !stagedCards.cards.length) line('No drops this time.');
         if (player.level > 1) line('Current level: ' + player.level, 'level');
+        pendingBattleReward = null;
         $('btn-result').textContent = 'Return to the village';
       } else {
         line('Reward is pending and has not been confirmed as saved.');
