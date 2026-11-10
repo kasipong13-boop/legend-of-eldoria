@@ -1,67 +1,75 @@
-# Card Reward Recovery Protocol — PR #30 Remediation
+# Card Reward Recovery Protocol — PR #30
 
-Status: implementation specification for PR #30; Draft only; no merge authorization.
+Status: implementation specification; TDR-030 approved (IndexedDB / Web Locks); PR remains Draft and unmerged.
 
 ## Invariants
-- The character Save Engine (\`js/save.js\`) and Save Schema v1 are immutable in this work.
-- A victory reward is not safely staged until the complete intent exists in the Card Collection Sidecar.
-- Reward ID is the character's monotonic \`nextRewardSeq\` rendered as a decimal string.
-- Monster rewards preserve zero Gold. Existing EXP and item reward behavior is unchanged.
-- Card copies are keyed by \`cardId + stars\`; ownership mutation and receipt are committed in one sidecar revision.
-- No new monster card identities or drop rates are introduced.
 
-## Durable records
-- Primary: \`eldoria.cards.<characterId>\`
-- Backup: \`eldoria.cards.<characterId>.backup\`
-- Activation marker: \`eldoria.cards.v3.active.<characterId>\` = \`1\`
-- Sidecar schema v3 includes \`revision\`, collection/preset data, \`pendingRewards\`, \`claimedRewardIds\`, and \`rewardJournal\`.
-- Journal fields: \`rewardId, monsterId, exp, gold, drops, cards, createdAt, status\`.
-- Status values: \`staged -> cardsClaimed -> completed\`.
+- `js/save.js` and Character Save Schema v1 are unchanged.
+- Card Collection Sidecar remains schema v2. Its only reward responsibilities are pending card payloads, ownership and claimed receipts.
+- Companion reward payloads and lifecycle state live in IndexedDB, not in the Card Collection Sidecar or Character Save.
+- Reward identity is the character's monotonic `nextRewardSeq` rendered as a decimal string.
+- Encounter identity is a separate cryptographically random 128-bit hex ID generated when a battle begins and bound to one reward identity.
+- Monster rewards preserve zero Gold. EXP and item reward behavior is unchanged.
+- Card copies are keyed by `cardId + stars`; sidecar ownership mutation and receipt remain one verified write.
+- Retries reuse the first durable payload. Reusing a reward or encounter identity with a different payload is a conflict.
+- Recovery is forward-only. Mismatches are quarantined; no recovery evidence is deleted.
 
-## Write / recovery strategy
-1. Read and validate both copies. Select the highest valid revision; equal revision with different checksums is a conflict.
-2. Reject stale writes when the caller revision does not match the latest durable revision.
-3. Seal revision N+1, write and verify backup first, then write and verify primary. If primary write fails after backup verification, backup remains the durable latest copy and is reported as degraded success.
-4. Stage the complete battle intent and pending card reward in one sidecar write. Set activation marker before creating the Save Engine pending reward.
-5. Commit the existing Save Engine pending reward with the unchanged v1 API.
-6. Claim cards and receipt atomically in sidecar.
-7. Claim EXP/items using the existing Save Engine transaction and \`lastClaimedSeq\`.
-8. Mark journal completed. A failure here is safe: reload sees the incomplete journal plus advanced Save sequence and finalizes without granting again.
+## Approved storage and lock decisions
 
-## Crash matrix
+### Companion Journal — IndexedDB (TDR-030-A: B)
 
-| Interruption point | Durable state | Recovery action |
-|---|---|---|
-| Before sidecar stage | No durable reward intent | Cannot guarantee recovery if storage rejects the first durable write; current session stays locked for retry |
-| After backup journal write, before primary | Newer valid backup revision | Select backup and reconstruct Save pending reward |
-| After journal write, before Save pending | Journal staged | Create original Save Schema v1 pending reward from journal |
-| After Save pending, before card claim | Journal staged + Save pending | Claim cards, then Save reward |
-| After card claim, before Save claim | Receipt + owned cards + Save pending | Receipt prevents duplicate cards; claim EXP/items |
-| After Save claim, before journal complete | \`lastClaimedSeq\` advanced + journal incomplete | Finalize journal only; do not reapply rewards |
-| Corrupt primary, valid backup | Backup valid | Recover highest valid revision |
-| Both copies missing after activation | Activation marker remains | Fail closed; never create starter data over missing collection |
-| Missing stage in pre-v3 legacy save | No activation marker | Allow legacy Save pending settlement |
-| Missing stage after activation | Marker present | Block settlement and preserve save for recovery |
+- Database: `eldoria-reward-recovery`, version 1.
+- Object stores: `journal` and `quarantine`.
+- Journal records are keyed by `characterId:rewardId` and include a separate `encounterId`, full immutable payload, status and timestamps.
+- Completed and quarantined records are retained; normal settlement does not prune them.
+- A small localStorage activation marker (`eldoria.reward.v1.active.<characterId>`) is only a fail-closed indicator that the Journal has been activated. It does not contain reward payload or lifecycle state. It survives IndexedDB database loss so a missing Journal cannot be misclassified as a legacy reward.
 
-## Sequence and consistency checks
-- More than one incomplete journal entry blocks gameplay.
-- Journal entry ahead of \`nextRewardSeq\` blocks.
-- Journal entry behind \`lastClaimedSeq\` is finalized only after verifying/repairing its card receipt.
-- Save pending reward must match journal sequence, monster ID, EXP, zero Gold and ordered item drops.
-- Completed journal entry may not be ahead of \`lastClaimedSeq\`.
-- Retry and Return to Title cannot bypass unresolved recovery.
+### Multi-tab lock — Web Locks API (TDR-030-B: A)
 
-## Multi-runtime / browser scope
-- Sidecar revision checks reject stale collection snapshots and protect sequential multi-runtime writes sharing localStorage.
-- localStorage remains browser/device-local; no cloud sync or cross-device lock service is added.
-- CI mobile coverage is iPhone-sized Chromium with touch events, not real Safari iOS certification.
+- Lock name: `eldoria:reward:<characterId>`.
+- Request: exclusive mode with `ifAvailable: true`.
+- Lock is held across the full reward operation: Journal prepare, Sidecar stage/claim, Save Engine commit/resume, Journal transitions and recovery.
+- Missing Web Locks, denied/busy locks, or lock request failures fail closed. No localStorage or IndexedDB pseudo-lock fallback is permitted.
+- This requires a secure context and a browser implementing Web Locks. Unsupported browsers cannot process reward mutations until a supported browser is used.
 
-## Acceptance criteria
-- v1/v2 sidecars remain readable without mutation on read; first write upgrades to v3.
-- Crash after journal staging and before Save pending is recovered after a fresh page runtime.
-- Crash after card claim or Save claim never duplicates cards, EXP or items.
-- Primary corruption recovers from a newer valid backup; equal-revision checksum conflict and loss of both active copies fail closed.
-- Legacy pending rewards without activation marker still settle.
-- Save Schema v1, \`js/save.js\` blob, character Main/Backup/Guard, Gold, EXP formulas, item definitions and confirmed rules remain unchanged.
-- Full unit, integration, regression, mutation, syntax and browser workflows pass on the exact PR head.
-- PR remains Draft and is not merged.
+## Journal lifecycle
+
+`prepared -> sidecarStaged -> savePending -> cardsClaimed -> saveClaimed -> completed`
+
+Any nonterminal state may move to `quarantined`. The protocol never moves backward.
+
+## Reward settlement
+
+1. Generate an encounter ID at battle start.
+2. On victory, create the immutable reward payload using the current Save sequence; do not reroll on retry.
+3. Under the Web Lock, write/verify the IndexedDB Journal PREPARED record. Identity reuse with a different payload or encounter is quarantined.
+4. Stage the card payload in the unchanged Sidecar v2 using `stageReward`.
+5. Transition Journal to `sidecarStaged`.
+6. Create/commit the existing Save Schema v1 pending reward using `Save.withPendingReward` and `saveSystem.commit/resume`.
+7. Transition Journal to `savePending`.
+8. Claim Sidecar cards and receipt together using `CardCollection.claimReward`; a missing stage is a failure when a Journal record exists.
+9. Transition Journal to `cardsClaimed`.
+10. Claim EXP/items using `Save.withClaim` and `saveSystem.commit/resume`.
+11. Transition Journal to `saveClaimed`, then `completed`.
+
+The IndexedDB, localStorage Sidecar and Character Save are separate stores; this is a forward-recovery protocol, not a distributed atomic transaction.
+
+## Recovery and quarantine
+
+- On Continue and before a new encounter, acquire the Web Lock and reconcile Journal, Sidecar and Save.
+- A Journal entry can reconstruct a missing Save pending reward only when its sequence exactly equals `nextRewardSeq`.
+- A Save pending reward must match Journal sequence, monster, EXP, zero Gold and ordered item drops.
+- Sidecar pending rewards without a corresponding Journal record are orphaned and quarantined.
+- More than one incomplete reward, sequence gaps, identity/payload mismatches, missing activated Journal data, or completed Journal records ahead of Save are quarantined and block gameplay.
+- A legacy pending reward may settle only when no Journal activation marker exists and no matching Sidecar stage exists. Once activated, missing Journal data is never treated as legacy success.
+- Quarantine preserves both the original record and conflict evidence. No automatic data deletion or reset occurs.
+
+## Verification requirements
+
+- Unit: IndexedDB transaction/error behavior, immutable identity, legal transitions, quarantine retention, Web Lock unavailable/busy/failure.
+- Integration: all cross-store crash boundaries and legacy compatibility.
+- Failure Injection: FI-01..FI-38 individually reported as passed, failed, blocked or not executed.
+- Browser: real IndexedDB reload recovery, two-tab lock contention and lock denial.
+- Mobile: iPhone-sized Chromium is not equivalent to real iPhone Safari; actual Safari results must be separately identified.
+- Save compatibility: compare `js/save.js` SHA and assert Character Save Schema v1 and pending reward shape unchanged.
+- PR remains Draft and unmerged until separate Game Owner authorization.
