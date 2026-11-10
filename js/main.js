@@ -17,6 +17,7 @@
   var rewardRecoveryBlocked = false;
   var rewardRecovery = E.RewardRecovery.create();
   var activeEncounterId = null;
+  var battleLockFinished = null;
   var screens = ['screen-title', 'screen-select', 'screen-create', 'screen-world', 'screen-card-collection', 'screen-battle', 'screen-result'];
   var characterCreationReturnScreen = 'screen-title';
 
@@ -548,28 +549,42 @@
   function startBattle(monsterId) {
     (async function () {
       if (!currentSave) return;
+      var encounterId = createEncounterId();
+      if (!encounterId) {
+        rewardRecoveryBlocked = true;
+        lockGame('Secure encounter identity is unavailable in this browser. Reward creation is disabled to protect save data.');
+        return;
+      }
       var lockResult = await rewardRecovery.runExclusive(currentSave.characterId, async function () {
         var recovered = await recoverRewardJournal(currentSave);
         if (!recovered || recovered.pendingReward) return { ok: false, reason: 'RECOVERY_REQUIRED' };
         currentSave = recovered;
+        var saved = persist('before-battle');
+        if (!saved.ok) return { ok: false, reason: saved.reason || 'PRE_BATTLE_SAVE_FAILED' };
+        rewardRecoveryBlocked = false;
+        activeEncounterId = encounterId;
+        show('screen-battle');
+        await new Promise(function (resolve) {
+          battleLockFinished = resolve;
+          E.BattleUI.start({ hp: player.hp, maxHp: player.maxHp }, monsterId, function (result) {
+            Promise.resolve().then(function () { return onBattleEnd(result); }).catch(function (error) {
+              console.error('Battle reward settlement failed:', error);
+              rewardRecoveryBlocked = true;
+              lockGame('Battle reward settlement was interrupted. Existing recovery evidence is protected; retry safely.');
+              show('screen-result');
+            }).then(function () {
+              var release = battleLockFinished;
+              battleLockFinished = null;
+              if (release) release();
+            });
+          });
+        });
         return { ok: true };
       });
       if (!lockResult.ok) {
         rewardRecoveryBlocked = true;
-        lockGame('A previous victory reward must be recovered, or this browser cannot provide an exclusive reward lock.');
-        return;
+        lockGame('A previous reward needs recovery or another tab is using this character. Retry after the exclusive reward lock is available.');
       }
-      var encounterId = createEncounterId();
-      if (!encounterId) {
-        lockGame('Secure encounter identity is unavailable in this browser. Reward creation is disabled to protect save data.');
-        return;
-      }
-      rewardRecoveryBlocked = false;
-      var saved = persist('before-battle');
-      if (!saved.ok) return;
-      activeEncounterId = encounterId;
-      show('screen-battle');
-      E.BattleUI.start({ hp: player.hp, maxHp: player.maxHp }, monsterId, onBattleEnd);
     })();
   }
 
@@ -595,38 +610,39 @@
         cards: rolledCards, createdAt: new Date().toISOString()
       };
       var rewardSaved = false, stagedCards = { ok: false, cards: [] };
-      (async function () {
-        var lockResult = await rewardRecovery.runExclusive(currentSave.characterId, async function () {
-          var prepared = await rewardRecovery.prepare(currentSave.characterId, pendingBattleReward);
-          if (!prepared.ok) return prepared;
-          var payload = prepared.entry.payload;
-          stagedCards = E.CardCollection.stageReward(currentSave.characterId, rewardId, payload.cards);
-          if (!stagedCards.ok) return stagedCards;
-          var settled = await settleJournalEntry(currentSave, prepared.entry);
-          if (!settled || settled.pendingReward) return { ok: false, reason: 'SETTLEMENT_FAILED' };
-          currentSave = settled;
-          rewardSaved = true;
-          return { ok: true };
-        });
-        if (!lockResult.ok) {
+      var rewardFlow = (async function () {
+        var prepared = await rewardRecovery.prepare(currentSave.characterId, pendingBattleReward);
+        if (!prepared.ok) {
           rewardRecoveryBlocked = true;
           line('Reward is pending and has not been confirmed as saved.');
           line('Reward recovery is locked. Do not clear browser data.', 'loot');
-          lockGame('Victory reward could not be safely committed (' + lockResult.reason + '). Keep this browser data intact and retry after the storage/lock issue is resolved.');
+          lockGame('Victory reward could not be durably journaled (' + prepared.reason + '). Keep this browser data intact and retry.');
           $('btn-result').textContent = 'Retry Save';
         } else {
-          player.exp = currentSave.stats.exp; player.level = currentSave.stats.level;
-          player.gold = currentSave.gold; player.items = JSON.parse(JSON.stringify(currentSave.items)); player.jelly = currentSave.items.jelly;
-          player.maxHp = currentSave.stats.maxHp; player.hp = currentSave.stats.hp;
-          line('+' + rw.exp + ' EXP');
-          rw.drops.forEach(function (d) { line('Dropped: ' + d.name, 'loot'); });
-          stagedCards.cards.forEach(function (card) { var def = E.CARDS[card.cardId] || {}; line('Card acquired: ' + (def.name || card.cardId) + ' · ' + (def.rarity || 'Rarity unassigned'), 'card-loot'); });
-          if (!rw.drops.length && !stagedCards.cards.length) line('No drops this time.');
-          if (player.level > 1) line('Current level: ' + player.level, 'level');
-          pendingBattleReward = null;
-          rewardRecoveryBlocked = false;
-          $('btn-result').textContent = 'Return to the village';
-          updateHud();
+          var payload = prepared.entry.payload;
+          stagedCards = E.CardCollection.stageReward(currentSave.characterId, rewardId, payload.cards);
+          var settled = stagedCards.ok ? await settleJournalEntry(currentSave, prepared.entry) : null;
+          if (!settled || settled.pendingReward) {
+            rewardRecoveryBlocked = true;
+            line('Reward is pending and has not been confirmed as saved.');
+            line('Reward recovery is locked. Do not clear browser data.', 'loot');
+            lockGame('Victory reward could not be safely committed. Keep this browser data intact and retry.');
+            $('btn-result').textContent = 'Retry Save';
+          } else {
+            currentSave = settled;
+            rewardSaved = true;
+            player.exp = currentSave.stats.exp; player.level = currentSave.stats.level;
+            player.gold = currentSave.gold; player.items = JSON.parse(JSON.stringify(currentSave.items)); player.jelly = currentSave.items.jelly;
+            player.maxHp = currentSave.stats.maxHp; player.hp = currentSave.stats.hp;
+            line('+' + rw.exp + ' EXP');
+            rw.drops.forEach(function (d) { line('Dropped: ' + d.name, 'loot'); });
+            stagedCards.cards.forEach(function (card) { var def = E.CARDS[card.cardId] || {}; line('Card acquired: ' + (def.name || card.cardId) + ' · ' + (def.rarity || 'Rarity unassigned'), 'card-loot'); });
+            if (!rw.drops.length && !stagedCards.cards.length) line('No drops this time.');
+            if (player.level > 1) line('Current level: ' + player.level, 'level');
+            pendingBattleReward = null;
+            rewardRecoveryBlocked = false;
+            $('btn-result').textContent = 'Return to the village';
+          }
         }
         updateHud();
         show('screen-result');
