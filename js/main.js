@@ -154,6 +154,10 @@
 
   function settlePendingReward(save) {
     if (!save || !save.pendingReward) return save;
+    // Card sidecar receipt is committed first. If the Save Engine commit later needs retry,
+    // the receipt makes this step idempotent and prevents duplicate card grants.
+    var cardClaim = E.CardCollection.claimReward(save.characterId, String(save.pendingReward.seq));
+    if (!cardClaim.ok) return null;
     var claim = E.Save.withClaim(save, applyRewardToSave);
     if (!claim.ok) return null;
     var committed = saveSystem.commit(save, claim.save);
@@ -350,42 +354,28 @@
     if (result.won) {
       var rw = E.rollRewards(result.monsterId);
       $('result-title').textContent = 'Victory!';
-      // The current Save Schema requires pendingReward.gold; store zero for schema compatibility.
-      // The claim handler intentionally ignores this field, including legacy nonzero values.
-      var pendingReward = { exp: rw.exp, gold: 0, drops: rw.drops };
-      var pending = E.Save.withPendingReward(currentSave, pendingReward, result.monsterId, new Date().toISOString());
+      var rewardId = String(currentSave.nextRewardSeq);
+      var rolledCards = E.CardAcquisition.rollMonsterDrops(result.monsterId);
+      // Stage card rewards outside Save Schema before issuing the transactional Save reward.
+      // Repeated attempts reuse the same staged result instead of rerolling.
+      var stagedCards = E.CardCollection.stageReward(currentSave.characterId, rewardId, rolledCards);
       var rewardSaved = false;
-      if (pending.ok) {
-        var staged = saveSystem.commit(currentSave, pending.save);
-        if (staged.ok) {
-          currentSave = staged.save;
-          var claimed = E.Save.withClaim(currentSave, function (target, reward) {
-            applyRewardToSave(target, reward);
-          });
-          if (claimed.ok) {
-            var finalSave = saveSystem.commit(currentSave, claimed.save);
-            if (finalSave.ok) { currentSave = finalSave.save; rewardSaved = true; }
-            else if (finalSave.tx && finalSave.durable) {
-              var retryClaim = saveSystem.resume(finalSave.tx);
-              if (retryClaim.ok) { currentSave = retryClaim.save; rewardSaved = true; }
-              else pendingSaveTx = finalSave.tx;
-            }
+      if (stagedCards.ok) {
+        // Save Schema v1 is intentionally unchanged; monster victories still store zero Gold.
+        var pendingReward = { exp: rw.exp, gold: 0, drops: rw.drops };
+        var pending = E.Save.withPendingReward(currentSave, pendingReward, result.monsterId, new Date().toISOString());
+        if (pending.ok) {
+          var staged = saveSystem.commit(currentSave, pending.save);
+          if (staged.ok) currentSave = staged.save;
+          else if (staged.tx && staged.durable) {
+            var retryStage = saveSystem.resume(staged.tx);
+            if (retryStage.ok) currentSave = retryStage.save;
+            else pendingSaveTx = staged.tx;
           }
-        } else if (staged.tx && staged.durable) {
-          var retryStage = saveSystem.resume(staged.tx);
-          if (retryStage.ok) {
-            currentSave = retryStage.save;
-            var stagedClaim = E.Save.withClaim(currentSave, function (target, reward) { applyRewardToSave(target, reward); });
-            if (stagedClaim.ok) {
-              var stagedFinal = saveSystem.commit(currentSave, stagedClaim.save);
-              if (stagedFinal.ok) { currentSave = stagedFinal.save; rewardSaved = true; }
-              else if (stagedFinal.tx && stagedFinal.durable) {
-                var stagedResume = saveSystem.resume(stagedFinal.tx);
-                if (stagedResume.ok) { currentSave = stagedResume.save; rewardSaved = true; }
-                else pendingSaveTx = stagedFinal.tx;
-              }
-            }
-          } else pendingSaveTx = staged.tx;
+          if (currentSave && currentSave.pendingReward && String(currentSave.pendingReward.seq) === rewardId) {
+            var settled = settlePendingReward(currentSave);
+            if (settled) { currentSave = settled; rewardSaved = true; }
+          }
         }
       }
       if (rewardSaved) {
@@ -394,10 +384,19 @@
         player.maxHp = currentSave.stats.maxHp; player.hp = currentSave.stats.hp;
         line('+' + rw.exp + ' EXP');
         rw.drops.forEach(function (d) { line('Dropped: ' + d.name, 'loot'); });
-        if (!rw.drops.length) line('No drops this time.');
+        stagedCards.cards.forEach(function (card) { line('Card acquired: ' + card.name + ' · ' + card.rarity, 'card-loot'); });
+        if (!rw.drops.length && !stagedCards.cards.length) line('No drops this time.');
         if (player.level > 1) line('Current level: ' + player.level, 'level');
         $('btn-result').textContent = 'Return to the village';
       } else {
+        line('Reward is pending and has not been confirmed as saved.');
+        line('Do not close the game. Use Retry Save to finish safely.', 'loot');
+        lockGame(stagedCards.ok
+          ? 'Victory reward could not be fully saved. The reward is pending; retry will finish the same reward without rolling it again.'
+          : 'Card reward storage is unavailable. Your victory reward is locked to prevent losing or duplicating cards; retry after storage is available.');
+        $('btn-result').textContent = 'Retry Save';
+      }
+else {
         line('Reward is pending and has not been confirmed as saved.');
         line('Do not close the game. Use Retry Save to finish safely.', 'loot');
         lockGame('Victory reward could not be fully saved. The reward is pending; retry will finish the same reward without rolling it again.');
@@ -461,7 +460,7 @@
         var name = document.createElement('strong'), meta = document.createElement('small');
         icon.className = 'collection-icon'; icon.textContent = def.icon || '✦';
         name.textContent = def.name || item.cardId;
-        meta.textContent = 'Star ' + item.stars + ' · ' + (def.kind || 'Card');
+        meta.textContent = 'Star ' + item.stars + ' · ' + (def.rarity || 'Rarity unassigned') + ' · ' + (def.kind || 'Card');
         info.appendChild(icon); info.appendChild(name); info.appendChild(meta);
         var quantity = document.createElement('span'); quantity.className = 'collection-quantity';
         quantity.textContent = '×' + item.quantity;
