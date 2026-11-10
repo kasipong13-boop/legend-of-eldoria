@@ -38,7 +38,7 @@ PR: #30 (Draft; do not merge).
 
 - Acquire `navigator.locks.request("eldoria:reward:" + characterId, { mode: "exclusive", ifAvailable: true }, callback)`.
 - If Web Locks is unavailable, the request is denied, or callback is not granted, stop the reward mutation and preserve all durable evidence.
-- Hold the lock across the complete reward state transition, including IndexedDB operations, Sidecar operations, Save Engine commit/resume and finalization.
+- Acquire the lock before entering a battle and hold it through settlement or explicit abandonment; this prevents another tab from starting an encounter against the same unconsumed Save sequence. Hold it across IndexedDB operations, Sidecar operations, Save Engine commit/resume and finalization.
 - Do not implement a localStorage or IndexedDB pseudo-lock fallback.
 - Normal non-reward saves continue to use the existing Save Engine optimistic stale-write protection.
 
