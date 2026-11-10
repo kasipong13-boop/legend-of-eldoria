@@ -183,3 +183,41 @@ test('sidecar write failure prevents card reward claim and preserves staged rewa
   assert.equal(result.reason, 'WRITE_FAILED');
   assert.equal(values.size, 0);
 });
+
+
+test('FI-23: a failed claim write does not persist ownership without its receipt', () => {
+  const { E, values } = boot();
+  const id = 'fi23-reward';
+  assert.equal(E.CardCollection.stageReward(characterId, id, [{ cardId: 'strike', stars: 1, quantity: 1 }]).ok, true);
+  const key = E.CardCollection.keyFor(characterId);
+  const staged = values.get(key);
+  const originalSet = values.set.bind(values);
+  // Simulate an atomic localStorage setItem failure at the claim boundary.
+  // The staged record remains the durable state until the write succeeds.
+  const { E: failedE, values: failedValues } = boot({ failWrites: true });
+  failedValues.set(key, staged);
+  const before = JSON.parse(JSON.stringify(failedE.CardCollection.get(characterId).data));
+  const failed = failedE.CardCollection.claimReward(characterId, id);
+  assert.equal(failed.ok, false);
+  assert.equal(failed.reason, 'WRITE_FAILED');
+  const after = JSON.parse(JSON.stringify(failedE.CardCollection.get(characterId).data));
+  assert.deepEqual(after.owned, before.owned);
+  assert.deepEqual(after.claimedRewards, before.claimedRewards);
+  assert.equal(failedValues.get(key), staged);
+  assert.equal(typeof originalSet, 'function');
+});
+
+test('FI-24: repeated card claim after sidecar reload grants only one copy', () => {
+  const { E, values } = boot();
+  const id = 'fi24-reward';
+  assert.equal(E.CardCollection.stageReward(characterId, id, [{ cardId: 'strike', stars: 1, quantity: 1 }]).ok, true);
+  assert.equal(E.CardCollection.claimReward(characterId, id).ok, true);
+  const snapshot = values.get(E.CardCollection.keyFor(characterId));
+  const reloaded = boot();
+  reloaded.values.set(E.CardCollection.keyFor(characterId), snapshot);
+  const retry = reloaded.E.CardCollection.claimReward(characterId, id);
+  assert.equal(retry.ok, true);
+  assert.equal(retry.alreadyClaimed, true);
+  const owned = reloaded.E.CardCollection.get(characterId).data.owned;
+  assert.equal(owned.find(card => card.cardId === 'strike' && card.stars === 1).quantity, 5);
+});
