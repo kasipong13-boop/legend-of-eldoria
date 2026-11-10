@@ -130,8 +130,15 @@ const server = http.createServer((req, res) => {
         else {
           const endTurn = page.locator('#btn-end-turn');
           if (await endTurn.isDisabled()) {
-            await page.locator('#screen-result.active').waitFor({ timeout:15000 });
-            break;
+            // The button is also disabled during card/enemy animations. Wait for either
+            // the result screen or the next playable player phase, not victory alone.
+            await page.waitForFunction(() => {
+              const result = document.querySelector('#screen-result.active');
+              const end = document.querySelector('#btn-end-turn');
+              return !!result || (!!end && !end.disabled);
+            }, null, { timeout:10000 });
+            if (await page.locator('#screen-result.active').count()) break;
+            continue;
           }
           await endTurn.click();
         }
