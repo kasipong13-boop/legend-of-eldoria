@@ -27,10 +27,10 @@ The complete original case-by-case definitions for FI-01..FI-38 were not found i
 | Card / Character Claims | FI-23–30 | FI-29 identified above; remaining cases require original definitions |
 | Retry / Reload / Collision | FI-31–38 | FI-35 and FI-38 identified above; remaining cases require original definitions |
 
-## Verified CI evidence (exact head f0dbd7bdd0070f8a830f96293d41bc13fc251cd9)
+## Verified CI evidence (code head 86487c8984bcbc2031221a4d0a1eb0af069d009d)
 
-- Full Verification run 42742865850: success.
-- Validate Prototype run 42742865887: success.
+- Full Verification run 42743214322: success.
+- Validate Prototype run 42743214333: success.
 - Unit / Save tests: 258 passed, 0 failed.
 - World integration: 31 passed, 0 failed.
 - UI contract: 15 passed, 0 failed.
@@ -40,4 +40,4 @@ The complete original case-by-case definitions for FI-01..FI-38 were not found i
 - Browser: real localStorage reload passed; desktop and iPhone-sized Chromium smoke passed; pageErrors = [].
 - Browser smoke includes IndexedDB Journal recovery after PREPARED and a two-page Web Locks contention check.
 
-**Important:** FI-05/FI-29 were verified on head f0dbd7b; FI-10/FI-38 on head 4bb49b3; FI-20/FI-22 on head 86487c8. Validate run 42743214333 passed syntax, full regression suite and all Browser Smoke fixtures. Full Verification run 42743214322 has passed unit/integration, regression and mutation steps; its final browser step is still running. Actual iPhone Safari remains untested.
+**Important:** all eight recovered FI cases (FI-05, FI-10, FI-12, FI-20, FI-22, FI-29, FI-35, FI-38) have passing automated evidence on code head 86487c8: Validate run 42743214333 and Full Verification run 42743214322 both succeeded. The remaining 30 cases are not claimed passed because their original case-by-case definitions were not recovered. Actual iPhone Safari remains untested.
