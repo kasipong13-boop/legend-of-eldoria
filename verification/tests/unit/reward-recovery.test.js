@@ -75,7 +75,7 @@ test('same reward identity with a different payload is quarantined, not rebound'
   const conflict = await API.prepare(characterId, intent({ exp: 99 }));
   assert.equal(conflict.ok, false);
   assert.equal(conflict.reason, 'REWARD_ID_PAYLOAD_CONFLICT');
-  assert.equal(records.get(characterId + ':1').status, 'quarantined');
+  assert.equal(records.get(characterId + ':1').status, 'prepared', 'the first durable payload remains canonical');
   assert.equal(quarantine.size, 1);
   const evidence = await API.listQuarantine(characterId);
   assert.equal(evidence.entries[0].reason, 'REWARD_ID_PAYLOAD_CONFLICT');
