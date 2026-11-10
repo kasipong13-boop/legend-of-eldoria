@@ -132,11 +132,24 @@ const server = http.createServer((req, res) => {
           if (await endTurn.isDisabled()) {
             // The button is also disabled during card/enemy animations. Wait for either
             // the result screen or the next playable player phase, not victory alone.
-            await page.waitForFunction(() => {
-              const result = document.querySelector('#screen-result.active');
-              const end = document.querySelector('#btn-end-turn');
-              return !!result || (!!end && !end.disabled);
-            }, null, { timeout:10000 });
+            try {
+              await page.waitForFunction(() => {
+                const result = document.querySelector('#screen-result.active');
+                const end = document.querySelector('#btn-end-turn');
+                return !!result || (!!end && !end.disabled);
+              }, null, { timeout:10000 });
+            } catch (error) {
+              const debug = await page.evaluate(() => ({
+                activeScreens: Array.from(document.querySelectorAll('.screen.active')).map(el => el.id),
+                endTurnDisabled: document.querySelector('#btn-end-turn') && document.querySelector('#btn-end-turn').disabled,
+                battleLog: document.querySelector('#battle-log') && document.querySelector('#battle-log').textContent,
+                resultTitle: document.querySelector('#result-title') && document.querySelector('#result-title').textContent,
+                enemyHp: document.querySelector('#enemy-hp-text') && document.querySelector('#enemy-hp-text').textContent,
+                playerHp: document.querySelector('#player-hp-text') && document.querySelector('#player-hp-text').textContent,
+                hand: document.querySelector('#hand') && document.querySelector('#hand').textContent
+              }));
+              throw new Error(viewport.name + ': battle phase stalled: ' + JSON.stringify(debug) + '; pageErrors=' + errors.join(' | '));
+            }
             if (await page.locator('#screen-result.active').count()) break;
             continue;
           }
