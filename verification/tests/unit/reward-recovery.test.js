@@ -6,7 +6,8 @@ const vm = require('node:vm');
 
 const root = path.resolve(__dirname, '../../..');
 function boot(options = {}) {
-  const records = new Map(), quarantine = new Map();
+  const records = new Map(), quarantine = new Map(), markers = new Map();
+  const markerStorage = { setItem: (key, value) => markers.set(key, String(value)), getItem: key => markers.has(key) ? markers.get(key) : null };
   const stores = { journal: records, quarantine };
   const adapter = options.adapter || {
     get: async (store, key) => stores[store].get(key) || null,
@@ -25,7 +26,7 @@ function boot(options = {}) {
   const context = { module: { exports: {} }, console, JSON, Object, Array, Number, Date, Math, Promise };
   vm.createContext(context);
   vm.runInContext(fs.readFileSync(path.join(root, 'js/reward-recovery.js'), 'utf8'), context, { filename: 'reward-recovery.js' });
-  return { API: context.ELDORIA.RewardRecovery.create({ adapter, locks }), records, quarantine };
+  return { API: context.ELDORIA.RewardRecovery.create({ adapter, locks, markerStorage }), records, quarantine, markers };
 }
 const characterId = 'a'.repeat(32);
 const intent = (overrides = {}) => ({
@@ -51,11 +52,12 @@ test('Web Locks coordinator refuses a busy lock and never runs the callback', as
 });
 
 test('reward journal prepares a durable immutable payload and advances only through legal states', async () => {
-  const { API, records } = boot();
+  const { API, records, markers } = boot();
   const prepared = await API.prepare(characterId, intent());
   assert.equal(prepared.ok, true);
   assert.equal(prepared.entry.status, 'prepared');
   assert.equal(records.size, 1);
+  assert.equal(markers.get('eldoria.reward.v1.active.' + characterId), '1');
   const retry = await API.prepare(characterId, intent());
   assert.equal(retry.ok, true);
   assert.equal(retry.alreadyPrepared, true);
