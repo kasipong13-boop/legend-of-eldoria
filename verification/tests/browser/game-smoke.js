@@ -113,8 +113,15 @@ const server = http.createServer((req, res) => {
       await page.locator('#btn-card-collection-back').click();
       await page.locator('#screen-world.active').waitFor();
 
-      // Exercise the real battle -> victory -> pending reward -> claim integration.
-      await page.evaluate(() => window.ELDORIA.World.onEncounter('poring'));
+      // Test-only catalog fixture: production monster card-drop tables remain empty.
+      // Exercise the actual battle -> stage card reward -> claim -> collection path.
+      await page.evaluate(() => {
+        const E = window.ELDORIA;
+        E.CARDS.bash.acquisitionType = 'monster-special-skill';
+        E.CARDS.bash.rarity = 'Rare';
+        E.MONSTER_CARD_DROP_TABLE.poring = [{ cardId: 'bash', chance: 1 }];
+        E.World.onEncounter('poring');
+      });
       await page.locator('#screen-battle.active').waitFor();
       for (let turn = 0; turn < 30; turn++) {
         if (await page.locator('#screen-result.active').count()) break;
@@ -133,11 +140,18 @@ const server = http.createServer((req, res) => {
       await page.locator('#screen-result.active').waitFor({ timeout:15000 });
       const victoryText = await page.locator('#result-list').textContent();
       if (!victoryText.includes('EXP') || /gold/i.test(victoryText)) throw new Error(viewport.name + ': victory result displayed an invalid Gold reward');
+      if (!victoryText.includes('Card acquired: Bash · Rare')) throw new Error(viewport.name + ': Monster Special Skill Card was not displayed as a victory reward');
       const afterVictory = await page.evaluate(() => {
         const key = Object.keys(localStorage).find(k => /^eldoria\.char\.[a-f0-9]{32}\.main$/.test(k));
-        return JSON.parse(localStorage.getItem(key));
+        const save = JSON.parse(localStorage.getItem(key));
+        const collection = window.ELDORIA.CardCollection.get(save.characterId);
+        const bash = collection.data.owned.find(card => card.cardId === 'bash' && card.stars === 1);
+        return { save, collection: collection.data, bash };
       });
-      if (afterVictory.gold !== 37 || afterVictory.pendingReward !== null) throw new Error(viewport.name + ': monster victory changed existing Gold or left a pending reward');
+      if (!afterVictory.bash || afterVictory.bash.quantity !== 2) throw new Error(viewport.name + ': acquired card did not stack with the existing same-star copy');
+      if (afterVictory.collection.pendingRewards.length !== 0 || afterVictory.collection.claimedRewardIds.length !== 1) throw new Error(viewport.name + ': card reward receipt was not finalized exactly once');
+      const afterVictorySave = afterVictory.save;
+      if (afterVictorySave.gold !== 37 || afterVictorySave.pendingReward !== null) throw new Error(viewport.name + ': monster victory changed existing Gold or left a pending reward');
       if (!(await page.locator('#hud-gold').textContent()).includes('37 gold')) throw new Error(viewport.name + ': Gold HUD did not preserve the existing balance');
       await page.locator('#btn-result').click();
       await page.locator('#screen-world.active').waitFor();
