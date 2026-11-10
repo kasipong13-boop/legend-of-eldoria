@@ -90,6 +90,8 @@ test('Reward recovery uses the approved IndexedDB journal and preserves sidecar 
   assert.match(main, /CardCollection\.stageReward\(currentSave\.characterId, rewardId, payload\.cards\)/);
   assert.match(main, /rewardRecovery\.transition\(/);
   assert.match(main, /rewardRecovery\.isActive\(save\.characterId\)/);
+  assert.match(main, /ACTIVATED_JOURNAL_MISSING/);
+  assert.match(main, /SAVE_JOURNAL_ID_MISMATCH/);
   assert.match(main, /var cardsAlreadyDurable = entry\.status === 'cardsClaimed' \|\| entry\.status === 'saveClaimed'/);
   assert.match(main, /battleLockFinished = resolve/);
   assert.match(main, /releaseBattle\(\)/);
