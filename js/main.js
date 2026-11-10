@@ -93,8 +93,11 @@
         var result = persist('manual-retry');
         if (result && result.ok && currentSave) {
           var locked = await rewardRecovery.runExclusive(currentSave.characterId, async function () {
-            var recoveredReward = await recoverRewardJournal(currentSave);
-            if (!recoveredReward) return { ok: false, reason: 'RECOVERY_FAILED' };
+            var recoveredOk = pendingBattleReward
+              ? await retryPendingBattleReward()
+              : await recoverRewardJournal(currentSave);
+            if (!recoveredOk) return { ok: false, reason: 'RECOVERY_FAILED' };
+            var recoveredReward = currentSave;
             currentSave = recoveredReward;
             rewardRecoveryBlocked = false;
             syncPlayerFromSave(currentSave);
@@ -300,6 +303,7 @@
     if (!listed.ok) return null;
     var entries = listed.entries;
     var incomplete = entries.filter(function (entry) { return entry.status !== 'completed' && entry.status !== 'quarantined'; });
+    if (!entries.length && rewardRecovery.isActive(save.characterId)) return null;
     var collection = E.CardCollection.get(save.characterId);
     if (!collection.ok) return null;
     var sidecarPending = collection.data.pendingRewards || [];
@@ -337,10 +341,20 @@
 
   async function retryPendingBattleReward() {
     if (!currentSave) return false;
-    var recovered = await recoverRewardJournal(currentSave);
+    var recovered;
+    if (pendingBattleReward) {
+      var prepared = await rewardRecovery.prepare(currentSave.characterId, pendingBattleReward);
+      if (!prepared.ok) return false;
+      var staged = E.CardCollection.stageReward(currentSave.characterId, prepared.entry.rewardId, prepared.entry.payload.cards);
+      if (!staged.ok) return false;
+      recovered = await settleJournalEntry(currentSave, prepared.entry);
+    } else {
+      recovered = await recoverRewardJournal(currentSave);
+    }
     if (!recovered || recovered.pendingReward) return false;
     currentSave = recovered;
     pendingBattleReward = null;
+    rewardRecoveryBlocked = false;
     syncPlayerFromSave(currentSave);
     return true;
   }
@@ -570,16 +584,15 @@
         return { cardId: card.cardId, stars: card.stars, quantity: card.quantity };
       });
       var encounterId = activeEncounterId;
-      pendingBattleReward = { rewardId: rewardId, encounterId: encounterId, monsterId: result.monsterId };
+      pendingBattleReward = {
+        rewardId: rewardId, encounterId: encounterId, monsterId: result.monsterId,
+        exp: rw.exp, gold: 0, drops: rw.drops.map(function (drop) { return { id: drop.id, name: drop.name }; }),
+        cards: rolledCards, createdAt: new Date().toISOString()
+      };
       var rewardSaved = false, stagedCards = { ok: false, cards: [] };
       (async function () {
         var lockResult = await rewardRecovery.runExclusive(currentSave.characterId, async function () {
-          var intent = {
-            rewardId: rewardId, encounterId: encounterId, monsterId: result.monsterId,
-            exp: rw.exp, gold: 0, drops: rw.drops.map(function (drop) { return { id: drop.id, name: drop.name }; }),
-            cards: rolledCards, createdAt: new Date().toISOString()
-          };
-          var prepared = await rewardRecovery.prepare(currentSave.characterId, intent);
+          var prepared = await rewardRecovery.prepare(currentSave.characterId, pendingBattleReward);
           if (!prepared.ok) return prepared;
           var payload = prepared.entry.payload;
           stagedCards = E.CardCollection.stageReward(currentSave.characterId, rewardId, payload.cards);
