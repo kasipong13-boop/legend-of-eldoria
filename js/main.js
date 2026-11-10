@@ -330,7 +330,13 @@
     var collection = E.CardCollection.get(save.characterId);
     // A separate activation marker survives IndexedDB loss. Once rewards are journaled,
     // a missing Journal entry is never reinterpreted as a legacy success.
-    if (!collection.ok || rewardRecovery.isActive(save.characterId)) return null;
+    // A missing marker is not evidence that the reward is legacy. Check the
+    // durable Journal before allowing the pre-acquisition compatibility path.
+    var journalEvidence = await rewardRecovery.list(save.characterId);
+    if (!journalEvidence.ok) return null;
+    var activation = rewardRecovery.reconcileActivation(save.characterId, journalEvidence.entries);
+    if (!activation.ok || activation.activated) return null;
+    if (!collection.ok) return null;
     if ((collection.data.pendingRewards || []).some(function (item) { return item.rewardId === rewardId; })) return null;
     var cardClaim = E.CardCollection.claimReward(save.characterId, rewardId);
     if (!cardClaim.ok || (!cardClaim.missingStage && !cardClaim.alreadyClaimed)) return null;
@@ -355,6 +361,8 @@
     }
     var entries = listed.entries;
     if (entries.some(function (entry) { return !validJournalEntry(entry, save.characterId); })) return null;
+    var activationState = rewardRecovery.reconcileActivation(save.characterId, entries);
+    if (!activationState.ok) return null;
     var incomplete = entries.filter(function (entry) { return entry.status !== 'completed' && entry.status !== 'quarantined'; });
     if (entries.some(function (entry) { return entry.status === 'quarantined'; })) return null;
     if (!entries.length && rewardRecovery.isActive(save.characterId)) {
@@ -383,6 +391,19 @@
     if (completedAhead) {
       var ahead = entries.find(function (entry) { return entry.status === 'completed' && Number(entry.rewardId) > save.lastClaimedSeq; });
       await rewardRecovery.quarantine(save.characterId, ahead.rewardId, 'COMPLETED_JOURNAL_AHEAD_OF_SAVE');
+      return null;
+    }
+    // Completed rewards are not replayable. Require their claimed receipts
+    // before accepting the Sidecar as consistent with the durable Journal.
+    // This is intentionally fail-closed until long-term receipt retention (F-03)
+    // is addressed; never recreate a card from a completed reward.
+    var missingReceipt = entries.find(function (entry) {
+      return entry.status === 'completed' &&
+        collection.data.claimedRewardIds.indexOf(entry.rewardId) < 0;
+    });
+    if (missingReceipt) {
+      await rewardRecovery.quarantine(save.characterId, missingReceipt.rewardId,
+        'COMPLETED_JOURNAL_RECEIPT_MISSING');
       return null;
     }
     if (!incomplete.length) return save.pendingReward ? settlePendingReward(save) : save;
