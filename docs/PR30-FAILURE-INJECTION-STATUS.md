@@ -9,8 +9,8 @@ This report is deliberately conservative. A test is marked **PASS** only when th
 | FI-05 | Crash after Journal PREPARED; reload must reuse the same payload | Browser smoke creates PREPARED only, reloads, then verifies Sidecar/Save settlement and completed Journal; Validate run 42742865887 + Full Verification run 42742865850 passed | PASS |
 | FI-10 | Sidecar pending reward without a corresponding Journal must be quarantined | Browser fixture injects Sidecar pending without Journal and asserts ORPHAN_SIDECAR_REWARD quarantine | PASS (Validate run 42743167257) |
 | FI-12 | Same Reward ID with a different payload must be rejected | Reward Journal unit test verifies conflict evidence while preserving the canonical record | PASS (Full Verification 42742865850) |
-| FI-20 | Save sequence and Journal identity mismatch must be quarantined | Browser fixture commits a valid Save pending reward with a mismatched sequence and asserts quarantine | Pending latest CI (head 86487c8) |
-| FI-22 | Save claim succeeds but Journal transition is interrupted; recovery must finish forward | Browser fixture commits Save claim but leaves Journal at cardsClaimed, then reloads and asserts forward completion | Pending latest CI (head 86487c8) |
+| FI-20 | Save sequence and Journal identity mismatch must be quarantined | Browser fixture commits a valid Save pending reward with a mismatched sequence and asserts quarantine | PASS (Validate run 42743214333) |
+| FI-22 | Save claim succeeds but Journal transition is interrupted; recovery must finish forward | Browser fixture commits Save claim but leaves Journal at cardsClaimed, then reloads and asserts forward completion | PASS (Validate run 42743214333) |
 | FI-29 | Missing Sidecar stage for a Journal-backed reward must not be treated as legacy success | Browser smoke PREPARED-only fixture verifies Journal payload recreates Sidecar stage after reload | PASS (Full Verification 42742865850) |
 | FI-35 | Two tabs cannot concurrently mutate the same character's reward state | Browser smoke holds the per-character Web Lock in one page and verifies the second page receives REWARD_LOCK_BUSY | PASS (Validate run 42742865887) |
 | FI-38 | Journal deleted before COMPLETE must be detected and quarantined | Browser fixture deletes Journal after Save Pending while preserving the activation marker, then asserts ACTIVATED_JOURNAL_MISSING quarantine | PASS (Validate run 42743167257) |
@@ -40,4 +40,4 @@ The complete original case-by-case definitions for FI-01..FI-38 were not found i
 - Browser: real localStorage reload passed; desktop and iPhone-sized Chromium smoke passed; pageErrors = [].
 - Browser smoke includes IndexedDB Journal recovery after PREPARED and a two-page Web Locks contention check.
 
-**Important:** FI-05/FI-29 were verified on head f0dbd7b; FI-10/FI-38 were verified on head 4bb49b3. FI-20/FI-22 runtime fixtures are on head 86487c8 and are awaiting Browser Smoke. Actual iPhone Safari remains untested.
+**Important:** FI-05/FI-29 were verified on head f0dbd7b; FI-10/FI-38 on head 4bb49b3; FI-20/FI-22 on head 86487c8. Validate run 42743214333 passed syntax, full regression suite and all Browser Smoke fixtures. Full Verification run 42743214322 has passed unit/integration, regression and mutation steps; its final browser step is still running. Actual iPhone Safari remains untested.
