@@ -225,7 +225,7 @@
     }
     var stagedCards = E.CardCollection.stageReward(save.characterId, rewardId, payload.cards);
     if (!stagedCards.ok) return null;
-    if (JSON.stringify(stagedCards.cards) !== JSON.stringify(payload.cards)) {
+    if (!stagedCards.alreadyClaimed && JSON.stringify(stagedCards.cards) !== JSON.stringify(payload.cards)) {
       await rewardRecovery.quarantine(save.characterId, rewardId, 'SIDECAR_PAYLOAD_MISMATCH', stagedCards.cards);
       return null;
     }
