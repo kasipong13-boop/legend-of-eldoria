@@ -447,7 +447,7 @@
     }
     var data = result.data;
     var total = data.owned.reduce(function (sum, item) { return sum + item.quantity; }, 0);
-    $('collection-summary').textContent = total + ' owned card copies · ' + data.owned.length + ' card variants · ' + data.presets.length + ' deck presets';
+    $('collection-summary').textContent = total + ' owned card copies · ' + data.owned.length + ' card variants · ' + data.presets.length + (data.presets.length === 1 ? ' deck preset' : ' deck presets');
     $('collection-source').textContent = result.source === 'saved' ? 'Saved collection data' : 'Starter deck preview · not yet separately saved';
     if (!data.owned.length) {
       var empty = document.createElement('p'); empty.className = 'collection-empty';
