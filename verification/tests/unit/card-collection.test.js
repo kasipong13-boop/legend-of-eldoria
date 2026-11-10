@@ -221,3 +221,54 @@ test('FI-24: repeated card claim after sidecar reload grants only one copy', () 
   const owned = reloaded.E.CardCollection.get(characterId).data.owned;
   assert.equal(owned.find(card => card.cardId === 'strike' && card.stars === 1).quantity, 5);
 });
+
+
+test('FI-23: failed claim write preserves pending receipt boundary, then retry atomically grants once', () => {
+  const id = 'fi23-retry';
+  const { E, storage, values } = boot();
+  assert.equal(E.CardCollection.stageReward(characterId, id, [{ cardId: 'strike', stars: 1, quantity: 1 }]).ok, true);
+  const key = E.CardCollection.keyFor(characterId);
+  const stagedRaw = values.get(key);
+  const originalSetItem = storage.setItem;
+  storage.setItem = () => { throw new Error('INJECTED_CLAIM_WRITE_FAILURE'); };
+  const rejected = E.CardCollection.claimReward(characterId, id);
+  assert.equal(rejected.ok, false);
+  assert.equal(rejected.reason, 'WRITE_FAILED');
+  assert.equal(values.get(key), stagedRaw);
+  const pending = E.CardCollection.get(characterId);
+  assert.equal(pending.ok, true);
+  assert.equal(pending.data.pendingRewards.length, 1);
+  assert.equal(pending.data.claimedRewardIds.includes(id), false);
+  assert.equal(pending.data.owned.find(card => card.cardId === 'strike' && card.stars === 1).quantity, 4);
+  storage.setItem = originalSetItem;
+  assert.equal(E.CardCollection.claimReward(characterId, id).ok, true);
+  const settled = E.CardCollection.get(characterId).data;
+  assert.equal(settled.pendingRewards.length, 0);
+  assert.deepEqual(JSON.parse(JSON.stringify(settled.claimedRewardIds)), [id]);
+  assert.equal(settled.owned.find(card => card.cardId === 'strike' && card.stars === 1).quantity, 5);
+  assert.equal(E.CardCollection.claimReward(characterId, id).alreadyClaimed, true);
+  assert.equal(E.CardCollection.get(characterId).data.owned.find(card => card.cardId === 'strike' && card.stars === 1).quantity, 5);
+});
+
+test('FI-24: repeated reload and claim retains exactly one durable receipt and card increment', () => {
+  const id = 'fi24-multi-reload';
+  const first = boot();
+  assert.equal(first.E.CardCollection.stageReward(characterId, id, [{ cardId: 'strike', stars: 1, quantity: 1 }]).ok, true);
+  assert.equal(first.E.CardCollection.claimReward(characterId, id).ok, true);
+  const key = first.E.CardCollection.keyFor(characterId);
+  let durable = first.values.get(key);
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const next = boot();
+    next.values.set(key, durable);
+    const replay = next.E.CardCollection.claimReward(characterId, id);
+    assert.equal(replay.ok, true);
+    assert.equal(replay.alreadyClaimed, true);
+    const result = next.E.CardCollection.get(characterId);
+    assert.equal(result.ok, true);
+    assert.equal(result.data.claimedRewardIds.filter(x => x === id).length, 1);
+    assert.equal(result.data.pendingRewards.some(x => x.rewardId === id), false);
+    assert.equal(result.data.owned.find(card => card.cardId === 'strike' && card.stars === 1).quantity, 5);
+    assert.equal(next.values.get(key), durable, 'replay must not rewrite the durable sidecar');
+    durable = next.values.get(key);
+  }
+});
