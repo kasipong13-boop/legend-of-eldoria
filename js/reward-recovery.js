@@ -41,6 +41,16 @@
     options = options || {};
     var indexedDB = options.indexedDB || root.indexedDB;
     var locks = options.locks || (root.navigator && root.navigator.locks);
+    var markerStorage = options.markerStorage || root.localStorage;
+    function activeMarkerKey(characterId) { return 'eldoria.reward.v1.active.' + characterId; }
+    function ensureActiveMarker(characterId) {
+      try { if (!markerStorage) return false; markerStorage.setItem(activeMarkerKey(characterId), '1'); return markerStorage.getItem(activeMarkerKey(characterId)) === '1'; }
+      catch (error) { return false; }
+    }
+    function isActive(characterId) {
+      try { return !markerStorage || markerStorage.getItem(activeMarkerKey(characterId)) === '1'; }
+      catch (error) { return true; }
+    }
     var adapter = options.adapter || null;
     var dbPromise = null;
 
@@ -125,6 +135,7 @@
 
     function prepare(characterId, intent) {
       if (!validIntent(characterId, intent)) return Promise.resolve({ ok: false, reason: 'BAD_REWARD_INTENT' });
+      if (!ensureActiveMarker(characterId)) return Promise.resolve({ ok: false, reason: 'REWARD_MARKER_WRITE_FAILED' });
       return open().then(function (db) {
         var key = makeKey(characterId, intent.rewardId);
         var payload = {
@@ -226,7 +237,7 @@
 
     return {
       runExclusive: runExclusive, prepare: prepare, get: get, list: list,
-      transition: transition, quarantine: quarantine, listQuarantine: listQuarantine,
+      transition: transition, quarantine: quarantine, listQuarantine: listQuarantine, isActive: isActive,
       databaseName: DB_NAME, databaseVersion: DB_VERSION
     };
   }
