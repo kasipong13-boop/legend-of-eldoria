@@ -74,3 +74,24 @@ test('Recovery-blocked records disable character creation on every entry point',
   assert.match(main, /var blocked = chars\.filter\(function \(c\) \{ return c\.state === 'damaged' \|\| c\.state === 'recoveryIncomplete' \|\| c\.state === 'creating'; \}\)/);
   assert.match(html, /id="character-name" type="text" maxlength="16"/);
 });
+
+
+test('Card acquisition module is loaded before the current Save Engine and collection sidecar', () => {
+  const scripts = [...html.matchAll(/<script src="([^"]+\.js)"><\\/script>/g)].map(match => match[1]);
+  assert.ok(scripts.indexOf('js/card-acquisition.js') >= 0);
+  assert.ok(scripts.indexOf('js/card-acquisition.js') < scripts.indexOf('js/save.js'));
+  assert.ok(scripts.indexOf('js/save.js') < scripts.indexOf('js/card-collection.js'));
+  assert.ok(scripts.indexOf('js/card-collection.js') < scripts.indexOf('js/main.js'));
+});
+
+test('Card reward settlement uses a sidecar receipt without extending Save Schema', () => {
+  assert.match(main, /CardCollection\.stageReward\(currentSave\.characterId, rewardId, rolledCards\)/);
+  assert.match(main, /CardCollection\.claimReward\(save\.characterId, String\(save\.pendingReward\.seq\)\)/);
+  assert.match(main, /var pendingReward = \{ exp: rw\.exp, gold: 0, drops: rw\.drops \}/);
+  assert.doesNotMatch(main, /pendingReward\s*=\s*\{[^}]*cardDrops/);
+  assert.match(html, /id="screen-card-collection"/);
+});
+
+test('Card collection metadata displays rarity when assigned without inventing it', () => {
+  assert.match(main, /def\.rarity \|\| 'Rarity unassigned'/);
+});
