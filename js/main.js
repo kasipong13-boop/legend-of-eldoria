@@ -13,7 +13,7 @@
   var active = false;
   var saveLocked = false;
   var pendingSaveTx = null;
-  var screens = ['screen-title', 'screen-select', 'screen-create', 'screen-world', 'screen-battle', 'screen-result'];
+  var screens = ['screen-title', 'screen-select', 'screen-create', 'screen-world', 'screen-card-collection', 'screen-battle', 'screen-result'];
   var characterCreationReturnScreen = 'screen-title';
 
   function show(id) {
@@ -433,6 +433,70 @@
     show('screen-world'); E.World.resume();
   }
 
+  function renderCardCollection() {
+    var result = E.CardCollection.get(currentSave.characterId);
+    var ownedHost = $('collection-owned'), presetsHost = $('collection-presets');
+    ownedHost.textContent = ''; presetsHost.textContent = '';
+    if (!result.ok) {
+      $('collection-summary').textContent = 'Card collection could not be loaded.';
+      $('collection-source').textContent = 'Collection data is protected: ' + result.reason;
+      var warning = document.createElement('p'); warning.className = 'collection-empty';
+      warning.textContent = 'No data was reset. Check available browser storage before trying again.';
+      ownedHost.appendChild(warning);
+      return;
+    }
+    var data = result.data;
+    var total = data.owned.reduce(function (sum, item) { return sum + item.quantity; }, 0);
+    $('collection-summary').textContent = total + ' owned card copies · ' + data.owned.length + ' card variants · ' + data.presets.length + ' deck presets';
+    $('collection-source').textContent = result.source === 'saved' ? 'Saved collection data' : 'Starter deck preview · not yet separately saved';
+    if (!data.owned.length) {
+      var empty = document.createElement('p'); empty.className = 'collection-empty';
+      empty.textContent = 'No cards collected yet. Card rewards will be added in a later milestone.';
+      ownedHost.appendChild(empty);
+    } else {
+      data.owned.forEach(function (item) {
+        var def = E.CARDS[item.cardId] || {};
+        var row = document.createElement('div'); row.className = 'collection-row';
+        var info = document.createElement('div'), icon = document.createElement('span');
+        var name = document.createElement('strong'), meta = document.createElement('small');
+        icon.className = 'collection-icon'; icon.textContent = def.icon || '✦';
+        name.textContent = def.name || item.cardId;
+        meta.textContent = 'Star ' + item.stars + ' · ' + (def.kind || 'Card');
+        info.appendChild(icon); info.appendChild(name); info.appendChild(meta);
+        var quantity = document.createElement('span'); quantity.className = 'collection-quantity';
+        quantity.textContent = '×' + item.quantity;
+        row.appendChild(info); row.appendChild(quantity); ownedHost.appendChild(row);
+      });
+    }
+    if (!data.presets.length) {
+      var noPresets = document.createElement('p'); noPresets.className = 'collection-empty';
+      noPresets.textContent = 'No saved deck presets yet.'; presetsHost.appendChild(noPresets);
+    } else {
+      data.presets.forEach(function (preset) {
+        var row = document.createElement('div'); row.className = 'collection-row';
+        var info = document.createElement('div'), name = document.createElement('strong'), meta = document.createElement('small');
+        name.textContent = preset.name; meta.textContent = preset.cardRefs.length + ' / 20 cards';
+        info.appendChild(name); info.appendChild(meta);
+        var state = document.createElement('span'); state.className = 'collection-state';
+        state.textContent = preset.id === data.activePresetId ? 'Active' : 'Saved';
+        row.appendChild(info); row.appendChild(state); presetsHost.appendChild(row);
+      });
+    }
+  }
+
+  function openCardCollection() {
+    if (!active || saveLocked || !currentSave || !$('screen-world').classList.contains('active')) return;
+    E.World.pause();
+    renderCardCollection();
+    show('screen-card-collection');
+  }
+
+  function closeCardCollection() {
+    if (!$('screen-card-collection').classList.contains('active')) return;
+    show('screen-world');
+    if (active && !saveLocked) E.World.resume();
+  }
+
   function openGameMenu() {
     renderInventory();
     if (!active || saveLocked) return;
@@ -452,6 +516,8 @@
     show('screen-title');
     refreshTitleState();
   }
+  $('btn-card-collection').addEventListener('click', openCardCollection);
+  $('btn-card-collection-back').addEventListener('click', closeCardCollection);
   $('btn-menu').addEventListener('click', openGameMenu);
   $('btn-battle-menu').addEventListener('click', openGameMenu);
   $('btn-menu-resume').addEventListener('click', closeGameMenu);
