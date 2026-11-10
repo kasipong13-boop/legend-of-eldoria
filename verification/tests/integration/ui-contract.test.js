@@ -91,7 +91,7 @@ test('Card reward settlement uses a sidecar receipt without extending Save Schem
   assert.match(main, /CardCollection\.claimReward\(save\.characterId, rewardId\)/);
   assert.match(main, /if \(!collection\.ok \|\| E\.CardCollection\.isRewardSystemActive\(save\.characterId\)\) return null/);
   assert.match(main, /var durableReward = stagedCards\.journal/);
-  assert.match(main, /var pending = durableIntent && E\.Save\.withPendingReward/);
+  assert.match(main, /var durableIntent = stagedCards\.journal[\s\S]*?var pending = E\.Save\.withPendingReward/);
   assert.doesNotMatch(main, /pendingReward\s*=\s*\{[^}]*cardDrops/);
   assert.match(html, /id="screen-card-collection"/);
 });
