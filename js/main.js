@@ -181,6 +181,16 @@
   function retryPendingBattleReward() {
     var intent = pendingBattleReward;
     if (!intent || !currentSave) return false;
+    // Resume may have completed the character claim just before the page retried.
+    // Recognize its monotonic sequence before creating any new pending reward.
+    if (!currentSave.pendingReward && currentSave.lastClaimedSeq >= Number(intent.rewardId)) {
+      player.exp = currentSave.stats.exp; player.level = currentSave.stats.level;
+      player.gold = currentSave.gold; player.items = JSON.parse(JSON.stringify(currentSave.items)); player.jelly = currentSave.items.jelly;
+      player.maxHp = currentSave.stats.maxHp; player.hp = currentSave.stats.hp;
+      pendingBattleReward = null;
+      updateHud();
+      return true;
+    }
     var stagedCards = E.CardCollection.stageReward(currentSave.characterId, intent.rewardId, intent.cards);
     if (!stagedCards.ok) return false;
     if (!currentSave.pendingReward) {
