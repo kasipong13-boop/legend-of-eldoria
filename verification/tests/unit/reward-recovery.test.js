@@ -213,3 +213,14 @@ test('encounter identity is generated from cryptographic random bytes and fails 
   const withoutCrypto = boot().API.createEncounterId();
   assert.equal(withoutCrypto, null);
 });
+
+test('deleted Journal after activation is detectable and cannot be downgraded to legacy success', async () => {
+  const { API, records, markers } = boot();
+  await locked(API, () => API.prepare(characterId, intent()));
+  records.delete(characterId + ':1');
+  const listed = await API.list(characterId);
+  assert.equal(listed.ok, true);
+  assert.equal(listed.entries.length, 0);
+  assert.equal(API.isActive(characterId), true);
+  assert.equal(markers.get('eldoria.reward.v1.active.' + characterId), '1');
+});
