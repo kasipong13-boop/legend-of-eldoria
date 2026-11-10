@@ -352,6 +352,61 @@ const server = http.createServer((req, res) => {
     }
     const lockMessage = await fiPage.locator('#save-lock-message').textContent();
     if (!lockMessage || !/recovery/i.test(lockMessage)) throw new Error('FI-38: missing Journal did not block gameplay');
+
+    // FI-30: activated Journal missing at reload must never downgrade to legacy
+    // settlement, even after repeated retry/reload. Distinct from FI-38: assert
+    // the persisted Save/Sidecar deltas and activation marker remain unchanged.
+    const fi30Before = await fiPage.evaluate(fixture => {
+      const E = window.ELDORIA, save = E.GameSave.getCurrentSave();
+      const cards = E.CardCollection.get(fixture.characterId).data;
+      return {
+        exp:save.stats.exp, items:JSON.stringify(save.items),
+        pendingSeq:save.pendingReward && save.pendingReward.seq,
+        lastClaimedSeq:save.lastClaimedSeq,
+        cardState:JSON.stringify(cards.owned),
+        receiptState:JSON.stringify(cards.claimedRewardIds),
+        marker:localStorage.getItem('eldoria.reward.v1.active.' + fixture.characterId)
+      };
+    }, fi38);
+    if (fi30Before.marker !== '1' || fi30Before.pendingSeq !== Number(fi38.rewardId)) {
+      throw new Error('FI-30: activation marker or pending Save checkpoint absent');
+    }
+    for (let attempt = 0; attempt < 2; attempt++) {
+      await fiPage.reload({ waitUntil:'networkidle' });
+      await fiPage.getByRole('button', { name:'Continue' }).click();
+      await fiPage.locator('#screen-select.active').waitFor();
+      await fiPage.locator('.character-row').filter({ hasText:'FI38 Hero' }).getByRole('button', { name:'Play' }).click();
+      await fiPage.locator('#screen-world.active').waitFor();
+      const fi30After = await fiPage.evaluate(async fixture => {
+        const E = window.ELDORIA, save = E.GameSave.getCurrentSave();
+        const cards = E.CardCollection.get(fixture.characterId).data;
+        const quarantine = await E.RewardRecovery.create().listQuarantine(fixture.characterId);
+        return {
+          exp:save.stats.exp, items:JSON.stringify(save.items),
+          pendingSeq:save.pendingReward && save.pendingReward.seq,
+          lastClaimedSeq:save.lastClaimedSeq,
+          cardState:JSON.stringify(cards.owned),
+          receiptState:JSON.stringify(cards.claimedRewardIds),
+          marker:localStorage.getItem('eldoria.reward.v1.active.' + fixture.characterId),
+          quarantine
+        };
+      }, fi38);
+      if (fi30After.exp !== fi30Before.exp ||
+          fi30After.items !== fi30Before.items ||
+          fi30After.pendingSeq !== fi30Before.pendingSeq ||
+          fi30After.lastClaimedSeq !== fi30Before.lastClaimedSeq ||
+          fi30After.cardState !== fi30Before.cardState ||
+          fi30After.receiptState !== fi30Before.receiptState ||
+          fi30After.marker !== '1' ||
+          !fi30After.quarantine.ok ||
+          !fi30After.quarantine.entries.some(entry => entry.reason === 'ACTIVATED_JOURNAL_MISSING')) {
+        throw new Error('FI-30: activated missing Journal was silently settled or evidence changed (attempt ' + attempt + ')');
+      }
+      const fi30Lock = await fiPage.locator('#save-lock-message').textContent();
+      if (!fi30Lock || !/recovery/i.test(fi30Lock)) {
+        throw new Error('FI-30: gameplay not blocked after activated Journal loss');
+      }
+    }
     await fiContext.close();
 
       // FI-10: Sidecar pending reward without a matching IndexedDB Journal is orphaned.
