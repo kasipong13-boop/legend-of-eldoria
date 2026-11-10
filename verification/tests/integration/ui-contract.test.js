@@ -95,3 +95,11 @@ test('Card reward settlement uses a sidecar receipt without extending Save Schem
 test('Card collection metadata displays rarity when assigned without inventing it', () => {
   assert.match(main, /def\.rarity \|\| 'Rarity unassigned'/);
 });
+
+
+test('A victory reward waiting for card-sidecar storage cannot be abandoned through the lock dialog', () => {
+  assert.match(main, /var pendingBattleReward = null/);
+  assert.match(main, /function retryPendingBattleReward\(\)/);
+  assert.match(main, /if \(pendingBattleReward\) \{/);
+  assert.match(main, /returning to the title is temporarily disabled/);
+});
