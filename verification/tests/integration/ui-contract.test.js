@@ -77,7 +77,7 @@ test('Recovery-blocked records disable character creation on every entry point',
 
 
 test('Card acquisition module is loaded before the current Save Engine and collection sidecar', () => {
-    const scripts = [...html.matchAll(/<script src="([^"]+\\.js)">/g)].map(match => match[1]);
+  const scripts = [...html.matchAll(/<script src="([^"]+)">/g)].map(match => match[1]);
   assert.ok(scripts.indexOf('js/card-acquisition.js') >= 0);
   assert.ok(scripts.indexOf('js/card-acquisition.js') < scripts.indexOf('js/save.js'));
   assert.ok(scripts.indexOf('js/save.js') < scripts.indexOf('js/card-collection.js'));
