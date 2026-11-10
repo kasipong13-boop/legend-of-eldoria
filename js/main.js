@@ -303,6 +303,7 @@
     if (!listed.ok) return null;
     var entries = listed.entries;
     var incomplete = entries.filter(function (entry) { return entry.status !== 'completed' && entry.status !== 'quarantined'; });
+    if (entries.some(function (entry) { return entry.status === 'quarantined'; })) return null;
     if (!entries.length && rewardRecovery.isActive(save.characterId)) return null;
     var collection = E.CardCollection.get(save.characterId);
     if (!collection.ok) return null;
