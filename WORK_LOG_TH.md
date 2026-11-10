@@ -70,3 +70,46 @@ Prototype 0.3 — Expanded Greenvale Capital (PR in review)
 - Kept Whispering Forest data, combat, monster balance, card rules and save schema unchanged.
 - Existing Greenvale start tile remains (5,5); old interior tile coordinates are preserved.
 - Automated validation and mobile/desktop browser smoke tests are required before merge.
+
+
+Port Card Acquisition Foundation — 10 พฤศจิกายน 2026
+------------------------------------------------------
+เป้าหมาย
+- นำงาน Card Acquisition จาก PR #23 เดิมมา Port ใหม่บน main หลัง PR #29 โดยรักษา Save Engine และกฎเกมที่ยืนยันแล้ว
+
+การตรวจ PR #23 เดิม
+- พบว่ามีแนวคิด Card Drop, rarity/chance independence, duplicate stacking และ idempotent reward ที่นำกลับมาใช้ได้
+- พบว่า PR #23 เดิมแก้ `js/save.js` และพึ่งฐาน PR #20 ที่เป็น Save Engine รุ่นเก่า จึงไม่ปลอดภัยที่จะ Merge โดยตรง
+- PR #23 เดิมยังคงเปิด Draft และไม่ได้ถูกแก้ไขหรือ Merge
+
+การดำเนินงาน Port
+- สร้าง branch `port/card-acquisition-current-save-engine` จาก main commit `c79744071f9b6ea78b3f21b669aaeaffae4633a9` (Merge PR #29)
+- เพิ่ม `js/card-acquisition.js` และโหลดก่อน Save Engine / Card Collection
+- ขยาย Card Collection Sidecar เป็น schema v2 เพิ่ม pending card reward และ claimed receipt; v1 ยังอ่านได้และไม่ migrate จนกว่าจะมีการเขียน
+- Reward flow: stage การ์ดใน sidecar -> commit pending reward ผ่าน Save Engine เดิม -> claim การ์ดพร้อม receipt แบบ atomic -> claim EXP/item ผ่าน Save Engine
+- Retry ใช้ reward sequence เดิมและตรวจ lastClaimedSeq เพื่อป้องกันการแจกซ้ำ
+- เพิ่ม browser smoke ที่ใช้ test-only fixture ทดสอบ card acquisition ผ่านการต่อสู้จริง; live game tables ยังคงว่าง
+- เพิ่มเอกสาร `docs/CARD-ACQUISITION-FOUNDATION.md`
+
+Save Compatibility
+- `js/save.js` blob SHA ยังคง `41717dcf41cfd9b967d8e57843a456c92bbf73d5` ตรงกับ main
+- Save Schema ยังคง v1; Main/Backup/Guard, recovery, transaction/resume และ reward sequence contract ไม่เปลี่ยน
+- ไม่เปลี่ยน `data.js`, `battle.js`, `world.js`, Gold, EXP, item drops หรือ balance
+- ไม่มี Monster Special Skill Card identity หรือ numeric drop rate ใหม่ใน live content
+
+Validation — PR #30 head 5a17d75
+- Syntax/Structure: passed
+- Unit: 245 passed, 0 failed
+- Integration/UI: 30 passed, 0 failed
+- World/UI: 14 passed, 0 failed
+- Monster Spawn: 6 passed, 0 failed
+- Regression: original 0.1 rules/cards/Poring data + 350 seeded battles unchanged
+- Mutation: 26/26 caught
+- Browser: real localStorage reload + desktop/iPhone-sized Chromium passed; pageErrors = []
+- GitHub Actions: Validate Prototype run 42736230135 และ Full Verification run 42736230131 ผ่าน
+
+สถานะปัจจุบัน
+- PR #30: https://github.com/kasipong13-boop/legend-of-eldoria/pull/30
+- State: Open / Draft / Mergeable / Not merged
+- Base: main; ahead 21 commits, behind 0
+- รอ Final Review และการอนุมัติ Merge จาก Game Owner
