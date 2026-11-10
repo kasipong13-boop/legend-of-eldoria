@@ -103,3 +103,9 @@ test('A victory reward waiting for card-sidecar storage cannot be abandoned thro
   assert.match(main, /if \(pendingBattleReward\) \{/);
   assert.match(main, /returning to the title is temporarily disabled/);
 });
+
+
+test('Retry recognizes an already-claimed Save sequence before staging another reward', () => {
+  assert.match(main, /currentSave\.lastClaimedSeq >= Number\(intent\.rewardId\)/);
+  assert.match(main, /if \(!currentSave\.pendingReward && currentSave\.lastClaimedSeq >= Number\(intent\.rewardId\)\)[\s\S]*?pendingBattleReward = null/);
+});
