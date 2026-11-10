@@ -487,23 +487,27 @@
 
   function loadSelectedCharacter(id) {
     if (!saveSystem) return;
-    var loaded = saveSystem.loadCharacter(id);
-    if (!loaded.ok) {
-      $('select-warning').textContent = 'Save recovery required: ' + loaded.reason + '. Existing data remains protected.';
-      refreshTitleState();
-      renderCharacterSelection();
-      return;
-    }
-    var recovered = recoverRewardJournal(loaded.save);
-    var settled = recovered && (recovered.pendingReward ? settlePendingReward(recovered) : recovered);
-    if (!settled) {
-      rewardRecoveryBlocked = true;
-      beginFromSave(loaded.save);
-      lockGame('A saved victory reward needs recovery. Existing data is protected; Retry Save after storage is available.');
-      return;
-    }
-    rewardRecoveryBlocked = false;
-    beginFromSave(settled);
+    (async function () {
+      var loaded = saveSystem.loadCharacter(id);
+      if (!loaded.ok) {
+        $('select-warning').textContent = 'Save recovery required: ' + loaded.reason + '. Existing data remains protected.';
+        refreshTitleState();
+        renderCharacterSelection();
+        return;
+      }
+      var lockResult = await rewardRecovery.runExclusive(id, async function () {
+        var recovered = await recoverRewardJournal(loaded.save);
+        return recovered ? { ok: true, save: recovered } : { ok: false, reason: 'RECOVERY_FAILED' };
+      });
+      if (!lockResult.ok || !lockResult.save) {
+        rewardRecoveryBlocked = true;
+        beginFromSave(loaded.save);
+        lockGame('A saved victory reward needs recovery or the browser cannot provide an exclusive reward lock. Existing data is protected.');
+        return;
+      }
+      rewardRecoveryBlocked = false;
+      beginFromSave(lockResult.save);
+    })();
   }
 
   function continueGame() {
@@ -512,19 +516,40 @@
     show('screen-select');
   }
 
+  function createEncounterId() {
+    var cryptoApi = window.crypto;
+    if (!cryptoApi || typeof cryptoApi.getRandomValues !== 'function') return null;
+    var bytes = new Uint8Array(16);
+    cryptoApi.getRandomValues(bytes);
+    return Array.prototype.map.call(bytes, function (value) { return value.toString(16).padStart(2, '0'); }).join('');
+  }
+
   function startBattle(monsterId) {
-    var recovered = recoverRewardJournal(currentSave);
-    if (!recovered || recovered.pendingReward) {
-      rewardRecoveryBlocked = true;
-      lockGame('A previous victory reward must be recovered before another battle can begin.');
-      return;
-    }
-    rewardRecoveryBlocked = false;
-    currentSave = recovered;
-    var saved = persist('before-battle');
-    if (!saved.ok) return;
-    show('screen-battle');
-    E.BattleUI.start({ hp: player.hp, maxHp: player.maxHp }, monsterId, onBattleEnd);
+    (async function () {
+      if (!currentSave) return;
+      var lockResult = await rewardRecovery.runExclusive(currentSave.characterId, async function () {
+        var recovered = await recoverRewardJournal(currentSave);
+        if (!recovered || recovered.pendingReward) return { ok: false, reason: 'RECOVERY_REQUIRED' };
+        currentSave = recovered;
+        return { ok: true };
+      });
+      if (!lockResult.ok) {
+        rewardRecoveryBlocked = true;
+        lockGame('A previous victory reward must be recovered, or this browser cannot provide an exclusive reward lock.');
+        return;
+      }
+      var encounterId = createEncounterId();
+      if (!encounterId) {
+        lockGame('Secure encounter identity is unavailable in this browser. Reward creation is disabled to protect save data.');
+        return;
+      }
+      rewardRecoveryBlocked = false;
+      var saved = persist('before-battle');
+      if (!saved.ok) return;
+      activeEncounterId = encounterId;
+      show('screen-battle');
+      E.BattleUI.start({ hp: player.hp, maxHp: player.maxHp }, monsterId, onBattleEnd);
+    })();
   }
 
   function onBattleEnd(result) {
@@ -539,53 +564,51 @@
       var rw = E.rollRewards(result.monsterId);
       $('result-title').textContent = 'Victory!';
       var rewardId = String(currentSave.nextRewardSeq);
-      var rolledCards = E.CardAcquisition.rollMonsterDrops(result.monsterId);
-      pendingBattleReward = {
-        rewardId: rewardId, monsterId: result.monsterId,
-        reward: { exp: rw.exp, gold: 0, drops: rw.drops }, cards: rolledCards,
-        createdAt: new Date().toISOString()
-      };
-      // Persist the complete battle reward intent before issuing the transactional Save reward.
-      var stagedCards = E.CardCollection.stageBattleReward(currentSave.characterId, pendingBattleReward);
-      var rewardSaved = false;
-      if (stagedCards.ok) {
-        // Save Schema v1 is intentionally unchanged; monster victories still store zero Gold.
-        var durableReward = stagedCards.journal;
-        var pending = durableReward && E.Save.withPendingReward(currentSave,
-          { exp: durableReward.exp, gold: 0, drops: durableReward.drops }, durableReward.monsterId, durableReward.createdAt);
-        if (pending && pending.ok) {
-          var staged = saveSystem.commit(currentSave, pending.save);
-          if (staged.ok) currentSave = staged.save;
-          else if (staged.tx && staged.durable) {
-            var retryStage = saveSystem.resume(staged.tx);
-            if (retryStage.ok) currentSave = retryStage.save;
-            else pendingSaveTx = staged.tx;
-          }
-          if (currentSave && currentSave.pendingReward && String(currentSave.pendingReward.seq) === rewardId) {
-            var settled = settlePendingReward(currentSave);
-            if (settled) { currentSave = settled; rewardSaved = true; }
-          }
+      var rolledCards = E.CardAcquisition.rollMonsterDrops(result.monsterId).map(function (card) {
+        return { cardId: card.cardId, stars: card.stars, quantity: card.quantity };
+      });
+      var encounterId = activeEncounterId;
+      pendingBattleReward = { rewardId: rewardId, encounterId: encounterId, monsterId: result.monsterId };
+      var rewardSaved = false, stagedCards = { ok: false, cards: [] };
+      (async function () {
+        var lockResult = await rewardRecovery.runExclusive(currentSave.characterId, async function () {
+          var intent = {
+            rewardId: rewardId, encounterId: encounterId, monsterId: result.monsterId,
+            exp: rw.exp, gold: 0, drops: rw.drops.map(function (drop) { return { id: drop.id, name: drop.name }; }),
+            cards: rolledCards, createdAt: new Date().toISOString()
+          };
+          var prepared = await rewardRecovery.prepare(currentSave.characterId, intent);
+          if (!prepared.ok) return prepared;
+          var payload = prepared.entry.payload;
+          stagedCards = E.CardCollection.stageReward(currentSave.characterId, rewardId, payload.cards);
+          if (!stagedCards.ok) return stagedCards;
+          var settled = await settleJournalEntry(currentSave, prepared.entry);
+          if (!settled || settled.pendingReward) return { ok: false, reason: 'SETTLEMENT_FAILED' };
+          currentSave = settled;
+          rewardSaved = true;
+          return { ok: true };
+        });
+        if (!lockResult.ok) {
+          rewardRecoveryBlocked = true;
+          line('Reward is pending and has not been confirmed as saved.');
+          line('Reward recovery is locked. Do not clear browser data.', 'loot');
+          lockGame('Victory reward could not be safely committed (' + lockResult.reason + '). Keep this browser data intact and retry after the storage/lock issue is resolved.');
+          $('btn-result').textContent = 'Retry Save';
+        } else {
+          player.exp = currentSave.stats.exp; player.level = currentSave.stats.level;
+          player.gold = currentSave.gold; player.items = JSON.parse(JSON.stringify(currentSave.items)); player.jelly = currentSave.items.jelly;
+          player.maxHp = currentSave.stats.maxHp; player.hp = currentSave.stats.hp;
+          line('+' + rw.exp + ' EXP');
+          rw.drops.forEach(function (d) { line('Dropped: ' + d.name, 'loot'); });
+          stagedCards.cards.forEach(function (card) { var def = E.CARDS[card.cardId] || {}; line('Card acquired: ' + (def.name || card.cardId) + ' · ' + (def.rarity || 'Rarity unassigned'), 'card-loot'); });
+          if (!rw.drops.length && !stagedCards.cards.length) line('No drops this time.');
+          if (player.level > 1) line('Current level: ' + player.level, 'level');
+          pendingBattleReward = null;
+          rewardRecoveryBlocked = false;
+          $('btn-result').textContent = 'Return to the village';
+          updateHud();
         }
-      }
-      if (rewardSaved) {
-        player.exp = currentSave.stats.exp; player.level = currentSave.stats.level;
-        player.gold = currentSave.gold; player.items = JSON.parse(JSON.stringify(currentSave.items)); player.jelly = currentSave.items.jelly;
-        player.maxHp = currentSave.stats.maxHp; player.hp = currentSave.stats.hp;
-        line('+' + rw.exp + ' EXP');
-        rw.drops.forEach(function (d) { line('Dropped: ' + d.name, 'loot'); });
-        stagedCards.cards.forEach(function (card) { var def = E.CARDS[card.cardId] || {}; line('Card acquired: ' + (def.name || card.cardId) + ' · ' + (def.rarity || 'Rarity unassigned'), 'card-loot'); });
-        if (!rw.drops.length && !stagedCards.cards.length) line('No drops this time.');
-        if (player.level > 1) line('Current level: ' + player.level, 'level');
-        pendingBattleReward = null;
-        $('btn-result').textContent = 'Return to the village';
-      } else {
-        line('Reward is pending and has not been confirmed as saved.');
-        line('Do not close the game. Use Retry Save to finish safely.', 'loot');
-        lockGame(stagedCards.ok
-          ? 'Victory reward could not be fully saved. The reward is pending; retry will finish the same reward without rolling it again.'
-          : 'Card reward storage is unavailable. Your victory reward is locked to prevent losing or duplicating cards; retry after storage is available.');
-        $('btn-result').textContent = 'Retry Save';
-      }
+      })();
     } else {
       $('result-title').textContent = 'Defeated';
       line('You wake up safe in Greenvale Village.');
