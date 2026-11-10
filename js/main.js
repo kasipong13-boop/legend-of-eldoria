@@ -384,7 +384,7 @@
         player.maxHp = currentSave.stats.maxHp; player.hp = currentSave.stats.hp;
         line('+' + rw.exp + ' EXP');
         rw.drops.forEach(function (d) { line('Dropped: ' + d.name, 'loot'); });
-        stagedCards.cards.forEach(function (card) { line('Card acquired: ' + card.name + ' · ' + card.rarity, 'card-loot'); });
+        stagedCards.cards.forEach(function (card) { var def = E.CARDS[card.cardId] || {}; line('Card acquired: ' + (def.name || card.cardId) + ' · ' + (def.rarity || 'Rarity unassigned'), 'card-loot'); });
         if (!rw.drops.length && !stagedCards.cards.length) line('No drops this time.');
         if (player.level > 1) line('Current level: ' + player.level, 'level');
         $('btn-result').textContent = 'Return to the village';
