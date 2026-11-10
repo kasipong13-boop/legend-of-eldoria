@@ -148,8 +148,11 @@
             if (existing.status === 'quarantined') return { ok: false, reason: 'REWARD_QUARANTINED' };
             if (existing.status === 'completed') return { ok: false, reason: 'REWARD_ALREADY_COMPLETED' };
             if (stable(existing.payload) !== stable(payload)) {
-              return quarantineRecord(characterId, key, existing, 'REWARD_ID_PAYLOAD_CONFLICT', payload)
-                .then(function () { return { ok: false, reason: 'REWARD_ID_PAYLOAD_CONFLICT', quarantined: true }; });
+              // Preserve the first durable reward as the canonical winner. Quarantine only
+              // the conflicting incoming intent; never invalidate the already-staged reward.
+              return quarantineRecord(characterId, key + ':incoming', null, 'REWARD_ID_PAYLOAD_CONFLICT', {
+                rewardId: intent.rewardId, payload: payload, existingKey: existing.key
+              }).then(function () { return { ok: false, reason: 'REWARD_ID_PAYLOAD_CONFLICT', quarantined: true }; });
             }
             return { ok: true, alreadyPrepared: true, entry: clone(existing) };
           }
