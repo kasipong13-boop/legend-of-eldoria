@@ -41,7 +41,7 @@ function boot(options = {}) {
   }
   vm.runInContext(fs.readFileSync(path.join(root, 'js/reward-recovery.js'), 'utf8'), context, { filename: 'reward-recovery.js' });
   const API = context.ELDORIA.RewardRecovery.create({
-    adapter, locks, markerStorage, fault: options.fault, now: options.now
+    adapter, locks, markerStorage, fault: options.fault, now: options.now, crypto: options.crypto
   });
   return { API, records, quarantine, markers, context };
 }
@@ -201,4 +201,12 @@ test('lock callback errors fail closed and release the lock for a later retry', 
   assert.equal(first.reason, 'INJECTED_LOCK_CALLBACK');
   const second = await locked(API, async () => ({ ok: true }));
   assert.equal(second.ok, true);
+});
+
+test('encounter identity is generated from cryptographic random bytes and fails closed without crypto', () => {
+  const crypto = { getRandomValues: bytes => { for (let i = 0; i < bytes.length; i++) bytes[i] = i; return bytes; } };
+  const withCrypto = boot({ crypto }).API.createEncounterId();
+  assert.equal(withCrypto, '000102030405060708090a0b0c0d0e0f');
+  const withoutCrypto = boot().API.createEncounterId();
+  assert.equal(withoutCrypto, null);
 });
