@@ -41,7 +41,8 @@
     options = options || {};
     var indexedDB = options.indexedDB || root.indexedDB;
     var locks = options.locks || (root.navigator && root.navigator.locks);
-    var markerStorage = options.markerStorage || root.localStorage;
+    var markerStorage = options.markerStorage || null;
+    if (!markerStorage) { try { markerStorage = root.localStorage || null; } catch (storageError) { markerStorage = null; } }
     function activeMarkerKey(characterId) { return 'eldoria.reward.v1.active.' + characterId; }
     function ensureActiveMarker(characterId) {
       try { if (!markerStorage) return false; markerStorage.setItem(activeMarkerKey(characterId), '1'); return markerStorage.getItem(activeMarkerKey(characterId)) === '1'; }
