@@ -17,12 +17,12 @@ test('World and Battle screens expose an in-game menu', () => {
 
 test('Return to Title persists before leaving the active game', () => {
   assert.match(main, /persist\('menu-return-title'\)/);
-  assert.match(main, /if \(!saved\.ok\) return;[\s\S]{0,120}active = false/);
+  assert.match(main, /persist\('menu-return-title'\)[\s\S]*?if \(!saved\.ok\) return;[\s\S]*?active = false/);
 });
 
 test('A pending victory reward blocks Continue when claim cannot commit', () => {
   assert.match(main, /function settlePendingReward\(save\)[\s\S]*?if \(!claim\.ok\) return null/);
-  assert.match(main, /if \(!settled\)[\s\S]*?lockGame\('A saved victory reward still needs to be committed/);
+  assert.match(main, /if \(!lockResult\.ok \|\| !lockResult\.save\)[\s\S]*?lockGame\('A saved victory reward needs recovery/);
 });
 
 test('All local script references resolve to packaged JavaScript files', () => {
@@ -55,7 +55,7 @@ test('Character creation and selection screens are wired to the current Save API
 test('Character UI preserves save recovery boundaries and does not replace the Save Engine', () => {
   assert.match(main, /c\.state !== 'ready'/);
   assert.match(main, /saveSystem\.loadCharacter\(id\)/);
-  assert.match(main, /settlePendingReward\(loaded\.save\)/);
+  assert.match(main, /recoverRewardJournal\(loaded\.save\)/);
   assert.doesNotMatch(main, /localStorage\.(setItem|removeItem)/);
   assert.match(html, /css\/character\.css/);
 });
@@ -73,4 +73,61 @@ test('Recovery-blocked records disable character creation on every entry point',
   assert.match(main, /\$\('btn-create-confirm'\)\.disabled = blocked\.length > 0/);
   assert.match(main, /var blocked = chars\.filter\(function \(c\) \{ return c\.state === 'damaged' \|\| c\.state === 'recoveryIncomplete' \|\| c\.state === 'creating'; \}\)/);
   assert.match(html, /id="character-name" type="text" maxlength="16"/);
+});
+
+
+test('Card acquisition module is loaded before the current Save Engine and collection sidecar', () => {
+  const scripts = [...html.matchAll(/<script src="([^"]+)">/g)].map(match => match[1]);
+  assert.ok(scripts.indexOf('js/card-acquisition.js') >= 0);
+  assert.ok(scripts.indexOf('js/card-acquisition.js') < scripts.indexOf('js/save.js'));
+  assert.ok(scripts.indexOf('js/save.js') < scripts.indexOf('js/card-collection.js'));
+  assert.ok(scripts.indexOf('js/card-collection.js') < scripts.indexOf('js/main.js'));
+});
+
+test('Reward recovery uses the approved IndexedDB journal and preserves sidecar v2', () => {
+  assert.match(main, /RewardRecovery\.create\(\)/);
+  assert.match(main, /rewardRecovery\.prepare\(currentSave\.characterId, pendingBattleReward\)/);
+  assert.match(main, /CardCollection\.stageReward\(currentSave\.characterId, rewardId, payload\.cards\)/);
+  assert.match(main, /rewardRecovery\.transition\(/);
+  assert.match(main, /rewardRecovery\.isActive\(save\.characterId\)/);
+  assert.match(main, /ACTIVATED_JOURNAL_MISSING/);
+  assert.match(main, /SAVE_JOURNAL_ID_MISMATCH/);
+  assert.match(main, /var cardsAlreadyDurable = entry\.status === 'cardsClaimed' \|\| entry\.status === 'saveClaimed'/);
+  assert.match(main, /battleLockFinished = resolve/);
+  assert.match(main, /releaseBattle\(\)/);
+  assert.match(main, /function recoverRewardJournal\(save\)/);
+  assert.doesNotMatch(main, /CardCollection\.stageBattleReward|CardCollection\.completeReward/);
+  assert.match(html, /id="screen-card-collection"/);
+  assert.ok(html.indexOf('js/card-collection.js') < html.indexOf('js/reward-recovery.js'));
+  assert.ok(html.indexOf('js/reward-recovery.js') < html.indexOf('js/main.js'));
+  const recovery = fs.readFileSync(path.join(root, 'js/reward-recovery.js'), 'utf8');
+  assert.match(recovery, /indexedDB\.open\(DB_NAME, DB_VERSION\)/);
+  assert.match(recovery, /locks\.request\('eldoria:reward:'/);
+  assert.match(recovery, /WEB_LOCKS_UNAVAILABLE/);
+});
+
+test('Card collection metadata displays rarity when assigned without inventing it', () => {
+  assert.match(main, /def\.rarity \|\| 'Rarity unassigned'/);
+});
+
+
+test('A victory reward waiting for card-sidecar storage cannot be abandoned through the lock dialog', () => {
+  assert.match(main, /var pendingBattleReward = null/);
+  assert.match(main, /function retryPendingBattleReward\(\)/);
+  assert.match(main, /if \(pendingBattleReward \|\| rewardRecoveryBlocked\) \{/);
+  assert.match(main, /returning to the title is temporarily disabled/);
+});
+
+
+test('Retry recognizes an already-claimed Save sequence before staging another reward', () => {
+  assert.match(main, /async function retryPendingBattleReward\(\)/);
+  assert.match(main, /var recovered = await recoverRewardJournal\(currentSave\)/);
+  assert.match(main, /pendingBattleReward = null/);
+});
+
+
+test('A durable recovery block cannot be dismissed by retrying an unrelated world save', () => {
+  assert.match(main, /var locked = await rewardRecovery\.runExclusive\(currentSave\.characterId[\s\S]*?recoverRewardJournal\(currentSave\)/);
+  assert.match(main, /if \(pendingBattleReward \|\| rewardRecoveryBlocked\)/);
+  assert.match(main, /rewardRecoveryBlocked = true/);
 });

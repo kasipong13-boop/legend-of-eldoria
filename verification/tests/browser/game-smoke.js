@@ -47,7 +47,7 @@ const server = http.createServer((req, res) => {
         const key = Object.keys(localStorage).find(k => /^eldoria\.char\.[a-f0-9]{32}\.main$/.test(k));
         return localStorage.getItem(key);
       });
-      await page.locator('#btn-card-collection').click();
+      if (viewport.name === 'iphone') await page.locator('#btn-card-collection').tap(); else await page.locator('#btn-card-collection').click();
       await page.locator('#screen-card-collection.active').waitFor();
       assert.match(await page.locator('#collection-summary').textContent(), /10 owned card copies · 5 card variants · 1 deck preset/);
       assert.match(await page.locator('#collection-owned').textContent(), /Strike/);
@@ -65,7 +65,7 @@ const server = http.createServer((req, res) => {
         return localStorage.getItem(key);
       });
       assert.equal(coreSaveAfterCollection, coreSaveBeforeCollection, 'collection must not touch the character Save Engine record');
-      await page.locator('#btn-card-collection-back').click();
+      if (viewport.name === 'iphone') await page.locator('#btn-card-collection-back').tap(); else await page.locator('#btn-card-collection-back').click();
       await page.locator('#screen-world.active').waitFor();
       const hud = await page.locator('#hud-zone').textContent();
       if (!hud.includes('Greenvale Village')) throw new Error(viewport.name + ': village HUD missing');
@@ -113,8 +113,15 @@ const server = http.createServer((req, res) => {
       await page.locator('#btn-card-collection-back').click();
       await page.locator('#screen-world.active').waitFor();
 
-      // Exercise the real battle -> victory -> pending reward -> claim integration.
-      await page.evaluate(() => window.ELDORIA.World.onEncounter('poring'));
+      // Test-only catalog fixture: production monster card-drop tables remain empty.
+      // Exercise the actual battle -> stage card reward -> claim -> collection path.
+      await page.evaluate(() => {
+        const E = window.ELDORIA;
+        E.CARDS.bash.acquisitionType = 'monster-special-skill';
+        E.CARDS.bash.rarity = 'Rare';
+        E.MONSTER_CARD_DROP_TABLE.poring = [{ cardId: 'bash', chance: 1 }];
+        E.World.onEncounter('poring');
+      });
       await page.locator('#screen-battle.active').waitFor();
       for (let turn = 0; turn < 30; turn++) {
         if (await page.locator('#screen-result.active').count()) break;
@@ -123,8 +130,28 @@ const server = http.createServer((req, res) => {
         else {
           const endTurn = page.locator('#btn-end-turn');
           if (await endTurn.isDisabled()) {
-            await page.locator('#screen-result.active').waitFor({ timeout:3000 });
-            break;
+            // The button is also disabled during card/enemy animations. Wait for either
+            // the result screen or the next playable player phase, not victory alone.
+            try {
+              await page.waitForFunction(() => {
+                const result = document.querySelector('#screen-result.active');
+                const end = document.querySelector('#btn-end-turn');
+                return !!result || (!!end && !end.disabled);
+              }, null, { timeout:10000 });
+            } catch (error) {
+              const debug = await page.evaluate(() => ({
+                activeScreens: Array.from(document.querySelectorAll('.screen.active')).map(el => el.id),
+                endTurnDisabled: document.querySelector('#btn-end-turn') && document.querySelector('#btn-end-turn').disabled,
+                battleLog: document.querySelector('#battle-log') && document.querySelector('#battle-log').textContent,
+                resultTitle: document.querySelector('#result-title') && document.querySelector('#result-title').textContent,
+                enemyHp: document.querySelector('#enemy-hp-text') && document.querySelector('#enemy-hp-text').textContent,
+                playerHp: document.querySelector('#player-hp-text') && document.querySelector('#player-hp-text').textContent,
+                hand: document.querySelector('#hand') && document.querySelector('#hand').textContent
+              }));
+              throw new Error(viewport.name + ': battle phase stalled: ' + JSON.stringify(debug) + '; pageErrors=' + errors.join(' | '));
+            }
+            if (await page.locator('#screen-result.active').count()) break;
+            continue;
           }
           await endTurn.click();
         }
@@ -133,14 +160,84 @@ const server = http.createServer((req, res) => {
       await page.locator('#screen-result.active').waitFor({ timeout:15000 });
       const victoryText = await page.locator('#result-list').textContent();
       if (!victoryText.includes('EXP') || /gold/i.test(victoryText)) throw new Error(viewport.name + ': victory result displayed an invalid Gold reward');
+      if (!victoryText.includes('Card acquired: Bash · Rare')) throw new Error(viewport.name + ': Monster Special Skill Card was not displayed as a victory reward');
       const afterVictory = await page.evaluate(() => {
         const key = Object.keys(localStorage).find(k => /^eldoria\.char\.[a-f0-9]{32}\.main$/.test(k));
-        return JSON.parse(localStorage.getItem(key));
+        const save = JSON.parse(localStorage.getItem(key));
+        const collection = window.ELDORIA.CardCollection.get(save.characterId);
+        const bash = collection.data.owned.find(card => card.cardId === 'bash' && card.stars === 1);
+        return { save, collection: collection.data, bash };
       });
-      if (afterVictory.gold !== 37 || afterVictory.pendingReward !== null) throw new Error(viewport.name + ': monster victory changed existing Gold or left a pending reward');
+      if (!afterVictory.bash || afterVictory.bash.quantity !== 2) throw new Error(viewport.name + ': acquired card did not stack with the existing same-star copy');
+      if (afterVictory.collection.pendingRewards.length !== 0 || afterVictory.collection.claimedRewardIds.length !== 1) throw new Error(viewport.name + ': card reward receipt was not finalized exactly once');
+      const afterVictorySave = afterVictory.save;
+      if (afterVictorySave.gold !== 37 || afterVictorySave.pendingReward !== null) throw new Error(viewport.name + ': monster victory changed existing Gold or left a pending reward');
       if (!(await page.locator('#hud-gold').textContent()).includes('37 gold')) throw new Error(viewport.name + ': Gold HUD did not preserve the existing balance');
-      await page.locator('#btn-result').click();
+
+      // Crash-recovery scenario: persist a complete battle intent to the sidecar,
+      // then reload before the character Save Engine receives its Pending Reward.
+      const crashIntent = await page.evaluate(async () => {
+        const E = window.ELDORIA;
+        const save = E.GameSave.getCurrentSave();
+        const bytes = new Uint8Array(16);
+        crypto.getRandomValues(bytes);
+        const encounterId = Array.from(bytes, value => value.toString(16).padStart(2, '0')).join('');
+        const intent = {
+          rewardId: String(save.nextRewardSeq), encounterId, monsterId: 'poring',
+          exp: 1, gold: 0, drops: [{ id: 'jelly', name: 'Poring Jelly' }],
+          cards: [{ cardId: 'bash', stars: 1, quantity: 1 }],
+          createdAt: new Date().toISOString()
+        };
+        const journal = E.RewardRecovery.create();
+        const staged = await journal.runExclusive(save.characterId, async () =>
+          journal.prepare(save.characterId, intent)
+        );
+        if (!staged.ok) throw new Error('could not persist PREPARED IndexedDB crash-recovery fixture: ' + staged.reason);
+        // Simulate a crash immediately after PREPARED: no Sidecar stage or Save pending write exists yet.
+        return { rewardId: intent.rewardId, beforeJelly: save.items.jelly };
+      });
+      await page.reload({ waitUntil:'networkidle' });
+      await page.locator('#screen-title.active').waitFor();
+      await page.getByRole('button', { name:'Continue' }).click();
+      await page.locator('#screen-select.active').waitFor();
+      await page.getByRole('button', { name:'Play' }).click();
       await page.locator('#screen-world.active').waitFor();
+      const afterCrashRecovery = await page.evaluate(async () => {
+        const E = window.ELDORIA;
+        const save = E.GameSave.getCurrentSave();
+        const collection = E.CardCollection.get(save.characterId);
+        const bash = collection.data.owned.find(card => card.cardId === 'bash' && card.stars === 1);
+        const journal = await E.RewardRecovery.create().list(save.characterId);
+        return { save, bash, journal: journal.entries };
+      });
+      if (afterCrashRecovery.save.lastClaimedSeq !== Number(crashIntent.rewardId) ||
+          afterCrashRecovery.save.pendingReward !== null ||
+          afterCrashRecovery.save.items.jelly !== crashIntent.beforeJelly + 1) {
+        throw new Error(viewport.name + ': journal reward did not recover EXP/item claim after reload');
+      }
+      if (!afterCrashRecovery.bash || afterCrashRecovery.bash.quantity !== 3 ||
+          afterCrashRecovery.journal.find(entry => entry.rewardId === crashIntent.rewardId).status !== 'completed') {
+        throw new Error(viewport.name + ': journal reward card was not granted exactly once and finalized');
+      }
+      if (afterCrashRecovery.save.gold !== 37) throw new Error(viewport.name + ': crash recovery changed existing Gold');
+
+      // Hold the per-character Web Lock in one tab and verify a second tab fails closed.
+      const lockProbePage = await context.newPage();
+      await lockProbePage.goto('http://127.0.0.1:' + port + '/', { waitUntil:'networkidle' });
+      const characterId = afterCrashRecovery.save.characterId;
+      const holdLock = page.evaluate(async id => navigator.locks.request(
+        'eldoria:reward:' + id, { mode:'exclusive' },
+        () => new Promise(resolve => setTimeout(resolve, 350))
+      ), characterId);
+      await page.waitForTimeout(50);
+      const lockContention = await lockProbePage.evaluate(async id =>
+        window.ELDORIA.RewardRecovery.create().runExclusive(id, async () => ({ ok:true })), characterId);
+      await holdLock;
+      if (lockContention.ok || lockContention.reason !== 'REWARD_LOCK_BUSY') {
+        throw new Error(viewport.name + ': second tab was not blocked by the exclusive reward lock');
+      }
+      await lockProbePage.close();
+
       await page.locator('#btn-menu').click();
       await page.locator('#game-menu:not([hidden])').waitFor();
       await page.getByRole('button', { name:'Save & Return to Title' }).click();
@@ -189,8 +286,225 @@ const server = http.createServer((req, res) => {
       results.push({ viewport:viewport.name, creation:'pass', appearancePersistence:'pass', selection:'pass', multipleCharacters:'pass', backNavigation:'pass', recoveryCreationLock:'pass', menu:'pass', continueFlow:'pass' });
       await context.close();
     }
-    if (errors.length) throw new Error(errors.join('\n'));
-    console.log(JSON.stringify({ results, pageErrors:errors }, null, 2));
+      // FI-38: remove a durable Journal record after Save Pending while preserving
+    // the activation marker. Reload must quarantine, never use legacy settlement.
+    const fiContext = await browser.newContext({ viewport:{ width:390, height:844 }, isMobile:true, hasTouch:true });
+    const fiPage = await fiContext.newPage();
+    fiPage.on('pageerror', error => errors.push('FI-38: ' + String(error)));
+    await fiPage.goto('http://127.0.0.1:' + port + '/', { waitUntil:'networkidle' });
+    await fiPage.getByRole('button', { name:'Create New Character' }).click();
+    await fiPage.locator('#screen-create.active').waitFor();
+    await fiPage.locator('#character-name').fill('FI38 Hero');
+    await fiPage.getByRole('button', { name:'Create Character' }).click();
+    await fiPage.locator('#screen-world.active').waitFor();
+    const fi38 = await fiPage.evaluate(async () => {
+      const E = window.ELDORIA;
+      const save = E.GameSave.getCurrentSave();
+      const bytes = new Uint8Array(16);
+      crypto.getRandomValues(bytes);
+      const encounterId = Array.from(bytes, value => value.toString(16).padStart(2, '0')).join('');
+      const intent = {
+        rewardId:String(save.nextRewardSeq), encounterId, monsterId:'poring',
+        exp:1, gold:0, drops:[], cards:[], createdAt:new Date().toISOString()
+      };
+      const journal = E.RewardRecovery.create();
+      const prepared = await journal.runExclusive(save.characterId, async () => {
+        const entry = await journal.prepare(save.characterId, intent);
+        if (!entry.ok) return entry;
+        const sidecar = E.CardCollection.stageReward(save.characterId, intent.rewardId, []);
+        if (!sidecar.ok) return sidecar;
+        const sidecarState = await journal.transition(save.characterId, intent.rewardId, 'sidecarStaged');
+        if (!sidecarState.ok) return sidecarState;
+        const pending = E.Save.withPendingReward(save,
+          { exp:1, gold:0, drops:[] }, 'poring', intent.createdAt);
+        if (!pending.ok) return pending;
+        const saveSystem = E.Save.createSystem({ backend:E.Save.getBrowserBackend() });
+        const committed = saveSystem.commit(save, pending.save);
+        if (!committed.ok) return { ok:false, reason:committed.reason || 'SAVE_PENDING_FAILED' };
+        return { ok:true };
+      });
+      if (!prepared.ok) throw new Error('FI-38 setup failed: ' + prepared.reason);
+      const db = await new Promise((resolve, reject) => {
+        const request = indexedDB.open('eldoria-reward-recovery', 1);
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+      await new Promise((resolve, reject) => {
+        const tx = db.transaction(['journal'], 'readwrite');
+        tx.objectStore('journal').delete(save.characterId + ':' + intent.rewardId);
+        tx.oncomplete = resolve;
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error);
+      });
+      db.close();
+      return { characterId:save.characterId, rewardId:intent.rewardId };
+    });
+    await fiPage.reload({ waitUntil:'networkidle' });
+    await fiPage.locator('#screen-title.active').waitFor();
+    await fiPage.getByRole('button', { name:'Continue' }).click();
+    await fiPage.locator('#screen-select.active').waitFor();
+    await fiPage.locator('.character-row').filter({ hasText:'FI38 Hero' }).getByRole('button', { name:'Play' }).click();
+    await fiPage.locator('#screen-world.active').waitFor();
+    const fi38Evidence = await fiPage.evaluate(async id =>
+      window.ELDORIA.RewardRecovery.create().listQuarantine(id), fi38.characterId);
+    if (!fi38Evidence.ok || !fi38Evidence.entries.some(entry => entry.reason === 'ACTIVATED_JOURNAL_MISSING')) {
+      throw new Error('FI-38: missing activated Journal was not quarantined');
+    }
+    const lockMessage = await fiPage.locator('#save-lock-message').textContent();
+    if (!lockMessage || !/recovery/i.test(lockMessage)) throw new Error('FI-38: missing Journal did not block gameplay');
+    await fiContext.close();
+
+      // FI-10: Sidecar pending reward without a matching IndexedDB Journal is orphaned.
+    const fi10Context = await browser.newContext({ viewport:{ width:390, height:844 }, isMobile:true, hasTouch:true });
+    const fi10Page = await fi10Context.newPage();
+    fi10Page.on('pageerror', error => errors.push('FI-10: ' + String(error)));
+    await fi10Page.goto('http://127.0.0.1:' + port + '/', { waitUntil:'networkidle' });
+    await fi10Page.getByRole('button', { name:'Create New Character' }).click();
+    await fi10Page.locator('#screen-create.active').waitFor();
+    await fi10Page.locator('#character-name').fill('FI10 Hero');
+    await fi10Page.getByRole('button', { name:'Create Character' }).click();
+    await fi10Page.locator('#screen-world.active').waitFor();
+    const fi10CharacterId = await fi10Page.evaluate(() => {
+      const save = window.ELDORIA.GameSave.getCurrentSave();
+      const staged = window.ELDORIA.CardCollection.stageReward(save.characterId, 'orphan-fi10',
+        [{ cardId:'bash', stars:1, quantity:1 }]);
+      if (!staged.ok) throw new Error('FI-10 setup failed: ' + staged.reason);
+      return save.characterId;
+    });
+    await fi10Page.reload({ waitUntil:'networkidle' });
+    await fi10Page.locator('#screen-title.active').waitFor();
+    await fi10Page.getByRole('button', { name:'Continue' }).click();
+    await fi10Page.locator('#screen-select.active').waitFor();
+    await fi10Page.locator('.character-row').filter({ hasText:'FI10 Hero' }).getByRole('button', { name:'Play' }).click();
+    await fi10Page.locator('#screen-world.active').waitFor();
+    const fi10Evidence = await fi10Page.evaluate(async id =>
+      window.ELDORIA.RewardRecovery.create().listQuarantine(id), fi10CharacterId);
+    if (!fi10Evidence.ok || !fi10Evidence.entries.some(entry => entry.reason === 'ORPHAN_SIDECAR_REWARD')) {
+      throw new Error('FI-10: orphan Sidecar reward was not quarantined');
+    }
+    const fi10LockMessage = await fi10Page.locator('#save-lock-message').textContent();
+    if (!fi10LockMessage || !/recovery/i.test(fi10LockMessage)) throw new Error('FI-10: orphan Sidecar reward did not block gameplay');
+    await fi10Context.close();
+
+    // FI-20: a valid Save pending reward with a different sequence must be quarantined.
+    const fi20Context = await browser.newContext({ viewport:{ width:390, height:844 }, isMobile:true, hasTouch:true });
+    const fi20Page = await fi20Context.newPage();
+    fi20Page.on('pageerror', error => errors.push('FI-20: ' + String(error)));
+    await fi20Page.goto('http://127.0.0.1:' + port + '/', { waitUntil:'networkidle' });
+    await fi20Page.getByRole('button', { name:'Create New Character' }).click();
+    await fi20Page.locator('#screen-create.active').waitFor();
+    await fi20Page.locator('#character-name').fill('FI20 Hero');
+    await fi20Page.getByRole('button', { name:'Create Character' }).click();
+    await fi20Page.locator('#screen-world.active').waitFor();
+    const fi20CharacterId = await fi20Page.evaluate(async () => {
+      const E = window.ELDORIA;
+      const save = E.GameSave.getCurrentSave();
+      const rewardId = String(save.nextRewardSeq);
+      const bytes = new Uint8Array(16); crypto.getRandomValues(bytes);
+      const encounterId = Array.from(bytes, value => value.toString(16).padStart(2, '0')).join('');
+      const createdAt = new Date().toISOString();
+      const journal = E.RewardRecovery.create();
+      const prepared = await journal.runExclusive(save.characterId, async () => {
+        const entry = await journal.prepare(save.characterId, {
+          rewardId, encounterId, monsterId:'poring', exp:1, gold:0, drops:[], cards:[], createdAt
+        });
+        if (!entry.ok) return entry;
+        const staged = E.CardCollection.stageReward(save.characterId, rewardId, []);
+        if (!staged.ok) return staged;
+        const state = await journal.transition(save.characterId, rewardId, 'sidecarStaged');
+        if (!state.ok) return state;
+        const pending = E.Save.withPendingReward(save, { exp:1, gold:0, drops:[] }, 'poring', createdAt);
+        if (!pending.ok) return pending;
+        pending.save.pendingReward.seq += 1;
+        pending.save.nextRewardSeq += 1;
+        const system = E.Save.createSystem({ backend:E.Save.getBrowserBackend() });
+        const committed = system.commit(save, pending.save);
+        if (!committed.ok) return { ok:false, reason:committed.reason || 'SAVE_COMMIT_FAILED' };
+        return { ok:true };
+      });
+      if (!prepared.ok) throw new Error('FI-20 setup failed: ' + prepared.reason);
+      return save.characterId;
+    });
+    await fi20Page.reload({ waitUntil:'networkidle' });
+    await fi20Page.locator('#screen-title.active').waitFor();
+    await fi20Page.getByRole('button', { name:'Continue' }).click();
+    await fi20Page.locator('#screen-select.active').waitFor();
+    await fi20Page.locator('.character-row').filter({ hasText:'FI20 Hero' }).getByRole('button', { name:'Play' }).click();
+    await fi20Page.locator('#screen-world.active').waitFor();
+    const fi20Evidence = await fi20Page.evaluate(async id =>
+      window.ELDORIA.RewardRecovery.create().listQuarantine(id), fi20CharacterId);
+    if (!fi20Evidence.ok || !fi20Evidence.entries.some(entry => entry.reason === 'SAVE_JOURNAL_ID_MISMATCH')) {
+      throw new Error('FI-20: mismatched Save sequence was not quarantined');
+    }
+    await fi20Context.close();
+
+    // FI-22: Save claim commits while Journal remains cardsClaimed; reload must finish forward.
+    const fi22Context = await browser.newContext({ viewport:{ width:390, height:844 }, isMobile:true, hasTouch:true });
+    const fi22Page = await fi22Context.newPage();
+    fi22Page.on('pageerror', error => errors.push('FI-22: ' + String(error)));
+    await fi22Page.goto('http://127.0.0.1:' + port + '/', { waitUntil:'networkidle' });
+    await fi22Page.getByRole('button', { name:'Create New Character' }).click();
+    await fi22Page.locator('#screen-create.active').waitFor();
+    await fi22Page.locator('#character-name').fill('FI22 Hero');
+    await fi22Page.getByRole('button', { name:'Create Character' }).click();
+    await fi22Page.locator('#screen-world.active').waitFor();
+    const fi22Fixture = await fi22Page.evaluate(async () => {
+      const E = window.ELDORIA;
+      const save = E.GameSave.getCurrentSave();
+      const rewardId = String(save.nextRewardSeq);
+      const bytes = new Uint8Array(16); crypto.getRandomValues(bytes);
+      const encounterId = Array.from(bytes, value => value.toString(16).padStart(2, '0')).join('');
+      const createdAt = new Date().toISOString();
+      const journal = E.RewardRecovery.create();
+      const system = E.Save.createSystem({ backend:E.Save.getBrowserBackend() });
+      const prepared = await journal.runExclusive(save.characterId, async () => {
+        const entry = await journal.prepare(save.characterId, {
+          rewardId, encounterId, monsterId:'poring', exp:1, gold:0, drops:[], cards:[], createdAt
+        });
+        if (!entry.ok) return entry;
+        const staged = E.CardCollection.stageReward(save.characterId, rewardId, []);
+        if (!staged.ok) return staged;
+        if (!(await journal.transition(save.characterId, rewardId, 'sidecarStaged')).ok) return { ok:false, reason:'SIDECAR_STATE_FAILED' };
+        const pending = E.Save.withPendingReward(save, { exp:1, gold:0, drops:[] }, 'poring', createdAt);
+        if (!pending.ok) return pending;
+        const pendingCommit = system.commit(save, pending.save);
+        if (!pendingCommit.ok) return { ok:false, reason:'PENDING_COMMIT_FAILED' };
+        if (!(await journal.transition(save.characterId, rewardId, 'savePending')).ok) return { ok:false, reason:'SAVE_PENDING_STATE_FAILED' };
+        const cardClaim = E.CardCollection.claimReward(save.characterId, rewardId);
+        if (!cardClaim.ok || cardClaim.missingStage) return { ok:false, reason:'CARD_CLAIM_FAILED' };
+        if (!(await journal.transition(save.characterId, rewardId, 'cardsClaimed')).ok) return { ok:false, reason:'CARDS_CLAIMED_STATE_FAILED' };
+        const claim = E.Save.withClaim(pendingCommit.save, function (target, reward) {
+          target.stats.exp += reward.exp;
+        });
+        if (!claim.ok) return claim;
+        const saveClaim = system.commit(pendingCommit.save, claim.save);
+        if (!saveClaim.ok) return { ok:false, reason:'SAVE_CLAIM_FAILED' };
+        // Deliberately stop before Journal saveClaimed / completed.
+        return { ok:true, rewardId, exp:saveClaim.save.stats.exp };
+      });
+      if (!prepared.ok) throw new Error('FI-22 setup failed: ' + prepared.reason);
+      return { characterId:save.characterId, rewardId:prepared.rewardId, exp:prepared.exp };
+    });
+    await fi22Page.reload({ waitUntil:'networkidle' });
+    await fi22Page.locator('#screen-title.active').waitFor();
+    await fi22Page.getByRole('button', { name:'Continue' }).click();
+    await fi22Page.locator('#screen-select.active').waitFor();
+    await fi22Page.locator('.character-row').filter({ hasText:'FI22 Hero' }).getByRole('button', { name:'Play' }).click();
+    await fi22Page.locator('#screen-world.active').waitFor();
+    const fi22Recovered = await fi22Page.evaluate(async id => {
+      const save = window.ELDORIA.GameSave.getCurrentSave();
+      const journal = await window.ELDORIA.RewardRecovery.create().get(id, String(save.lastClaimedSeq));
+      return { save, journal:journal.entry };
+    }, fi22Fixture.characterId);
+    if (fi22Recovered.save.pendingReward !== null ||
+        fi22Recovered.save.stats.exp !== fi22Fixture.exp ||
+        !fi22Recovered.journal || fi22Recovered.journal.status !== 'completed') {
+      throw new Error('FI-22: recovery did not finish Journal after durable Save claim');
+    }
+    await fi22Context.close();
+
+if (errors.length) throw new Error(errors.join('\n'));
+    console.log(JSON.stringify({ results, pageErrors:errors, FI38:'pass', FI10:'pass', FI20:'pass', FI22:'pass' }, null, 2));
     console.log('PASS  character creation and selection smoke test on desktop and iPhone-sized Chromium');
   } finally {
     await browser.close();

@@ -12,7 +12,7 @@ for (const file of ['data.js', 'save.js', 'battle.js']) {
 }
 const E = context.ELDORIA;
 const mainSource = fs.readFileSync(path.join(root, 'js/main.js'), 'utf8');
-const applyMatch = mainSource.match(/(function applyRewardToSave\(target, reward\) \{[\s\S]*?\n  \})\n\n  function settlePendingReward/);
+const applyMatch = mainSource.match(/(function applyRewardToSave\(target, reward\) \{[\s\S]*?\n  \})\n\n  function commitPendingSave/);
 assert.ok(applyMatch, 'main.js must contain the existing reward-claim handler');
 const applyRewardToSave = vm.runInNewContext('(' + applyMatch[1] + ')', { E });
 
@@ -83,7 +83,9 @@ test('legacy pending combat Gold is ignored while EXP and item drops are still c
 });
 
 test('victory integration supplies schema-compatible zero and never displays monster Gold', () => {
-  assert.match(mainSource, /var pendingReward = \{ exp: rw\.exp, gold: 0, drops: rw\.drops \}/);
+  assert.match(mainSource, /rewardRecovery\.prepare\(currentSave\.characterId, pendingBattleReward\)/);
+  assert.match(mainSource, /E\.Save\.withPendingReward\(save,[\s\S]*?\{ exp: payload\.exp, gold: 0, drops: payload\.drops \}/);
+  assert.match(mainSource, /function recoverRewardJournal\(save\)/);
   assert.match(mainSource, /function applyRewardToSave\(target, reward\)[\s\S]*?target\.stats\.exp \+= reward\.exp/);
   assert.doesNotMatch(applyMatch[1], /target\.gold\s*\+=/);
   assert.doesNotMatch(mainSource, /rw\.gold/);

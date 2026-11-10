@@ -32,3 +32,25 @@
 - เพิ่มเอกสาร `docs/ART_DIRECTION_AND_ASSET_PIPELINE_v1.1.md` ครอบคลุม Art Bible, Greenvale visual target, modular asset pipeline, repository structure และ QA gates
 - ยืนยันกริด Isometric ตาม renderer ปัจจุบัน: 64×32 logical ground tile; คง Character benchmark เดิม 96×96 px, 8 directions
 - Greenvale concept image เป็น reference เท่านั้น ยังไม่ใช่ production tileset/spritesheet และยังไม่เปลี่ยน asset/runtime/gameplay
+
+
+## Card Acquisition Foundation — Port onto current Save Engine (PR #30, Draft)
+- เริ่ม Port งานจาก PR #23 เดิมใหม่บน `main` หลัง Merge PR #29 โดยไม่ใช้ legacy branch เป็นฐาน
+- เพิ่ม `js/card-acquisition.js` สำหรับ Monster Special Skill Card drop validation; Rarity 5 ระดับ และ Drop Chance แยกจากกัน
+- ตารางดรอปของ Poring, Forest Wolf และ Ancient Wolf ยังคงว่าง รอการอนุมัติ Card Identity, Rarity และอัตราดรอปจริง
+- เพิ่ม Card Collection Sidecar schema v2 สำหรับ staging/claim receipt แบบ idempotent พร้อมอ่าน sidecar schema v1 ได้และ migrate เมื่อมีการเขียนครั้งถัดไป
+- เชื่อมรางวัลการ์ดกับ Victory Reward โดยไม่แก้ `js/save.js`, Save Schema v1 หรือรูปแบบ Pending Reward เดิม
+- Duplicate stack ตาม `cardId + stars`; การ์ดต่างระดับดาวแยกเป็นคนละรายการ
+- เพิ่มการ Retry เมื่อ Sidecar storage ขัดข้อง และป้องกันการสร้าง Pending Reward ซ้ำหลัง Save Engine resume สำเร็จ
+- CI ล่าสุดบน PR head `5a17d75`: syntax/structure, unit/integration/regression/mutation และ browser smoke ผ่านทั้งหมด
+- ผลทดสอบ: Unit 245, Integration/UI 30, World/UI 14, Monster Spawn 6 ผ่าน; 0 failures; Mutation 26/26 caught; regression 350 seeded battles คงเดิม
+- Browser smoke ผ่าน Desktop และ iPhone-sized Chromium พร้อม real localStorage reload; ไม่มี page errors
+- PR #30 ยังเป็น Draft และยังไม่ Merge; ต้องผ่าน Final Review และได้รับอนุมัติ Merge จาก Game Owner ก่อน
+
+
+## PR #30 — Reward Recovery Remediation
+- อนุมัติ TDR-030: IndexedDB Companion Journal + Web Locks API (Fail-closed)
+- ย้าย Durable Reward Journal ออกจาก Card Collection Sidecar; คง Sidecar schema v2 และ Character Save schema v1
+- เพิ่ม Encounter Identity, immutable reward payload, forward-only Journal transitions และ Quarantine
+- เพิ่ม multi-tab reward serialization และ reload recovery test coverage
+- สถานะ: implementation / verification in progress; PR remains Draft and unmerged

@@ -13,6 +13,11 @@
   var active = false;
   var saveLocked = false;
   var pendingSaveTx = null;
+  var pendingBattleReward = null;
+  var rewardRecoveryBlocked = false;
+  var rewardRecovery = E.RewardRecovery.create();
+  var activeEncounterId = null;
+  var battleLockFinished = null;
   var screens = ['screen-title', 'screen-select', 'screen-create', 'screen-world', 'screen-card-collection', 'screen-battle', 'screen-result'];
   var characterCreationReturnScreen = 'screen-title';
 
@@ -85,22 +90,42 @@
       overlay.setAttribute('aria-modal', 'true');
       overlay.innerHTML = '<div class="save-lock-card"><h2>Save needs attention</h2><p id="save-lock-message"></p><button id="btn-save-retry" class="btn primary" type="button">Retry Save</button><button id="btn-save-title" class="btn" type="button">Return to Title</button></div>';
       $('app').appendChild(overlay);
-      $('btn-save-retry').addEventListener('click', function () {
+      $('btn-save-retry').addEventListener('click', async function () {
         var result = persist('manual-retry');
-        if (result && result.ok && currentSave && currentSave.pendingReward) {
-          var settled = settlePendingReward(currentSave);
-          if (settled && !settled.pendingReward) currentSave = settled;
-          else result = { ok: false };
+        if (result && !result.ok && result.reason === 'STALE' && currentSave) {
+          var latestSave = saveSystem.loadCharacter(currentSave.characterId);
+          if (latestSave.ok) { currentSave = latestSave.save; result = { ok: true, refreshed: true }; }
+        }
+        if (result && result.ok && currentSave) {
+          var locked = await rewardRecovery.runExclusive(currentSave.characterId, async function () {
+            var latest = saveSystem.loadCharacter(currentSave.characterId);
+            if (!latest.ok) return { ok: false, reason: 'SAVE_RELOAD_FAILED' };
+            currentSave = latest.save;
+            var recoveredOk = pendingBattleReward
+              ? await retryPendingBattleReward()
+              : await recoverRewardJournal(currentSave);
+            if (!recoveredOk) return { ok: false, reason: 'RECOVERY_FAILED' };
+            rewardRecoveryBlocked = false;
+            syncPlayerFromSave(currentSave);
+            return { ok: true };
+          });
+          if (!locked.ok) result = locked;
         }
         if (result && result.ok) {
           saveLocked = false; active = true; overlay.classList.remove('show');
           show('screen-world'); E.World.resume(); toast('Save completed.', 2500);
         } else {
-          $('save-lock-message').textContent = 'The save is still not complete. Your progress is locked to prevent data loss. Try again.';
+          $('save-lock-message').textContent = 'The save is still not complete (' + (result.reason || 'recovery failed') + '). Your progress is locked to prevent data loss. Try again.';
         }
       });
       $('btn-save-title').addEventListener('click', function () {
+        // Do not abandon a victory reward that exists only as an in-memory retry intent.
+        if (pendingBattleReward || rewardRecoveryBlocked) {
+          $('save-lock-message').textContent = 'A victory reward is still waiting for recovery. Retry after browser storage is available; returning to the title is temporarily disabled.';
+          return;
+        }
         // Leaving the game does not discard or overwrite the current save.
+        if (battleLockFinished) { var releaseBattle = battleLockFinished; battleLockFinished = null; releaseBattle(); }
         saveLocked = false; active = false; overlay.classList.remove('show'); show('screen-title');
       });
     }
@@ -152,18 +177,266 @@
     target.stats.hp = target.stats.maxHp;
   }
 
-  function settlePendingReward(save) {
+  function commitPendingSave(save, pendingSave) {
+    var committed = saveSystem.commit(save, pendingSave);
+    if (committed.ok) { currentSave = committed.save; return Promise.resolve(currentSave); }
+    if (committed.tx && committed.durable) {
+      return Promise.resolve(saveSystem.resume(committed.tx)).then(function (resumed) {
+        if (resumed.ok) { currentSave = resumed.save; return currentSave; }
+        pendingSaveTx = committed.tx; return null;
+      });
+    }
+    return Promise.resolve(null);
+  }
+
+  async function transitionJournal(entry, target) {
+    var order = ['prepared', 'sidecarStaged', 'savePending', 'cardsClaimed', 'saveClaimed', 'completed'];
+    var current = entry.status;
+    while (current !== target) {
+      var next = order[order.indexOf(current) + 1];
+      if (!next) return { ok: false, reason: 'INVALID_JOURNAL_STATE' };
+      var result = await rewardRecovery.transition(entry.characterId, entry.rewardId, next);
+      if (!result.ok) return result;
+      entry = result.entry;
+      current = next;
+    }
+    return { ok: true, entry: entry };
+  }
+
+  function validJournalEntry(entry, characterId) {
+    var payload = entry && entry.payload;
+    return !!entry && entry.characterId === characterId &&
+      typeof entry.rewardId === 'string' && /^[1-9][0-9]*$/.test(entry.rewardId) &&
+      typeof entry.encounterId === 'string' && /^[0-9a-f]{32}$/.test(entry.encounterId) &&
+      ['prepared', 'sidecarStaged', 'savePending', 'cardsClaimed', 'saveClaimed', 'completed', 'quarantined'].indexOf(entry.status) >= 0 &&
+      !!payload && typeof payload.monsterId === 'string' && !!payload.monsterId &&
+      Number.isInteger(payload.exp) && payload.exp >= 0 && payload.gold === 0 &&
+      Array.isArray(payload.drops) && payload.drops.every(function (drop) { return drop && typeof drop.id === 'string' && !!drop.id && typeof drop.name === 'string' && !!drop.name; }) &&
+      Array.isArray(payload.cards) && typeof payload.createdAt === 'string' && !!payload.createdAt;
+  }
+
+  async function settleJournalEntry(save, entry) {
+    var payload = entry.payload;
+    var rewardId = entry.rewardId;
+    var seq = Number(rewardId);
+    if (!validJournalEntry(entry, save.characterId)) {
+      await rewardRecovery.quarantine(save.characterId, rewardId, 'JOURNAL_PAYLOAD_INVALID');
+      return null;
+    }
+
+    var cardsAlreadyDurable = entry.status === 'cardsClaimed' || entry.status === 'saveClaimed';
+    if (!cardsAlreadyDurable) {
+      var stagedCards = E.CardCollection.stageReward(save.characterId, rewardId, payload.cards);
+      if (!stagedCards.ok) return null;
+      if (!stagedCards.alreadyClaimed && JSON.stringify(stagedCards.cards) !== JSON.stringify(payload.cards)) {
+        await rewardRecovery.quarantine(save.characterId, rewardId, 'SIDECAR_PAYLOAD_MISMATCH', stagedCards.cards);
+        return null;
+      }
+    }
+
+    if (entry.status === 'prepared') {
+      var stagedState = await transitionJournal(entry, 'sidecarStaged');
+      if (!stagedState.ok) return null;
+      entry = stagedState.entry;
+    }
+
+    if (entry.status === 'saveClaimed' && save.pendingReward) {
+      await rewardRecovery.quarantine(save.characterId, rewardId, 'SAVE_CLAIMED_JOURNAL_HAS_PENDING_SAVE', save.pendingReward);
+      return null;
+    }
+
+    if (!save.pendingReward && seq === save.nextRewardSeq) {
+      var pending = E.Save.withPendingReward(save,
+        { exp: payload.exp, gold: 0, drops: payload.drops }, payload.monsterId, payload.createdAt);
+      if (!pending.ok) return null;
+      var committedSave = await commitPendingSave(save, pending.save);
+      if (!committedSave) return null;
+      save = committedSave;
+    }
+
+    if (save.pendingReward) {
+      if (String(save.pendingReward.seq) !== rewardId ||
+          save.pendingReward.monsterId !== payload.monsterId ||
+          save.pendingReward.exp !== payload.exp || save.pendingReward.gold !== 0 ||
+          JSON.stringify(save.pendingReward.drops) !== JSON.stringify(payload.drops)) {
+        await rewardRecovery.quarantine(save.characterId, rewardId, 'SAVE_JOURNAL_PAYLOAD_MISMATCH', save.pendingReward);
+        return null;
+      }
+      if (entry.status === 'sidecarStaged') {
+        var pendingState = await transitionJournal(entry, 'savePending');
+        if (!pendingState.ok) return null;
+        entry = pendingState.entry;
+      }
+      if (entry.status !== 'cardsClaimed' && entry.status !== 'saveClaimed') {
+        var cardClaim = E.CardCollection.claimReward(save.characterId, rewardId);
+        if (!cardClaim.ok || cardClaim.missingStage) {
+          await rewardRecovery.quarantine(save.characterId, rewardId, 'MISSING_SIDECAR_STAGE');
+          return null;
+        }
+        if (entry.status === 'savePending') {
+          var cardState = await transitionJournal(entry, 'cardsClaimed');
+          if (!cardState.ok) return null;
+          entry = cardState.entry;
+        }
+      }
+      if (entry.status === 'saveClaimed') {
+        await rewardRecovery.quarantine(save.characterId, rewardId, 'SAVE_CLAIMED_JOURNAL_HAS_PENDING_SAVE', save.pendingReward);
+        return null;
+      }
+      var claim = E.Save.withClaim(save, applyRewardToSave);
+      if (!claim.ok) return null;
+      var claimedSave = await commitPendingSave(save, claim.save);
+      if (!claimedSave) return null;
+      save = claimedSave;
+      if (entry.status === 'cardsClaimed') {
+        var saveClaimed = await transitionJournal(entry, 'saveClaimed');
+        if (!saveClaimed.ok) return null;
+        entry = saveClaimed.entry;
+      }
+    } else if (seq <= save.lastClaimedSeq) {
+      if (entry.status !== 'cardsClaimed' && entry.status !== 'saveClaimed') {
+        var receiptCheck = E.CardCollection.claimReward(save.characterId, rewardId);
+        if (!receiptCheck.ok || receiptCheck.missingStage) {
+          await rewardRecovery.quarantine(save.characterId, rewardId, 'CLAIMED_SAVE_WITHOUT_CARD_RECEIPT');
+          return null;
+        }
+        var cardFinal = await transitionJournal(entry, 'cardsClaimed');
+        if (!cardFinal.ok) return null;
+        entry = cardFinal.entry;
+      }
+      if (entry.status === 'cardsClaimed') {
+        var saveFinal = await transitionJournal(entry, 'saveClaimed');
+        if (!saveFinal.ok) return null;
+        entry = saveFinal.entry;
+      }
+    } else {
+      await rewardRecovery.quarantine(save.characterId, rewardId, 'REWARD_SEQUENCE_GAP');
+      return null;
+    }
+
+    if (entry.status === 'saveClaimed') {
+      var completed = await transitionJournal(entry, 'completed');
+      if (!completed.ok) return null;
+    }
+    return save;
+  }
+
+  async function settlePendingReward(save) {
     if (!save || !save.pendingReward) return save;
+    var rewardId = String(save.pendingReward.seq);
+    var found = await rewardRecovery.get(save.characterId, rewardId);
+    if (!found.ok) return null;
+    if (found.entry) return settleJournalEntry(save, found.entry);
+    var collection = E.CardCollection.get(save.characterId);
+    // A separate activation marker survives IndexedDB loss. Once rewards are journaled,
+    // a missing Journal entry is never reinterpreted as a legacy success.
+    // A missing marker is not evidence that the reward is legacy. Check the
+    // durable Journal before allowing the pre-acquisition compatibility path.
+    var journalEvidence = await rewardRecovery.list(save.characterId);
+    if (!journalEvidence.ok) return null;
+    var activation = rewardRecovery.reconcileActivation(save.characterId, journalEvidence.entries);
+    if (!activation.ok || activation.activated) return null;
+    if (!collection.ok) return null;
+    if ((collection.data.pendingRewards || []).some(function (item) { return item.rewardId === rewardId; })) return null;
+    var cardClaim = E.CardCollection.claimReward(save.characterId, rewardId);
+    if (!cardClaim.ok || (!cardClaim.missingStage && !cardClaim.alreadyClaimed)) return null;
     var claim = E.Save.withClaim(save, applyRewardToSave);
     if (!claim.ok) return null;
-    var committed = saveSystem.commit(save, claim.save);
-    if (committed.ok) return committed.save;
-    if (committed.tx && committed.durable) {
-      var resumed = saveSystem.resume(committed.tx);
-      if (resumed.ok) return resumed.save;
-      pendingSaveTx = committed.tx;
+    return commitPendingSave(save, claim.save);
+  }
+
+  async function recoverRewardJournal(save) {
+    if (!save) return null;
+    var listed = await rewardRecovery.list(save.characterId);
+    if (!listed.ok) {
+      if (Array.isArray(listed.entries)) {
+        for (var invalidIndex = 0; invalidIndex < listed.entries.length; invalidIndex++) {
+          var invalidEntry = listed.entries[invalidIndex];
+          if (invalidEntry && typeof invalidEntry.rewardId === 'string' && /^[1-9][0-9]*$/.test(invalidEntry.rewardId)) {
+            await rewardRecovery.quarantine(save.characterId, invalidEntry.rewardId, 'JOURNAL_RECORD_CORRUPT');
+          }
+        }
+      }
+      return null;
     }
-    return null;
+    var entries = listed.entries;
+    if (entries.some(function (entry) { return !validJournalEntry(entry, save.characterId); })) return null;
+    var activationState = rewardRecovery.reconcileActivation(save.characterId, entries);
+    if (!activationState.ok) return null;
+    var incomplete = entries.filter(function (entry) { return entry.status !== 'completed' && entry.status !== 'quarantined'; });
+    if (entries.some(function (entry) { return entry.status === 'quarantined'; })) return null;
+    if (!entries.length && rewardRecovery.isActive(save.characterId)) {
+      await rewardRecovery.quarantine(save.characterId,
+        save.pendingReward ? String(save.pendingReward.seq) : 'journal-missing',
+        'ACTIVATED_JOURNAL_MISSING', save.pendingReward || null);
+      return null;
+    }
+    var collection = E.CardCollection.get(save.characterId);
+    if (!collection.ok) return null;
+    var sidecarPending = collection.data.pendingRewards || [];
+    var orphan = sidecarPending.find(function (pending) {
+      return !entries.some(function (entry) { return entry.rewardId === pending.rewardId && entry.status !== 'quarantined'; });
+    });
+    if (orphan) {
+      await rewardRecovery.quarantine(save.characterId, orphan.rewardId, 'ORPHAN_SIDECAR_REWARD');
+      return null;
+    }
+    if (incomplete.length > 1) {
+      for (var i = 0; i < incomplete.length; i++) await rewardRecovery.quarantine(save.characterId, incomplete[i].rewardId, 'MULTIPLE_INCOMPLETE_REWARDS');
+      return null;
+    }
+    var completedAhead = entries.some(function (entry) {
+      return entry.status === 'completed' && Number(entry.rewardId) > save.lastClaimedSeq;
+    });
+    if (completedAhead) {
+      var ahead = entries.find(function (entry) { return entry.status === 'completed' && Number(entry.rewardId) > save.lastClaimedSeq; });
+      await rewardRecovery.quarantine(save.characterId, ahead.rewardId, 'COMPLETED_JOURNAL_AHEAD_OF_SAVE');
+      return null;
+    }
+    // Completed rewards are not replayable. Require their claimed receipts
+    // before accepting the Sidecar as consistent with the durable Journal.
+    // This is intentionally fail-closed until long-term receipt retention (F-03)
+    // is addressed; never recreate a card from a completed reward.
+    var missingReceipt = entries.find(function (entry) {
+      return entry.status === 'completed' &&
+        collection.data.claimedRewardIds.indexOf(entry.rewardId) < 0;
+    });
+    if (missingReceipt) {
+      await rewardRecovery.quarantine(save.characterId, missingReceipt.rewardId,
+        'COMPLETED_JOURNAL_RECEIPT_MISSING');
+      return null;
+    }
+    if (!incomplete.length) return save.pendingReward ? settlePendingReward(save) : save;
+    var entry = incomplete[0], seq = Number(entry.rewardId);
+    if (seq > save.nextRewardSeq || (seq > save.lastClaimedSeq + 1 && seq !== save.nextRewardSeq)) {
+      await rewardRecovery.quarantine(save.characterId, entry.rewardId, 'REWARD_SEQUENCE_GAP');
+      return null;
+    }
+    if (save.pendingReward && String(save.pendingReward.seq) !== entry.rewardId) {
+      await rewardRecovery.quarantine(save.characterId, entry.rewardId, 'SAVE_JOURNAL_ID_MISMATCH', save.pendingReward);
+      return null;
+    }
+    return settleJournalEntry(save, entry);
+  }
+
+  async function retryPendingBattleReward() {
+    if (!currentSave) return false;
+    var recovered;
+    if (pendingBattleReward) {
+      var prepared = await rewardRecovery.prepare(currentSave.characterId, pendingBattleReward);
+      if (!prepared.ok) return false;
+      var staged = E.CardCollection.stageReward(currentSave.characterId, prepared.entry.rewardId, prepared.entry.payload.cards);
+      if (!staged.ok) return false;
+      recovered = await settleJournalEntry(currentSave, prepared.entry);
+    } else {
+      recovered = await recoverRewardJournal(currentSave);
+    }
+    if (!recovered || recovered.pendingReward) return false;
+    currentSave = recovered;
+    pendingBattleReward = null;
+    rewardRecoveryBlocked = false;
+    syncPlayerFromSave(currentSave);
+    return true;
   }
 
   function beginFromSave(save) {
@@ -310,20 +583,27 @@
 
   function loadSelectedCharacter(id) {
     if (!saveSystem) return;
-    var loaded = saveSystem.loadCharacter(id);
-    if (!loaded.ok) {
-      $('select-warning').textContent = 'Save recovery required: ' + loaded.reason + '. Existing data remains protected.';
-      refreshTitleState();
-      renderCharacterSelection();
-      return;
-    }
-    var settled = settlePendingReward(loaded.save);
-    if (!settled) {
-      beginFromSave(loaded.save);
-      lockGame('A saved victory reward still needs to be committed. Retry Save to finish the existing reward before continuing.');
-      return;
-    }
-    beginFromSave(settled);
+    (async function () {
+      var loaded = saveSystem.loadCharacter(id);
+      if (!loaded.ok) {
+        $('select-warning').textContent = 'Save recovery required: ' + loaded.reason + '. Existing data remains protected.';
+        refreshTitleState();
+        renderCharacterSelection();
+        return;
+      }
+      var lockResult = await rewardRecovery.runExclusive(id, async function () {
+        var recovered = await recoverRewardJournal(loaded.save);
+        return recovered ? { ok: true, save: recovered } : { ok: false, reason: 'RECOVERY_FAILED' };
+      });
+      if (!lockResult.ok || !lockResult.save) {
+        rewardRecoveryBlocked = true;
+        beginFromSave(loaded.save);
+        lockGame('A saved victory reward needs recovery or the browser cannot provide an exclusive reward lock. Existing data is protected.');
+        return;
+      }
+      rewardRecoveryBlocked = false;
+      beginFromSave(lockResult.save);
+    })();
   }
 
   function continueGame() {
@@ -332,14 +612,54 @@
     show('screen-select');
   }
 
+  function createEncounterId() {
+    return rewardRecovery.createEncounterId();
+  }
+
   function startBattle(monsterId) {
-    var saved = persist('before-battle');
-    if (!saved.ok) return;
-    show('screen-battle');
-    E.BattleUI.start({ hp: player.hp, maxHp: player.maxHp }, monsterId, onBattleEnd);
+    (async function () {
+      if (!currentSave) return;
+      var encounterId = createEncounterId();
+      if (!encounterId) {
+        rewardRecoveryBlocked = true;
+        lockGame('Secure encounter identity is unavailable in this browser. Reward creation is disabled to protect save data.');
+        return;
+      }
+      var lockResult = await rewardRecovery.runExclusive(currentSave.characterId, async function () {
+        var recovered = await recoverRewardJournal(currentSave);
+        if (!recovered || recovered.pendingReward) return { ok: false, reason: 'RECOVERY_REQUIRED' };
+        currentSave = recovered;
+        var saved = persist('before-battle');
+        if (!saved.ok) return { ok: false, reason: saved.reason || 'PRE_BATTLE_SAVE_FAILED' };
+        rewardRecoveryBlocked = false;
+        activeEncounterId = encounterId;
+        show('screen-battle');
+        await new Promise(function (resolve) {
+          battleLockFinished = resolve;
+          E.BattleUI.start({ hp: player.hp, maxHp: player.maxHp }, monsterId, function (result) {
+            Promise.resolve().then(function () { return onBattleEnd(result); }).catch(function (error) {
+              console.error('Battle reward settlement failed:', error);
+              rewardRecoveryBlocked = true;
+              lockGame('Battle reward settlement was interrupted. Existing recovery evidence is protected; retry safely.');
+              show('screen-result');
+            }).then(function () {
+              var release = battleLockFinished;
+              battleLockFinished = null;
+              if (release) release();
+            });
+          });
+        });
+        return { ok: true };
+      });
+      if (!lockResult.ok) {
+        rewardRecoveryBlocked = true;
+        lockGame('A previous reward needs recovery or another tab is using this character. Retry after the exclusive reward lock is available.');
+      }
+    })();
   }
 
   function onBattleEnd(result) {
+    if (!active) return Promise.resolve(); // An explicit Return to Title abandons the active encounter.
     var list = $('result-list');
     list.innerHTML = '';
     function line(text, cls) {
@@ -350,59 +670,54 @@
     if (result.won) {
       var rw = E.rollRewards(result.monsterId);
       $('result-title').textContent = 'Victory!';
-      // The current Save Schema requires pendingReward.gold; store zero for schema compatibility.
-      // The claim handler intentionally ignores this field, including legacy nonzero values.
-      var pendingReward = { exp: rw.exp, gold: 0, drops: rw.drops };
-      var pending = E.Save.withPendingReward(currentSave, pendingReward, result.monsterId, new Date().toISOString());
-      var rewardSaved = false;
-      if (pending.ok) {
-        var staged = saveSystem.commit(currentSave, pending.save);
-        if (staged.ok) {
-          currentSave = staged.save;
-          var claimed = E.Save.withClaim(currentSave, function (target, reward) {
-            applyRewardToSave(target, reward);
-          });
-          if (claimed.ok) {
-            var finalSave = saveSystem.commit(currentSave, claimed.save);
-            if (finalSave.ok) { currentSave = finalSave.save; rewardSaved = true; }
-            else if (finalSave.tx && finalSave.durable) {
-              var retryClaim = saveSystem.resume(finalSave.tx);
-              if (retryClaim.ok) { currentSave = retryClaim.save; rewardSaved = true; }
-              else pendingSaveTx = finalSave.tx;
-            }
+      var rewardId = String(currentSave.nextRewardSeq);
+      var rolledCards = E.CardAcquisition.rollMonsterDrops(result.monsterId).map(function (card) {
+        return { cardId: card.cardId, stars: card.stars, quantity: card.quantity };
+      });
+      var encounterId = activeEncounterId;
+      pendingBattleReward = {
+        rewardId: rewardId, encounterId: encounterId, monsterId: result.monsterId,
+        exp: rw.exp, gold: 0, drops: rw.drops.map(function (drop) { return { id: drop.id, name: drop.name }; }),
+        cards: rolledCards, createdAt: new Date().toISOString()
+      };
+      var rewardSaved = false, stagedCards = { ok: false, cards: [] };
+      var rewardFlow = (async function () {
+        var prepared = await rewardRecovery.prepare(currentSave.characterId, pendingBattleReward);
+        if (!prepared.ok) {
+          rewardRecoveryBlocked = true;
+          line('Reward is pending and has not been confirmed as saved.');
+          line('Reward recovery is locked. Do not clear browser data.', 'loot');
+          lockGame('Victory reward could not be durably journaled (' + prepared.reason + '). Keep this browser data intact and retry.');
+          $('btn-result').textContent = 'Retry Save';
+        } else {
+          var payload = prepared.entry.payload;
+          stagedCards = E.CardCollection.stageReward(currentSave.characterId, rewardId, payload.cards);
+          var settled = stagedCards.ok ? await settleJournalEntry(currentSave, prepared.entry) : null;
+          if (!settled || settled.pendingReward) {
+            rewardRecoveryBlocked = true;
+            line('Reward is pending and has not been confirmed as saved.');
+            line('Reward recovery is locked. Do not clear browser data.', 'loot');
+            lockGame('Victory reward could not be safely committed. Keep this browser data intact and retry.');
+            $('btn-result').textContent = 'Retry Save';
+          } else {
+            currentSave = settled;
+            rewardSaved = true;
+            player.exp = currentSave.stats.exp; player.level = currentSave.stats.level;
+            player.gold = currentSave.gold; player.items = JSON.parse(JSON.stringify(currentSave.items)); player.jelly = currentSave.items.jelly;
+            player.maxHp = currentSave.stats.maxHp; player.hp = currentSave.stats.hp;
+            line('+' + rw.exp + ' EXP');
+            rw.drops.forEach(function (d) { line('Dropped: ' + d.name, 'loot'); });
+            stagedCards.cards.forEach(function (card) { var def = E.CARDS[card.cardId] || {}; line('Card acquired: ' + (def.name || card.cardId) + ' · ' + (def.rarity || 'Rarity unassigned'), 'card-loot'); });
+            if (!rw.drops.length && !stagedCards.cards.length) line('No drops this time.');
+            if (player.level > 1) line('Current level: ' + player.level, 'level');
+            pendingBattleReward = null;
+            rewardRecoveryBlocked = false;
+            $('btn-result').textContent = 'Return to the village';
           }
-        } else if (staged.tx && staged.durable) {
-          var retryStage = saveSystem.resume(staged.tx);
-          if (retryStage.ok) {
-            currentSave = retryStage.save;
-            var stagedClaim = E.Save.withClaim(currentSave, function (target, reward) { applyRewardToSave(target, reward); });
-            if (stagedClaim.ok) {
-              var stagedFinal = saveSystem.commit(currentSave, stagedClaim.save);
-              if (stagedFinal.ok) { currentSave = stagedFinal.save; rewardSaved = true; }
-              else if (stagedFinal.tx && stagedFinal.durable) {
-                var stagedResume = saveSystem.resume(stagedFinal.tx);
-                if (stagedResume.ok) { currentSave = stagedResume.save; rewardSaved = true; }
-                else pendingSaveTx = stagedFinal.tx;
-              }
-            }
-          } else pendingSaveTx = staged.tx;
         }
-      }
-      if (rewardSaved) {
-        player.exp = currentSave.stats.exp; player.level = currentSave.stats.level;
-        player.gold = currentSave.gold; player.items = JSON.parse(JSON.stringify(currentSave.items)); player.jelly = currentSave.items.jelly;
-        player.maxHp = currentSave.stats.maxHp; player.hp = currentSave.stats.hp;
-        line('+' + rw.exp + ' EXP');
-        rw.drops.forEach(function (d) { line('Dropped: ' + d.name, 'loot'); });
-        if (!rw.drops.length) line('No drops this time.');
-        if (player.level > 1) line('Current level: ' + player.level, 'level');
-        $('btn-result').textContent = 'Return to the village';
-      } else {
-        line('Reward is pending and has not been confirmed as saved.');
-        line('Do not close the game. Use Retry Save to finish safely.', 'loot');
-        lockGame('Victory reward could not be fully saved. The reward is pending; retry will finish the same reward without rolling it again.');
-        $('btn-result').textContent = 'Retry Save';
-      }
+        updateHud();
+        show('screen-result');
+      })();
     } else {
       $('result-title').textContent = 'Defeated';
       line('You wake up safe in Greenvale Village.');
@@ -419,7 +734,8 @@
       backToVillage(!result.won);
     };
     updateHud();
-    show('screen-result');
+    if (!result.won) show('screen-result');
+    return result.won ? rewardFlow : Promise.resolve();
   }
 
   function backToVillage(resetHero) {
@@ -461,7 +777,7 @@
         var name = document.createElement('strong'), meta = document.createElement('small');
         icon.className = 'collection-icon'; icon.textContent = def.icon || '✦';
         name.textContent = def.name || item.cardId;
-        meta.textContent = 'Star ' + item.stars + ' · ' + (def.kind || 'Card');
+        meta.textContent = 'Star ' + item.stars + ' · ' + (def.rarity || 'Rarity unassigned') + ' · ' + (def.kind || 'Card');
         info.appendChild(icon); info.appendChild(name); info.appendChild(meta);
         var quantity = document.createElement('span'); quantity.className = 'collection-quantity';
         quantity.textContent = '×' + item.quantity;
@@ -510,6 +826,7 @@
     if (!active || saveLocked) return;
     var saved = persist('menu-return-title');
     if (!saved.ok) return;
+    if (battleLockFinished) { var releaseBattle = battleLockFinished; battleLockFinished = null; releaseBattle(); }
     active = false;
     E.World.pause();
     closeGameMenu();
