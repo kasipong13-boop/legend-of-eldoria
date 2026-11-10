@@ -105,6 +105,12 @@ const server = http.createServer((req, res) => {
       if (afterLegacyClaim.gold !== 37 || afterLegacyClaim.stats.exp !== 12 || afterLegacyClaim.items.jelly !== 1 || afterLegacyClaim.pendingReward !== null) {
         throw new Error(viewport.name + ': legacy pending Gold was not ignored or eligible rewards were not claimed');
       }
+      await page.locator('#btn-card-collection').click();
+      await page.locator('#screen-card-collection.active').waitFor();
+      assert.equal(await page.locator('#collection-source').textContent(), 'Saved collection data', 'collection sidecar survives a real browser reload');
+      assert.match(await page.locator('#collection-summary').textContent(), /10 owned card copies/);
+      await page.locator('#btn-card-collection-back').click();
+      await page.locator('#screen-world.active').waitFor();
 
       // Exercise the real battle -> victory -> pending reward -> claim integration.
       await page.evaluate(() => window.ELDORIA.World.onEncounter('poring'));
