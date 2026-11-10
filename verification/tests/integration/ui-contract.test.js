@@ -86,7 +86,7 @@ test('Card acquisition module is loaded before the current Save Engine and colle
 
 test('Reward recovery uses the approved IndexedDB journal and preserves sidecar v2', () => {
   assert.match(main, /RewardRecovery\.create\(\)/);
-  assert.match(main, /rewardRecovery\.prepare\(currentSave\.characterId, intent\)/);
+  assert.match(main, /rewardRecovery\.prepare\(currentSave\.characterId, pendingBattleReward\)/);
   assert.match(main, /CardCollection\.stageReward\(currentSave\.characterId, rewardId, payload\.cards\)/);
   assert.match(main, /rewardRecovery\.transition\(/);
   assert.match(main, /rewardRecovery\.isActive\(save\.characterId\)/);
