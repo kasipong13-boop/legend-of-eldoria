@@ -301,3 +301,73 @@ test('FI-31: cross-reward encounter collision retains canonical record and confl
     return { ok: true };
   });
 });
+
+
+test('FI-01: durable Journal commit with lost acknowledgement reuses the exact persisted payload', async () => {
+  const journal = new Map(), quarantine = new Map(), stores = { journal, quarantine };
+  let loseAck = true;
+  const adapter = {
+    get: async (store, key) => stores[store].get(key) || null,
+    put: async (store, value) => {
+      stores[store].set(value.key, JSON.parse(JSON.stringify(value)));
+      if (store === 'journal' && loseAck) { loseAck = false; throw new Error('INJECTED_ACK_LOSS'); }
+      return value;
+    },
+    listByCharacter: async (store, id) => Array.from(stores[store].values()).filter(x => x.characterId === id)
+  };
+  const { API, markers } = boot({ adapter });
+  const first = await locked(API, () => API.prepare(characterId, intent()));
+  assert.equal(first.ok, false);
+  assert.equal(journal.size, 1);
+  assert.equal(markers.has('eldoria.reward.v1.active.' + characterId), false);
+  const durable = JSON.stringify(journal.get(characterId + ':1'));
+  const retry = await locked(API, () => API.prepare(characterId, intent()));
+  assert.equal(retry.ok, true);
+  assert.equal(retry.alreadyPrepared, true);
+  assert.equal(JSON.stringify(journal.get(characterId + ':1')), durable);
+  assert.equal(markers.get('eldoria.reward.v1.active.' + characterId), '1');
+  assert.equal(quarantine.size, 0);
+});
+
+test('FI-03: reward identity rebinding preserves canonical payload and records exact conflict', async () => {
+  const { API, records } = boot();
+  await locked(API, async () => {
+    const first = await API.prepare(characterId, intent());
+    assert.equal(first.ok, true);
+    const canonical = JSON.stringify(records.get(characterId + ':1'));
+    const rejected = await API.prepare(characterId, intent({ encounterId: 'c'.repeat(32) }));
+    assert.equal(rejected.reason, 'REWARD_ID_PAYLOAD_CONFLICT');
+    assert.equal(JSON.stringify(records.get(characterId + ':1')), canonical);
+    return { ok: true };
+  });
+  const evidence = await API.listQuarantine(characterId);
+  assert.equal(evidence.ok, true);
+  assert.equal(evidence.entries.length, 1);
+  assert.equal(evidence.entries[0].reason, 'REWARD_ID_PAYLOAD_CONFLICT');
+  assert.equal(evidence.entries[0].conflictingPayload.encounterId, 'c'.repeat(32));
+});
+
+test('FI-31: collision across API sessions quarantines both identities without an incoming Journal record', async () => {
+  const journal = new Map(), quarantine = new Map(), stores = { journal, quarantine };
+  const adapter = {
+    get: async (store, key) => stores[store].get(key) || null,
+    put: async (store, value) => { stores[store].set(value.key, JSON.parse(JSON.stringify(value))); return value; },
+    listByCharacter: async (store, id) => Array.from(stores[store].values()).filter(x => x.characterId === id)
+  };
+  const sessionOne = boot({ adapter });
+  assert.equal((await locked(sessionOne.API, () => sessionOne.API.prepare(characterId, intent()))).ok, true);
+  const originalPayload = JSON.stringify(journal.get(characterId + ':1').payload);
+  const sessionTwo = boot({ adapter });
+  const collision = await locked(sessionTwo.API, () => sessionTwo.API.prepare(characterId, intent({ rewardId: '2' })));
+  assert.equal(collision.ok, false);
+  assert.equal(collision.reason, 'ENCOUNTER_ID_REUSED');
+  assert.equal(journal.size, 1);
+  assert.equal(journal.has(characterId + ':2'), false);
+  assert.equal(journal.get(characterId + ':1').status, 'quarantined');
+  assert.equal(JSON.stringify(journal.get(characterId + ':1').payload), originalPayload);
+  const evidence = await sessionTwo.API.listQuarantine(characterId);
+  assert.equal(evidence.ok, true);
+  assert.equal(evidence.entries.length, 2);
+  assert.ok(evidence.entries.every(entry => entry.reason === 'ENCOUNTER_ID_REUSED'));
+  assert.ok(evidence.entries.some(entry => entry.conflictingPayload && entry.conflictingPayload.encounterId === 'b'.repeat(32)));
+});
