@@ -324,7 +324,7 @@
     var saved = write(characterId, data);
     if (!saved.ok) return saved;
     if (!ensureActiveMarker(characterId)) return { ok: false, reason: 'ACTIVE_MARKER_WRITE_FAILED', durable: true };
-    return { ok: true, journal: clone(entry), cards: cards, data: saved.data };
+    return { ok: true, degraded: !!saved.degraded, journal: clone(entry), cards: cards, data: saved.data };
   }
 
   function claimReward(characterId, rewardId) {
