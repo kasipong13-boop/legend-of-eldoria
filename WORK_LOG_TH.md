@@ -145,3 +145,35 @@ Compatibility
 - Card Collection Sidecar v2 คงเดิม
 - Gold Economy ยังคง ON HOLD
 - ไม่มีการ Merge หรือ Release
+
+
+
+Validation Update — PR #30 TDR-030 Recovery Head f0dbd7b
+----------------------------------------------------------
+ผล GitHub Actions ที่ตรวจสอบจริง
+- Validate Prototype run 42742865887: success (Syntax/Structure, Browser Smoke, Full Regression Suite)
+- Full Verification run 42742865850: success (Unit/Integration/UI, Regression, Mutation, Chromium Reload)
+- Unit/Save tests: 258 passed, 0 failed
+- World integration: 31 passed, 0 failed
+- UI contract: 15 passed, 0 failed
+- Monster Spawn integration: 6 passed, 0 failed
+- Regression: original 0.1 rules/cards/Poring data + 350 seeded battles unchanged
+- Mutation: 26/26 caught
+- Browser: localStorage reload passed; IndexedDB PREPARED-only recovery after reload passed; two-page Web Locks contention passed; desktop + iPhone-sized Chromium passed; pageErrors = []
+
+การตรวจเพิ่มเติมหลัง CI
+- เพิ่ม Quarantine เมื่อ Activation Marker มีอยู่แต่ Journal หาย เพื่อป้องกัน Legacy Success
+- เพิ่ม Unit Test ตรวจจับ Journal ถูกลบหลัง Activation Marker
+- ผล CI สำหรับ Head d1644bc (เพิ่ม test ดังกล่าว) อยู่ระหว่างรัน; ห้ามนำผลของ Head f0dbd7b ไปอ้างเป็นผลของ d1644bc
+
+สถานะ FI Matrix
+- ยืนยันผ่าน: FI-05/FI-29 จาก Browser PREPARED-only reload fixture, FI-12 จาก Unit payload-conflict test, FI-35 จาก two-page Web Locks test
+- FI-38: เพิ่ม Unit Test ตรวจ marker หลัง Journal ถูกลบ; รอ CI ของ Head d1644bc
+- FI-10, FI-20, FI-22: มี recovery/quarantine path ใน Source แต่ยังไม่มี runtime FI fixture แยก จึงยังไม่ถือว่าผ่าน
+- FI-01..FI-38 ฉบับเต็ม: รายละเอียดรายกรณีเดิมไม่พบใน Repository/PR discussion/Library; ไม่สร้างกรณีที่ขาดขึ้นเองและไม่กล่าวอ้างว่าผ่านครบ
+
+Compatibility
+- js/save.js SHA: 41717dcf41cfd9b967d8e57843a456c92bbf73d5 (unchanged)
+- Card Collection Sidecar schema v2 (schema v3 not used)
+- Character Save Schema v1 unchanged
+- PR #30 remains Open / Draft / Not merged; no Release
