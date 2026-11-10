@@ -153,7 +153,7 @@
           return db.listByCharacter(JOURNAL_STORE, characterId).then(function (entries) {
             var encounter = entries.find(function (entry) { return entry.encounterId === intent.encounterId; });
             if (encounter && encounter.rewardId !== intent.rewardId) {
-              return quarantineRecord(characterId, key, null, 'ENCOUNTER_ID_REUSED', payload)
+              return quarantineRecord(characterId, encounter.key, encounter, 'ENCOUNTER_ID_REUSED', payload)
                 .then(function () { return { ok: false, reason: 'ENCOUNTER_ID_REUSED', quarantined: true }; });
             }
             var entry = {
