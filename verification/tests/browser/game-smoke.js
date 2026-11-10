@@ -286,8 +286,76 @@ const server = http.createServer((req, res) => {
       results.push({ viewport:viewport.name, creation:'pass', appearancePersistence:'pass', selection:'pass', multipleCharacters:'pass', backNavigation:'pass', recoveryCreationLock:'pass', menu:'pass', continueFlow:'pass' });
       await context.close();
     }
-    if (errors.length) throw new Error(errors.join('\n'));
-    console.log(JSON.stringify({ results, pageErrors:errors }, null, 2));
+      // FI-38: remove a durable Journal record after Save Pending while preserving
+    // the activation marker. Reload must quarantine, never use legacy settlement.
+    const fiContext = await browser.newContext({ viewport:{ width:390, height:844 }, isMobile:true, hasTouch:true });
+    const fiPage = await fiContext.newPage();
+    fiPage.on('pageerror', error => errors.push('FI-38: ' + String(error)));
+    await fiPage.goto('http://127.0.0.1:' + port + '/', { waitUntil:'networkidle' });
+    await fiPage.getByRole('button', { name:'Create New Character' }).click();
+    await fiPage.locator('#screen-create.active').waitFor();
+    await fiPage.locator('#character-name').fill('FI38 Hero');
+    await fiPage.getByRole('button', { name:'Create Character' }).click();
+    await fiPage.locator('#screen-world.active').waitFor();
+    const fi38 = await fiPage.evaluate(async () => {
+      const E = window.ELDORIA;
+      const save = E.GameSave.getCurrentSave();
+      const bytes = new Uint8Array(16);
+      crypto.getRandomValues(bytes);
+      const encounterId = Array.from(bytes, value => value.toString(16).padStart(2, '0')).join('');
+      const intent = {
+        rewardId:String(save.nextRewardSeq), encounterId, monsterId:'poring',
+        exp:1, gold:0, drops:[], cards:[], createdAt:new Date().toISOString()
+      };
+      const journal = E.RewardRecovery.create();
+      const prepared = await journal.runExclusive(save.characterId, async () => {
+        const entry = await journal.prepare(save.characterId, intent);
+        if (!entry.ok) return entry;
+        const sidecar = E.CardCollection.stageReward(save.characterId, intent.rewardId, []);
+        if (!sidecar.ok) return sidecar;
+        const sidecarState = await journal.transition(save.characterId, intent.rewardId, 'sidecarStaged');
+        if (!sidecarState.ok) return sidecarState;
+        const pending = E.Save.withPendingReward(save,
+          { exp:1, gold:0, drops:[] }, 'poring', intent.createdAt);
+        if (!pending.ok) return pending;
+        const saveSystem = E.Save.createSystem({ backend:E.Save.getBrowserBackend() });
+        const committed = saveSystem.commit(save, pending.save);
+        if (!committed.ok) return { ok:false, reason:committed.reason || 'SAVE_PENDING_FAILED' };
+        return { ok:true };
+      });
+      if (!prepared.ok) throw new Error('FI-38 setup failed: ' + prepared.reason);
+      const db = await new Promise((resolve, reject) => {
+        const request = indexedDB.open('eldoria-reward-recovery', 1);
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+      await new Promise((resolve, reject) => {
+        const tx = db.transaction(['journal'], 'readwrite');
+        tx.objectStore('journal').delete(save.characterId + ':' + intent.rewardId);
+        tx.oncomplete = resolve;
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error);
+      });
+      db.close();
+      return { characterId:save.characterId, rewardId:intent.rewardId };
+    });
+    await fiPage.reload({ waitUntil:'networkidle' });
+    await fiPage.locator('#screen-title.active').waitFor();
+    await fiPage.getByRole('button', { name:'Continue' }).click();
+    await fiPage.locator('#screen-select.active').waitFor();
+    await fiPage.locator('.character-row').filter({ hasText:'FI38 Hero' }).getByRole('button', { name:'Play' }).click();
+    await fiPage.locator('#screen-world.active').waitFor();
+    const fi38Evidence = await fiPage.evaluate(async id =>
+      window.ELDORIA.RewardRecovery.create().listQuarantine(id), fi38.characterId);
+    if (!fi38Evidence.ok || !fi38Evidence.entries.some(entry => entry.reason === 'ACTIVATED_JOURNAL_MISSING')) {
+      throw new Error('FI-38: missing activated Journal was not quarantined');
+    }
+    const lockMessage = await fiPage.locator('#save-lock-message').textContent();
+    if (!lockMessage || !/recovery/i.test(lockMessage)) throw new Error('FI-38: missing Journal did not block gameplay');
+    await fiContext.close();
+
+  if (errors.length) throw new Error(errors.join('\n'));
+    console.log(JSON.stringify({ results, pageErrors:errors, FI38:'pass' }, null, 2));
     console.log('PASS  character creation and selection smoke test on desktop and iPhone-sized Chromium');
   } finally {
     await browser.close();
