@@ -92,14 +92,19 @@
       $('app').appendChild(overlay);
       $('btn-save-retry').addEventListener('click', async function () {
         var result = persist('manual-retry');
+        if (result && !result.ok && result.reason === 'STALE' && currentSave) {
+          var latestSave = saveSystem.loadCharacter(currentSave.characterId);
+          if (latestSave.ok) { currentSave = latestSave.save; result = { ok: true, refreshed: true }; }
+        }
         if (result && result.ok && currentSave) {
           var locked = await rewardRecovery.runExclusive(currentSave.characterId, async function () {
+            var latest = saveSystem.loadCharacter(currentSave.characterId);
+            if (!latest.ok) return { ok: false, reason: 'SAVE_RELOAD_FAILED' };
+            currentSave = latest.save;
             var recoveredOk = pendingBattleReward
               ? await retryPendingBattleReward()
               : await recoverRewardJournal(currentSave);
             if (!recoveredOk) return { ok: false, reason: 'RECOVERY_FAILED' };
-            var recoveredReward = currentSave;
-            currentSave = recoveredReward;
             rewardRecoveryBlocked = false;
             syncPlayerFromSave(currentSave);
             return { ok: true };
