@@ -224,3 +224,29 @@ test('deleted Journal after activation is detectable and cannot be downgraded to
   assert.equal(API.isActive(characterId), true);
   assert.equal(markers.get('eldoria.reward.v1.active.' + characterId), '1');
 });
+
+
+test('F-02: journal evidence repairs a missing activation marker under the reward lock', async () => {
+  const { API, markers } = boot();
+  await locked(API, () => API.prepare(characterId, intent()));
+  markers.clear();
+  const evidence = await API.list(characterId);
+  assert.equal(evidence.ok, true);
+  const outside = API.reconcileActivation(characterId, evidence.entries);
+  assert.equal(outside.ok, false);
+  const result = await locked(API, () => API.reconcileActivation(characterId, evidence.entries));
+  assert.equal(result.ok, true);
+  assert.equal(result.activated, true);
+  assert.equal(markers.get('eldoria.reward.v1.active.' + characterId), '1');
+});
+
+test('F-02: missing marker and durable journal evidence never permits legacy fallback', async () => {
+  const { API, markers } = boot();
+  await locked(API, () => API.prepare(characterId, intent()));
+  markers.clear();
+  const evidence = await API.list(characterId);
+  const result = await locked(API, () => API.reconcileActivation(characterId, evidence.entries));
+  assert.equal(result.ok, true);
+  assert.equal(result.activated, true);
+});
+
