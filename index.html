@@ -89,6 +89,7 @@
         <div class="bar exp small"><span id="hud-exp-fill"></span><b id="hud-exp-text"></b></div>
       </div>
       <div class="hud-block right">
+        <button id="btn-card-collection" class="btn menu-button" type="button">Cards</button>
         <button id="btn-menu" class="btn menu-button" type="button">Menu</button>
         <span id="hud-gold">0 gold</span>
         <span id="hud-jelly">0 jelly</span>
@@ -100,6 +101,23 @@
       <button type="button" data-dir="left" aria-label="Move left">&#9664;</button>
       <button type="button" data-dir="right" aria-label="Move right">&#9654;</button>
       <button type="button" data-dir="down" aria-label="Move down">&#9660;</button>
+    </div>
+  </section>
+
+  <!-- CARD COLLECTION: read-only view backed by an isolated per-character sidecar -->
+  <section id="screen-card-collection" class="screen center collection-screen">
+    <div class="collection-panel">
+      <header class="collection-header">
+        <div><p class="collection-kicker">ADVENTURER'S ARCHIVE</p><h2>Card Collection</h2></div>
+        <button id="btn-card-collection-back" class="btn" type="button">Return</button>
+      </header>
+      <p id="collection-summary" class="collection-summary"></p>
+      <p id="collection-source" class="collection-source" aria-live="polite"></p>
+      <h3>Owned Cards</h3>
+      <div id="collection-owned" class="collection-list"></div>
+      <h3>Deck Presets</h3>
+      <div id="collection-presets" class="collection-list"></div>
+      <p class="collection-note">This archive is read-only. Card acquisition, upgrades and deck editing will be enabled in later milestones.</p>
     </div>
   </section>
 
@@ -163,6 +181,7 @@
 <script src="js/battle-ui.js"></script>
 <script src="js/world.js"></script>
 <script src="js/save.js"></script>
+<script src="js/card-collection.js"></script>
 <script src="js/main.js"></script>
 </body>
 </html>
