@@ -83,7 +83,7 @@
         request.onerror = function () { reject(new Error('INDEXEDDB_OPEN_FAILED')); };
         request.onblocked = function () { reject(new Error('INDEXEDDB_BLOCKED')); };
       });
-      return dbPromise;
+      return dbPromise.catch(function (error) { dbPromise = null; throw error; });
     }
 
     function makeIndexedDbAdapter(db) {
