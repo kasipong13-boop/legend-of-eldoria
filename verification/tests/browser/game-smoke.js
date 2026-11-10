@@ -224,6 +224,23 @@ const server = http.createServer((req, res) => {
       }
       if (afterCrashRecovery.save.gold !== 37) throw new Error(viewport.name + ': crash recovery changed existing Gold');
 
+      // Hold the per-character Web Lock in one tab and verify a second tab fails closed.
+      const lockProbePage = await context.newPage();
+      await lockProbePage.goto('http://127.0.0.1:' + port + '/', { waitUntil:'networkidle' });
+      const characterId = afterCrashRecovery.save.characterId;
+      const holdLock = page.evaluate(async id => navigator.locks.request(
+        'eldoria:reward:' + id, { mode:'exclusive' },
+        () => new Promise(resolve => setTimeout(resolve, 350))
+      ), characterId);
+      await page.waitForTimeout(50);
+      const lockContention = await lockProbePage.evaluate(async id =>
+        window.ELDORIA.RewardRecovery.create().runExclusive(id, async () => ({ ok:true })), characterId);
+      await holdLock;
+      if (lockContention.ok || lockContention.reason !== 'REWARD_LOCK_BUSY') {
+        throw new Error(viewport.name + ': second tab was not blocked by the exclusive reward lock');
+      }
+      await lockProbePage.close();
+
       await page.locator('#btn-menu').click();
       await page.locator('#game-menu:not([hidden])').waitFor();
       await page.getByRole('button', { name:'Save & Return to Title' }).click();
