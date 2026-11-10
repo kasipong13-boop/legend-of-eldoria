@@ -103,6 +103,11 @@
         }
       });
       $('btn-save-title').addEventListener('click', function () {
+        // Do not abandon a victory reward that exists only as an in-memory retry intent.
+        if (pendingBattleReward) {
+          $('save-lock-message').textContent = 'A victory reward is still waiting to be saved. Retry after browser storage is available; returning to the title is temporarily disabled.';
+          return;
+        }
         // Leaving the game does not discard or overwrite the current save.
         saveLocked = false; active = false; overlay.classList.remove('show'); show('screen-title');
       });
