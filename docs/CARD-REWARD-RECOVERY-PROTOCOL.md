@@ -20,8 +20,8 @@ Status: implementation specification; TDR-030 approved (IndexedDB / Web Locks); 
 
 - Database: `eldoria-reward-recovery`, version 1.
 - Object stores: `journal` and `quarantine`.
-- Journal records are keyed by `characterId:rewardId` and include a separate `encounterId`, full immutable payload, status and timestamps.
-- Completed and quarantined records are retained; normal settlement does not prune them.
+- Journal records are keyed by `characterId:rewardId` and include a separate `encounterId`, normalized immutable payload, Save checksum digest, canonical payload string, lifecycle status and per-state timestamps.
+- Completed and quarantined records are retained; normal settlement does not prune them. Journal mutations require the owning per-character Web Lock, and a completed identity cannot be prepared again.
 - A small localStorage activation marker (`eldoria.reward.v1.active.<characterId>`) is only a fail-closed indicator that the Journal has been activated. It does not contain reward payload or lifecycle state. It survives IndexedDB database loss so a missing Journal cannot be misclassified as a legacy reward.
 
 ### Multi-tab lock — Web Locks API (TDR-030-B: A)
