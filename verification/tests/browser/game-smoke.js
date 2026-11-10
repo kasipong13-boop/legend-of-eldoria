@@ -44,7 +44,7 @@ const server = http.createServer((req, res) => {
       await page.getByRole('button', { name:'Create Character' }).click();
       await page.locator('#screen-world.active').waitFor();
       const coreSaveBeforeCollection = await page.evaluate(() => {
-        const key = Object.keys(localStorage).find(k => /^eldoria\\.char\\.[a-f0-9]{32}\\.main$/.test(k));
+        const key = Object.keys(localStorage).find(k => /^eldoria\.char\.[a-f0-9]{32}\.main$/.test(k));
         return localStorage.getItem(key);
       });
       await page.locator('#btn-card-collection').click();
@@ -59,9 +59,9 @@ const server = http.createServer((req, res) => {
         return { ok: stored.ok, key: window.ELDORIA.CardCollection.keyFor(save.characterId) };
       });
       assert.equal(sidecarSaved.ok, true, 'collection sidecar can be saved independently');
-      assert.match(sidecarSaved.key, /^eldoria\\.cards\\./);
+      assert.match(sidecarSaved.key, /^eldoria\.cards\./);
       const coreSaveAfterCollection = await page.evaluate(() => {
-        const key = Object.keys(localStorage).find(k => /^eldoria\\.char\\.[a-f0-9]{32}\\.main$/.test(k));
+        const key = Object.keys(localStorage).find(k => /^eldoria\.char\.[a-f0-9]{32}\.main$/.test(k));
         return localStorage.getItem(key);
       });
       assert.equal(coreSaveAfterCollection, coreSaveBeforeCollection, 'collection must not touch the character Save Engine record');
