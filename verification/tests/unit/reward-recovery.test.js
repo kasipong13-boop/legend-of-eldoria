@@ -99,3 +99,28 @@ test('journal records are retained after completion and quarantine', async () =>
   assert.equal(records.size, 1);
   assert.equal((await API.get(characterId, '1')).entry.status, 'completed');
 });
+
+test('IndexedDB unavailability fails closed and leaves activation evidence for later recovery', async () => {
+  const markers = new Map();
+  const markerStorage = { setItem: (key, value) => markers.set(key, String(value)), getItem: key => markers.has(key) ? markers.get(key) : null };
+  const context = { module: { exports: {} }, console, JSON, Object, Array, Number, Date, Math, Promise };
+  vm.createContext(context);
+  vm.runInContext(fs.readFileSync(path.join(root, 'js/reward-recovery.js'), 'utf8'), context, { filename: 'reward-recovery.js' });
+  const locks = { request: async (name, options, callback) => callback({ name }) };
+  const api = context.ELDORIA.RewardRecovery.create({ locks, markerStorage });
+  const result = await api.prepare(characterId, intent());
+  assert.equal(result.ok, false);
+  assert.equal(result.reason, 'INDEXEDDB_UNAVAILABLE');
+  assert.equal(api.isActive(characterId), true);
+});
+
+test('reward ID collision with a different encounter preserves the first journal and quarantines the incoming intent', async () => {
+  const { API, records, quarantine } = boot();
+  assert.equal((await API.prepare(characterId, intent())).ok, true);
+  const conflict = await API.prepare(characterId, intent({ encounterId: 'c'.repeat(32) }));
+  assert.equal(conflict.ok, false);
+  assert.equal(conflict.reason, 'REWARD_ID_PAYLOAD_CONFLICT');
+  assert.equal(records.get(characterId + ':1').encounterId, 'b'.repeat(32));
+  assert.equal(records.get(characterId + ':1').status, 'prepared');
+  assert.equal(quarantine.size, 1);
+});
