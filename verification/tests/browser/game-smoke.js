@@ -42,6 +42,30 @@ const server = http.createServer((req, res) => {
       await page.locator('#character-color').selectOption('6');
       await page.getByRole('button', { name:'Create Character' }).click();
       await page.locator('#screen-world.active').waitFor();
+      const coreSaveBeforeCollection = await page.evaluate(() => {
+        const key = Object.keys(localStorage).find(k => /^eldoria\\.char\\.[a-f0-9]{32}\\.main$/.test(k));
+        return localStorage.getItem(key);
+      });
+      await page.locator('#btn-card-collection').click();
+      await page.locator('#screen-card-collection.active').waitFor();
+      assert.match(await page.locator('#collection-summary').textContent(), /10 owned card copies · 5 card variants · 1 deck presets/);
+      assert.match(await page.locator('#collection-owned').textContent(), /Strike/);
+      assert.match(await page.locator('#collection-presets').textContent(), /Starter Deck/);
+      const sidecarSaved = await page.evaluate(() => {
+        const save = window.ELDORIA.GameSave.getCurrentSave();
+        const collection = window.ELDORIA.CardCollection.get(save.characterId);
+        const stored = window.ELDORIA.CardCollection.save(save.characterId, collection.data);
+        return { ok: stored.ok, key: window.ELDORIA.CardCollection.keyFor(save.characterId) };
+      });
+      assert.equal(sidecarSaved.ok, true, 'collection sidecar can be saved independently');
+      assert.match(sidecarSaved.key, /^eldoria\\.cards\\./);
+      const coreSaveAfterCollection = await page.evaluate(() => {
+        const key = Object.keys(localStorage).find(k => /^eldoria\\.char\\.[a-f0-9]{32}\\.main$/.test(k));
+        return localStorage.getItem(key);
+      });
+      assert.equal(coreSaveAfterCollection, coreSaveBeforeCollection, 'collection must not touch the character Save Engine record');
+      await page.locator('#btn-card-collection-back').click();
+      await page.locator('#screen-world.active').waitFor();
       const hud = await page.locator('#hud-zone').textContent();
       if (!hud.includes('Greenvale Village')) throw new Error(viewport.name + ': village HUD missing');
       const firstSave = await page.evaluate(() => JSON.parse(localStorage.getItem(Object.keys(localStorage).find(k => /^eldoria\.char\.[a-f0-9]{32}\.main$/.test(k)))).profile);
