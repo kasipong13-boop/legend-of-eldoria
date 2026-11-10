@@ -223,17 +223,28 @@
       await rewardRecovery.quarantine(save.characterId, rewardId, 'JOURNAL_PAYLOAD_INVALID');
       return null;
     }
-    var stagedCards = E.CardCollection.stageReward(save.characterId, rewardId, payload.cards);
-    if (!stagedCards.ok) return null;
-    if (!stagedCards.alreadyClaimed && JSON.stringify(stagedCards.cards) !== JSON.stringify(payload.cards)) {
-      await rewardRecovery.quarantine(save.characterId, rewardId, 'SIDECAR_PAYLOAD_MISMATCH', stagedCards.cards);
-      return null;
+
+    var cardsAlreadyDurable = entry.status === 'cardsClaimed' || entry.status === 'saveClaimed';
+    if (!cardsAlreadyDurable) {
+      var stagedCards = E.CardCollection.stageReward(save.characterId, rewardId, payload.cards);
+      if (!stagedCards.ok) return null;
+      if (!stagedCards.alreadyClaimed && JSON.stringify(stagedCards.cards) !== JSON.stringify(payload.cards)) {
+        await rewardRecovery.quarantine(save.characterId, rewardId, 'SIDECAR_PAYLOAD_MISMATCH', stagedCards.cards);
+        return null;
+      }
     }
+
     if (entry.status === 'prepared') {
       var stagedState = await transitionJournal(entry, 'sidecarStaged');
       if (!stagedState.ok) return null;
       entry = stagedState.entry;
     }
+
+    if (entry.status === 'saveClaimed' && save.pendingReward) {
+      await rewardRecovery.quarantine(save.characterId, rewardId, 'SAVE_CLAIMED_JOURNAL_HAS_PENDING_SAVE', save.pendingReward);
+      return null;
+    }
+
     if (!save.pendingReward && seq === save.nextRewardSeq) {
       var pending = E.Save.withPendingReward(save,
         { exp: payload.exp, gold: 0, drops: payload.drops }, payload.monsterId, payload.createdAt);
@@ -242,6 +253,7 @@
       if (!committedSave) return null;
       save = committedSave;
     }
+
     if (save.pendingReward) {
       if (String(save.pendingReward.seq) !== rewardId ||
           save.pendingReward.monsterId !== payload.monsterId ||
@@ -255,15 +267,21 @@
         if (!pendingState.ok) return null;
         entry = pendingState.entry;
       }
-      var cardClaim = E.CardCollection.claimReward(save.characterId, rewardId);
-      if (!cardClaim.ok || cardClaim.missingStage) {
-        await rewardRecovery.quarantine(save.characterId, rewardId, 'MISSING_SIDECAR_STAGE');
-        return null;
+      if (entry.status !== 'cardsClaimed' && entry.status !== 'saveClaimed') {
+        var cardClaim = E.CardCollection.claimReward(save.characterId, rewardId);
+        if (!cardClaim.ok || cardClaim.missingStage) {
+          await rewardRecovery.quarantine(save.characterId, rewardId, 'MISSING_SIDECAR_STAGE');
+          return null;
+        }
+        if (entry.status === 'savePending') {
+          var cardState = await transitionJournal(entry, 'cardsClaimed');
+          if (!cardState.ok) return null;
+          entry = cardState.entry;
+        }
       }
-      if (entry.status === 'savePending') {
-        var cardState = await transitionJournal(entry, 'cardsClaimed');
-        if (!cardState.ok) return null;
-        entry = cardState.entry;
+      if (entry.status === 'saveClaimed') {
+        await rewardRecovery.quarantine(save.characterId, rewardId, 'SAVE_CLAIMED_JOURNAL_HAS_PENDING_SAVE', save.pendingReward);
+        return null;
       }
       var claim = E.Save.withClaim(save, applyRewardToSave);
       if (!claim.ok) return null;
@@ -276,12 +294,12 @@
         entry = saveClaimed.entry;
       }
     } else if (seq <= save.lastClaimedSeq) {
-      var receiptCheck = E.CardCollection.claimReward(save.characterId, rewardId);
-      if (!receiptCheck.ok || receiptCheck.missingStage) {
-        await rewardRecovery.quarantine(save.characterId, rewardId, 'CLAIMED_SAVE_WITHOUT_CARD_RECEIPT');
-        return null;
-      }
-      if (entry.status === 'sidecarStaged' || entry.status === 'savePending') {
+      if (entry.status !== 'cardsClaimed' && entry.status !== 'saveClaimed') {
+        var receiptCheck = E.CardCollection.claimReward(save.characterId, rewardId);
+        if (!receiptCheck.ok || receiptCheck.missingStage) {
+          await rewardRecovery.quarantine(save.characterId, rewardId, 'CLAIMED_SAVE_WITHOUT_CARD_RECEIPT');
+          return null;
+        }
         var cardFinal = await transitionJournal(entry, 'cardsClaimed');
         if (!cardFinal.ok) return null;
         entry = cardFinal.entry;
@@ -295,6 +313,7 @@
       await rewardRecovery.quarantine(save.characterId, rewardId, 'REWARD_SEQUENCE_GAP');
       return null;
     }
+
     if (entry.status === 'saveClaimed') {
       var completed = await transitionJournal(entry, 'completed');
       if (!completed.ok) return null;
