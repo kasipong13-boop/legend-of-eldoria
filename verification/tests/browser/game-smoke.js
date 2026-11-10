@@ -46,6 +46,70 @@ const server = http.createServer((req, res) => {
       if (!hud.includes('Greenvale Village')) throw new Error(viewport.name + ': village HUD missing');
       const firstSave = await page.evaluate(() => JSON.parse(localStorage.getItem(Object.keys(localStorage).find(k => /^eldoria\.char\.[a-f0-9]{32}\.main$/.test(k)))).profile);
       if (firstSave.name !== 'Eldoria Hero' || firstSave.gender !== 'female' || firstSave.hairStyle !== 3 || firstSave.hairColor !== 6) throw new Error(viewport.name + ': character profile not persisted');
+
+      // Seed a valid existing Gold balance plus a legacy pending combat reward.
+      // Reload so the application reads this fixture through the real Save Engine.
+      await page.evaluate(() => {
+        const key = Object.keys(localStorage).find(k => /^eldoria\.char\.[a-f0-9]{32}\.main$/.test(k));
+        if (!key) throw new Error('character save key not found');
+        const id = key.split('.')[2];
+        const current = JSON.parse(localStorage.getItem(key));
+        current.gold = 37;
+        const withGold = window.ELDORIA.Save.seal(current);
+        const staged = window.ELDORIA.Save.withPendingReward(
+          withGold,
+          { exp: 12, gold: 99, drops: [{ id: 'jelly', name: 'Poring Jelly' }] },
+          'poring',
+          new Date().toISOString()
+        );
+        if (!staged.ok) throw new Error('could not stage legacy pending reward: ' + staged.reason);
+        const saved = window.ELDORIA.Save.seal(staged.save);
+        localStorage.setItem(key, JSON.stringify(saved));
+        localStorage.setItem('eldoria.char.' + id + '.backup', JSON.stringify(saved));
+        localStorage.setItem('eldoria.char.' + id + '.guard', JSON.stringify(window.ELDORIA.Save.guardFor(saved)));
+      });
+      await page.reload({ waitUntil:'networkidle' });
+      await page.locator('#screen-title.active').waitFor();
+      await page.getByRole('button', { name:'Continue' }).click();
+      await page.locator('#screen-select.active').waitFor();
+      await page.getByRole('button', { name:'Play' }).click();
+      await page.locator('#screen-world.active').waitFor();
+      const afterLegacyClaim = await page.evaluate(() => {
+        const key = Object.keys(localStorage).find(k => /^eldoria\.char\.[a-f0-9]{32}\.main$/.test(k));
+        return JSON.parse(localStorage.getItem(key));
+      });
+      if (afterLegacyClaim.gold !== 37 || afterLegacyClaim.stats.exp !== 12 || afterLegacyClaim.items.jelly !== 1 || afterLegacyClaim.pendingReward !== null) {
+        throw new Error(viewport.name + ': legacy pending Gold was not ignored or eligible rewards were not claimed');
+      }
+
+      // Exercise the real battle -> victory -> pending reward -> claim integration.
+      await page.evaluate(() => window.ELDORIA.World.onEncounter('poring'));
+      await page.locator('#screen-battle.active').waitFor();
+      for (let turn = 0; turn < 30; turn++) {
+        if (await page.locator('#screen-result.active').count()) break;
+        const playable = page.locator('#hand .card:not(.disabled)');
+        if (await playable.count()) await playable.first().click();
+        else {
+          const endTurn = page.locator('#btn-end-turn');
+          if (await endTurn.isDisabled()) {
+            await page.locator('#screen-result.active').waitFor({ timeout:3000 });
+            break;
+          }
+          await endTurn.click();
+        }
+        await page.waitForTimeout(80);
+      }
+      await page.locator('#screen-result.active').waitFor({ timeout:15000 });
+      const victoryText = await page.locator('#result-list').textContent();
+      if (!victoryText.includes('EXP') || /gold/i.test(victoryText)) throw new Error(viewport.name + ': victory result displayed an invalid Gold reward');
+      const afterVictory = await page.evaluate(() => {
+        const key = Object.keys(localStorage).find(k => /^eldoria\.char\.[a-f0-9]{32}\.main$/.test(k));
+        return JSON.parse(localStorage.getItem(key));
+      });
+      if (afterVictory.gold !== 37 || afterVictory.pendingReward !== null) throw new Error(viewport.name + ': monster victory changed existing Gold or left a pending reward');
+      if (!(await page.locator('#hud-gold').textContent()).includes('37 gold')) throw new Error(viewport.name + ': Gold HUD did not preserve the existing balance');
+      await page.locator('#btn-result').click();
+      await page.locator('#screen-world.active').waitFor();
       await page.locator('#btn-menu').click();
       await page.locator('#game-menu:not([hidden])').waitFor();
       await page.getByRole('button', { name:'Save & Return to Title' }).click();

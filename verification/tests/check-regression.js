@@ -9,6 +9,22 @@ const baseline = JSON.parse(stored);
 const projectRoot = path.resolve(__dirname, '..', '..');
 const devDir = fs.existsSync(path.join(projectRoot, 'game/js/data.js')) ? path.join(projectRoot, 'game') : projectRoot;
 const current = JSON.parse(snap(devDir));
+const expected = JSON.parse(stored);
+
+// Gold on monster definitions and the Gold field in seeded reward snapshots are
+// retired economy data, not gameplay behavior. Ignore only those legacy fields;
+// keep the original baseline file immutable and continue checking all seeded
+// battle logs, EXP, item drops, cards, rules, and other monster values.
+function omitRetiredMonsterGold(snapshot) {
+  Object.keys(snapshot.values.MONSTERS).forEach(id => {
+    delete snapshot.values.MONSTERS[id].gold;
+  });
+  snapshot.battles.forEach(battle => {
+    if (battle.reward) delete battle.reward.gold;
+  });
+}
+omitRetiredMonsterGold(current);
+omitRetiredMonsterGold(expected);
 
 // New monsters are additive content. Compare every monster that existed in 0.1,
 // while leaving the full current MONSTERS registry free to grow.
@@ -19,7 +35,7 @@ const originalMonsterValues = {};
 for (const id of originalMonsterIds) originalMonsterValues[id] = current.values.MONSTERS[id];
 current.values.MONSTERS = originalMonsterValues;
 
-let ok = JSON.stringify(current) === stored && missingOriginalMonsters.length === 0;
+let ok = JSON.stringify(current) === JSON.stringify(expected) && missingOriginalMonsters.length === 0;
 console.log(ok
   ? 'PASS  original 0.1 rules, cards, Poring data + 350 seeded battles unchanged; additive monsters allowed'
   : 'FAIL  original 0.1 gameplay baseline changed or an original monster is missing');
