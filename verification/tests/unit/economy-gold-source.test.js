@@ -83,7 +83,9 @@ test('legacy pending combat Gold is ignored while EXP and item drops are still c
 });
 
 test('victory integration supplies schema-compatible zero and never displays monster Gold', () => {
-  assert.match(mainSource, /var pendingReward = \{ exp: rw\.exp, gold: 0, drops: rw\.drops \}/);
+  assert.match(mainSource, /var durableReward = stagedCards\.journal/);
+  assert.match(mainSource, /E\.Save\.withPendingReward\(currentSave,[\s\S]*?\{ exp: durableReward\.exp, gold: 0, drops: durableReward\.drops \}/);
+  assert.match(mainSource, /function recoverRewardJournal\(save\)/);
   assert.match(mainSource, /function applyRewardToSave\(target, reward\)[\s\S]*?target\.stats\.exp \+= reward\.exp/);
   assert.doesNotMatch(applyMatch[1], /target\.gold\s*\+=/);
   assert.doesNotMatch(mainSource, /rw\.gold/);
