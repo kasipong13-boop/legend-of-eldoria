@@ -124,3 +124,62 @@ test('Card Collection UI is registered without modifying the transactional Save 
   assert.match(save, /var SAVE_KEYS = \['schemaVersion'/);
   assert.doesNotMatch(save, /CardCollection|deckCollection|deckPresets/);
 });
+
+test('card reward staging and claiming are idempotent and stack identical card variants', () => {
+  const { E, values } = boot();
+  const first = E.CardCollection.stageReward(characterId, 'reward-1', [{ cardId: 'strike', stars: 1, quantity: 1 }]);
+  assert.equal(first.ok, true);
+  const retry = E.CardCollection.stageReward(characterId, 'reward-1', [{ cardId: 'guard', stars: 1, quantity: 1 }]);
+  assert.equal(retry.ok, true);
+  assert.equal(retry.alreadyStaged, true);
+  assert.deepEqual(JSON.parse(JSON.stringify(retry.cards)), [{ cardId: 'strike', stars: 1, quantity: 1 }]);
+  const claimed = E.CardCollection.claimReward(characterId, 'reward-1');
+  assert.equal(claimed.ok, true);
+  const repeated = E.CardCollection.claimReward(characterId, 'reward-1');
+  assert.equal(repeated.ok, true);
+  assert.equal(repeated.alreadyClaimed, true);
+  const owned = E.CardCollection.get(characterId).data.owned;
+  assert.deepEqual(JSON.parse(JSON.stringify(owned.find(card => card.cardId === 'strike' && card.stars === 1))),
+    { cardId: 'strike', stars: 1, quantity: 5 });
+  assert.equal(values.has(E.CardCollection.keyFor(characterId)), true);
+});
+
+test('card rewards keep different star variants separate and never touch Save Schema', () => {
+  const { E, values } = boot();
+  const save = E.CardCollection.get(characterId).data;
+  const result = E.CardCollection.stageReward(characterId, 'reward-2', [{ cardId: 'strike', stars: 2, quantity: 2 }]);
+  assert.equal(result.ok, true);
+  assert.equal(E.CardCollection.claimReward(characterId, 'reward-2').ok, true);
+  const data = E.CardCollection.get(characterId).data;
+  assert.deepEqual(JSON.parse(JSON.stringify(data.owned.filter(card => card.cardId === 'strike'))), [
+    { cardId: 'strike', stars: 1, quantity: 4 },
+    { cardId: 'strike', stars: 2, quantity: 2 }
+  ]);
+  assert.equal(E.Save.SCHEMA_VERSION, 1);
+  assert.equal(values.has('eldoria.char.' + characterId + '.main'), false);
+  assert.equal(save.owned.length, 5);
+});
+
+test('legacy sidecar schema v1 is readable and upgrades only when a reward is written', () => {
+  const { E, values } = boot();
+  const starter = E.CardCollection.get(characterId).data;
+  const legacy = {
+    schemaVersion: 1, characterId, owned: starter.owned, presets: starter.presets, activePresetId: 'starter'
+  };
+  legacy.checksum = E.Save.checksumOf(legacy);
+  values.set(E.CardCollection.keyFor(characterId), JSON.stringify(legacy));
+  const loaded = E.CardCollection.get(characterId);
+  assert.equal(loaded.ok, true);
+  assert.equal(loaded.source, 'legacy');
+  assert.equal(values.get(E.CardCollection.keyFor(characterId)), JSON.stringify(legacy), 'read must not mutate old sidecar');
+  assert.equal(E.CardCollection.stageReward(characterId, 'reward-legacy', []).ok, true);
+  assert.equal(E.CardCollection.get(characterId).data.schemaVersion, 2);
+});
+
+test('sidecar write failure prevents card reward claim and preserves staged reward for retry', () => {
+  const { E, values } = boot({ failWrites: true });
+  const result = E.CardCollection.stageReward(characterId, 'reward-fail', [{ cardId: 'strike', stars: 1, quantity: 1 }]);
+  assert.equal(result.ok, false);
+  assert.equal(result.reason, 'WRITE_FAILED');
+  assert.equal(values.size, 0);
+});
