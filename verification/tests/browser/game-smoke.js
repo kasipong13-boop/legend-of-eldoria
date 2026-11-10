@@ -631,6 +631,47 @@ const server = http.createServer((req, res) => {
     }
     await fi16Context.close();
 
+
+    // FI-17: stale Save snapshot must never overwrite a newer committed sequence.
+    // Unlike FI-20 this tests optimistic Save commit freshness, not Journal ID mismatch.
+    const fi17Context = await browser.newContext({ viewport:{ width:390, height:844 }, isMobile:true, hasTouch:true });
+    const fi17Page = await fi17Context.newPage();
+    fi17Page.on('pageerror', error => errors.push('FI-17: ' + String(error)));
+    await fi17Page.goto('http://127.0.0.1:' + port + '/', { waitUntil:'networkidle' });
+    await fi17Page.getByRole('button', { name:'Create New Character' }).click();
+    await fi17Page.locator('#screen-create.active').waitFor();
+    await fi17Page.locator('#character-name').fill('FI17 Hero');
+    await fi17Page.getByRole('button', { name:'Create Character' }).click();
+    await fi17Page.locator('#screen-world.active').waitFor();
+    const fi17Result = await fi17Page.evaluate(() => {
+      const E = window.ELDORIA;
+      const stale = E.GameSave.getCurrentSave();
+      const system = E.Save.createSystem({ backend:E.Save.getBrowserBackend() });
+      const first = E.Save.withPendingReward(stale, { exp:2, gold:0, drops:[] }, 'poring', new Date().toISOString());
+      if (!first.ok) throw new Error('FI-17 fixture pending failed: ' + first.reason);
+      const newer = system.commit(stale, first.save);
+      if (!newer.ok) throw new Error('FI-17 fixture commit failed: ' + newer.reason);
+      const staleAttempt = E.Save.withPendingReward(stale, { exp:9, gold:0, drops:[] }, 'poring', new Date().toISOString());
+      if (!staleAttempt.ok) throw new Error('FI-17 stale transform failed: ' + staleAttempt.reason);
+      const rejected = system.commit(stale, staleAttempt.save);
+      const durable = system.load(stale.characterId);
+      if (!durable.ok) throw new Error('FI-17 durable read failed: ' + durable.reason);
+      return { rejected:{ ok:rejected.ok, reason:rejected.reason },
+        expectedSeq:first.save.pendingReward.seq, expectedExp:first.save.pendingReward.exp,
+        durableSeq:durable.save.pendingReward && durable.save.pendingReward.seq,
+        durableExp:durable.save.pendingReward && durable.save.pendingReward.exp,
+        nextSeq:durable.save.nextRewardSeq, revision:durable.save.revision,
+        expectedRevision:newer.save.revision };
+    });
+    if (fi17Result.rejected.ok !== false || fi17Result.rejected.reason !== 'STALE' ||
+        fi17Result.durableSeq !== fi17Result.expectedSeq ||
+        fi17Result.durableExp !== fi17Result.expectedExp ||
+        fi17Result.nextSeq !== fi17Result.expectedSeq + 1 ||
+        fi17Result.revision !== fi17Result.expectedRevision) {
+      throw new Error('FI-17: stale Save commit overwrote or altered durable reward sequence: ' + JSON.stringify(fi17Result));
+    }
+    await fi17Context.close();
+
 if (errors.length) throw new Error(errors.join('\n'));
     console.log(JSON.stringify({ results, pageErrors:errors, FI38:'pass', FI10:'pass', FI20:'pass', FI22:'pass' }, null, 2));
     console.log('PASS  character creation and selection smoke test on desktop and iPhone-sized Chromium');
