@@ -6,14 +6,14 @@ This report is deliberately conservative. A test is marked **PASS** only when th
 
 | FI | Scenario | Current evidence | Status |
 |---|---|---|---|
-| FI-05 | Crash after Journal PREPARED; reload must reuse the same payload | Browser smoke now creates PREPARED only, reloads, then verifies Sidecar/Save settlement and completed Journal | Pending latest CI |
+| FI-05 | Crash after Journal PREPARED; reload must reuse the same payload | Browser smoke creates PREPARED only, reloads, then verifies Sidecar/Save settlement and completed Journal; Validate run 42742865887 + Full Verification run 42742865850 passed | PASS |
 | FI-10 | Sidecar pending reward without a corresponding Journal must be quarantined | Recovery path implemented; no dedicated runtime fixture yet | Not executed |
-| FI-12 | Same Reward ID with a different payload must be rejected | Reward Journal unit test verifies conflict evidence while preserving the canonical record | PASS on verified CI head 844a9db |
+| FI-12 | Same Reward ID with a different payload must be rejected | Reward Journal unit test verifies conflict evidence while preserving the canonical record | PASS (Full Verification 42742865850) |
 | FI-20 | Save sequence and Journal identity mismatch must be quarantined | Recovery path implemented; no dedicated runtime fixture yet | Not executed |
 | FI-22 | Save claim succeeds but Journal transition is interrupted; recovery must finish forward | Journal state recovery supports cardsClaimed -> saveClaimed -> completed; no dedicated Save-commit crash fixture yet | Not executed |
-| FI-29 | Missing Sidecar stage for a Journal-backed reward must not be treated as legacy success | Browser smoke PREPARED-only fixture verifies Journal payload recreates Sidecar stage after reload | Pending latest CI |
-| FI-35 | Two tabs cannot concurrently mutate the same character's reward state | Browser smoke holds the per-character Web Lock in one page and verifies the second page receives REWARD_LOCK_BUSY | PASS on verified CI head 844a9db |
-| FI-38 | Journal deleted before COMPLETE must be detected and quarantined | Activation marker + missing-Journal quarantine path implemented; no dedicated runtime deletion fixture yet | Not executed |
+| FI-29 | Missing Sidecar stage for a Journal-backed reward must not be treated as legacy success | Browser smoke PREPARED-only fixture verifies Journal payload recreates Sidecar stage after reload | PASS (Full Verification 42742865850) |
+| FI-35 | Two tabs cannot concurrently mutate the same character's reward state | Browser smoke holds the per-character Web Lock in one page and verifies the second page receives REWARD_LOCK_BUSY | PASS (Validate run 42742865887) |
+| FI-38 | Journal deleted before COMPLETE must be detected and quarantined | Activation marker + missing-Journal quarantine path implemented; a Unit Test deletes the Journal record and verifies the activation marker remains | Pending CI on head d1644bc |
 
 ## Remaining matrix
 
@@ -27,10 +27,10 @@ The complete original case-by-case definitions for FI-01..FI-38 were not found i
 | Card / Character Claims | FI-23–30 | FI-29 identified above; remaining cases require original definitions |
 | Retry / Reload / Collision | FI-31–38 | FI-35 and FI-38 identified above; remaining cases require original definitions |
 
-## Verified CI evidence (exact head 844a9dbfec9f9dd00960d5cd9d068607159234c2)
+## Verified CI evidence (exact head f0dbd7bdd0070f8a830f96293d41bc13fc251cd9)
 
-- Full Verification run 42742476707: success.
-- Validate Prototype run 42742476645: success.
+- Full Verification run 42742865850: success.
+- Validate Prototype run 42742865887: success.
 - Unit / Save tests: 258 passed, 0 failed.
 - World integration: 31 passed, 0 failed.
 - UI contract: 15 passed, 0 failed.
@@ -40,4 +40,4 @@ The complete original case-by-case definitions for FI-01..FI-38 were not found i
 - Browser: real localStorage reload passed; desktop and iPhone-sized Chromium smoke passed; pageErrors = [].
 - Browser smoke includes IndexedDB Journal recovery after PREPARED and a two-page Web Locks contention check.
 
-**Important:** the evidence above belongs to the exact head shown. Subsequent changes to FI-38 quarantine handling and the PREPARED-only browser fixture require a fresh CI run before being treated as verified. Actual iPhone Safari remains untested.
+**Important:** the evidence above belongs to exact head f0dbd7b. The later FI-38 unit-test addition is on head d1644bc and must pass its own CI before it is counted. Actual iPhone Safari remains untested.
