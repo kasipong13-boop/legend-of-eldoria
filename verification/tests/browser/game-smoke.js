@@ -817,6 +817,100 @@ const server = http.createServer((req, res) => {
     }
     await fi19Context.close();
 
+
+    // FI-21: crash after durable Card Claim, before Save Claim.
+    // Verify Sidecar receipt survives reload and recovery applies Save deltas once.
+    const fi21Context = await browser.newContext({ viewport:{ width:390, height:844 }, isMobile:true, hasTouch:true });
+    const fi21Page = await fi21Context.newPage();
+    fi21Page.on('pageerror', error => errors.push('FI-21: ' + String(error)));
+    await fi21Page.goto('http://127.0.0.1:' + port + '/', { waitUntil:'networkidle' });
+    await fi21Page.getByRole('button', { name:'Create New Character' }).click();
+    await fi21Page.locator('#screen-create.active').waitFor();
+    await fi21Page.locator('#character-name').fill('FI21 Hero');
+    await fi21Page.getByRole('button', { name:'Create Character' }).click();
+    await fi21Page.locator('#screen-world.active').waitFor();
+    const fi21Fixture = await fi21Page.evaluate(async () => {
+      const E = window.ELDORIA, save = E.GameSave.getCurrentSave();
+      const rewardId = String(save.nextRewardSeq);
+      const bytes = new Uint8Array(16); crypto.getRandomValues(bytes);
+      const encounterId = Array.from(bytes, n => n.toString(16).padStart(2, '0')).join('');
+      const createdAt = new Date().toISOString(), journal = E.RewardRecovery.create();
+      const beforeCards = E.CardCollection.get(save.characterId).data.owned.find(c => c.cardId === 'bash' && c.stars === 1).quantity;
+      const result = await journal.runExclusive(save.characterId, async () => {
+        const intent = { rewardId, encounterId, monsterId:'poring', exp:2, gold:0,
+          drops:[{ id:'jelly', name:'Poring Jelly' }],
+          cards:[{ cardId:'bash', stars:1, quantity:1 }], createdAt };
+        const prepared = await journal.prepare(save.characterId, intent);
+        if (!prepared.ok) return prepared;
+        const staged = E.CardCollection.stageReward(save.characterId, rewardId, intent.cards);
+        if (!staged.ok) return staged;
+        const sidecar = await journal.transition(save.characterId, rewardId, 'sidecarStaged');
+        if (!sidecar.ok) return sidecar;
+        const pending = E.Save.withPendingReward(save, { exp:2, gold:0, drops:intent.drops }, 'poring', createdAt);
+        if (!pending.ok) return pending;
+        const system = E.Save.createSystem({ backend:E.Save.getBrowserBackend() });
+        const committed = system.commit(save, pending.save);
+        if (!committed.ok) return committed;
+        const pendingState = await journal.transition(save.characterId, rewardId, 'savePending');
+        if (!pendingState.ok) return pendingState;
+        const claimed = E.CardCollection.claimReward(save.characterId, rewardId);
+        if (!claimed.ok || claimed.missingStage) return { ok:false, reason:'FI21_CARD_CLAIM_FAILED' };
+        const cardState = await journal.transition(save.characterId, rewardId, 'cardsClaimed');
+        if (!cardState.ok) return cardState;
+        // Simulated crash boundary: Save Claim intentionally not called.
+        const durable = system.loadCharacter(save.characterId);
+        const cards = E.CardCollection.get(save.characterId).data;
+        if (!durable.ok || durable.save.pendingReward.seq !== Number(rewardId) ||
+            durable.save.stats.exp !== save.stats.exp ||
+            cards.claimedRewardIds.filter(id => id === rewardId).length !== 1 ||
+            cards.owned.find(c => c.cardId === 'bash' && c.stars === 1).quantity !== beforeCards + 1) {
+          throw new Error('FI-21 crash checkpoint is not durable Card Claim / pending Save');
+        }
+        return { ok:true };
+      });
+      if (!result.ok) throw new Error('FI-21 setup failed: ' + result.reason);
+      return { characterId:save.characterId, rewardId, beforeExp:save.stats.exp,
+        beforeItems:save.items.jelly || 0, beforeCards };
+    });
+    await fi21Page.reload({ waitUntil:'networkidle' });
+    await fi21Page.locator('#screen-title.active').waitFor();
+    await fi21Page.getByRole('button', { name:'Continue' }).click();
+    await fi21Page.locator('#screen-select.active').waitFor();
+    await fi21Page.locator('.character-row').filter({ hasText:'FI21 Hero' }).getByRole('button', { name:'Play' }).click();
+    await fi21Page.locator('#screen-world.active').waitFor();
+    const fi21Recovered = await fi21Page.evaluate(async fixture => {
+      const E = window.ELDORIA, save = E.GameSave.getCurrentSave();
+      const cards = E.CardCollection.get(save.characterId).data;
+      const journal = await E.RewardRecovery.create().get(save.characterId, fixture.rewardId);
+      return { save, cards, journal:journal.entry };
+    }, fi21Fixture);
+    if (fi21Recovered.save.pendingReward !== null ||
+        fi21Recovered.save.lastClaimedSeq !== Number(fi21Fixture.rewardId) ||
+        fi21Recovered.save.stats.exp !== fi21Fixture.beforeExp + 2 ||
+        (fi21Recovered.save.items.jelly || 0) !== fi21Fixture.beforeItems + 1 ||
+        fi21Recovered.cards.owned.find(c => c.cardId === 'bash' && c.stars === 1).quantity !== fi21Fixture.beforeCards + 1 ||
+        fi21Recovered.cards.claimedRewardIds.filter(id => id === fi21Fixture.rewardId).length !== 1 ||
+        !fi21Recovered.journal || fi21Recovered.journal.status !== 'completed') {
+      throw new Error('FI-21: Card Claim / Save Claim recovery did not settle exactly once');
+    }
+    await fi21Page.reload({ waitUntil:'networkidle' });
+    await fi21Page.getByRole('button', { name:'Continue' }).click();
+    await fi21Page.locator('#screen-select.active').waitFor();
+    await fi21Page.locator('.character-row').filter({ hasText:'FI21 Hero' }).getByRole('button', { name:'Play' }).click();
+    await fi21Page.locator('#screen-world.active').waitFor();
+    const fi21Replay = await fi21Page.evaluate(() => {
+      const E = window.ELDORIA, save = E.GameSave.getCurrentSave();
+      const cards = E.CardCollection.get(save.characterId).data;
+      return { exp:save.stats.exp, items:save.items.jelly || 0,
+        cards:cards.owned.find(c => c.cardId === 'bash' && c.stars === 1).quantity };
+    });
+    if (fi21Replay.exp !== fi21Recovered.save.stats.exp ||
+        fi21Replay.items !== (fi21Recovered.save.items.jelly || 0) ||
+        fi21Replay.cards !== fi21Fixture.beforeCards + 1) {
+      throw new Error('FI-21: second reload replayed an already claimed reward');
+    }
+    await fi21Context.close();
+
 if (errors.length) throw new Error(errors.join('\n'));
     console.log(JSON.stringify({ results, pageErrors:errors, FI38:'pass', FI10:'pass', FI20:'pass', FI22:'pass' }, null, 2));
     console.log('PASS  character creation and selection smoke test on desktop and iPhone-sized Chromium');
