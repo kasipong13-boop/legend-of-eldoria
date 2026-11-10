@@ -84,16 +84,21 @@ test('Card acquisition module is loaded before the current Save Engine and colle
   assert.ok(scripts.indexOf('js/card-collection.js') < scripts.indexOf('js/main.js'));
 });
 
-test('Card reward settlement uses a sidecar receipt without extending Save Schema', () => {
-  assert.match(main, /CardCollection\.stageBattleReward\(currentSave\.characterId, pendingBattleReward\)/);
+test('Reward recovery uses the approved IndexedDB journal and preserves sidecar v2', () => {
+  assert.match(main, /RewardRecovery\.create\(\)/);
+  assert.match(main, /rewardRecovery\.prepare\(currentSave\.characterId, intent\)/);
+  assert.match(main, /CardCollection\.stageReward\(currentSave\.characterId, rewardId, payload\.cards\)/);
+  assert.match(main, /rewardRecovery\.transition\(/);
+  assert.match(main, /rewardRecovery\.isActive\(save\.characterId\)/);
   assert.match(main, /function recoverRewardJournal\(save\)/);
-  assert.match(main, /CardCollection\.completeReward\(save\.characterId, rewardId\)/);
-  assert.match(main, /CardCollection\.claimReward\(save\.characterId, rewardId\)/);
-  assert.match(main, /if \(!collection\.ok \|\| E\.CardCollection\.isRewardSystemActive\(save\.characterId\)\) return null/);
-  assert.match(main, /var durableReward = stagedCards\.journal/);
-  assert.match(main, /var durableIntent = stagedCards\.journal[\s\S]*?var pending = E\.Save\.withPendingReward/);
-  assert.doesNotMatch(main, /pendingReward\s*=\s*\{[^}]*cardDrops/);
+  assert.doesNotMatch(main, /CardCollection\.stageBattleReward|CardCollection\.completeReward/);
   assert.match(html, /id="screen-card-collection"/);
+  assert.ok(html.indexOf('js/card-collection.js') < html.indexOf('js/reward-recovery.js'));
+  assert.ok(html.indexOf('js/reward-recovery.js') < html.indexOf('js/main.js'));
+  const recovery = fs.readFileSync(path.join(root, 'js/reward-recovery.js'), 'utf8');
+  assert.match(recovery, /indexedDB\.open\(DB_NAME, DB_VERSION\)/);
+  assert.match(recovery, /locks\.request\('eldoria:reward:'/);
+  assert.match(recovery, /WEB_LOCKS_UNAVAILABLE/);
 });
 
 test('Card collection metadata displays rarity when assigned without inventing it', () => {
