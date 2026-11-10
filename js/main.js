@@ -206,6 +206,10 @@
     }
     var stagedCards = E.CardCollection.stageReward(save.characterId, rewardId, payload.cards);
     if (!stagedCards.ok) return null;
+    if (JSON.stringify(stagedCards.cards) !== JSON.stringify(payload.cards)) {
+      await rewardRecovery.quarantine(save.characterId, rewardId, 'SIDECAR_PAYLOAD_MISMATCH', stagedCards.cards);
+      return null;
+    }
     if (entry.status === 'prepared') {
       var stagedState = await transitionJournal(entry, 'sidecarStaged');
       if (!stagedState.ok) return null;
