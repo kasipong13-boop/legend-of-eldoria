@@ -559,6 +559,90 @@ const server = http.createServer((req, res) => {
     await fi22Context.close();
 
 
+    // FI-07: browser integration — injected Sidecar stage failure after durable Journal PREPARED.
+    // The failed stage must not advance Journal or Save; reload recovers the same reward once.
+    const fi07Context = await browser.newContext({ viewport:{ width:390, height:844 }, isMobile:true, hasTouch:true });
+    const fi07Page = await fi07Context.newPage();
+    fi07Page.on('pageerror', error => errors.push('FI-07: ' + String(error)));
+    await fi07Page.goto('http://127.0.0.1:' + port + '/', { waitUntil:'networkidle' });
+    await fi07Page.getByRole('button', { name:'Create New Character' }).click();
+    await fi07Page.locator('#screen-create.active').waitFor();
+    await fi07Page.locator('#character-name').fill('FI07 Hero');
+    await fi07Page.getByRole('button', { name:'Create Character' }).click();
+    await fi07Page.locator('#screen-world.active').waitFor();
+    const fi07Fixture = await fi07Page.evaluate(async () => {
+      const E = window.ELDORIA, save = E.GameSave.getCurrentSave();
+      const rewardId = String(save.nextRewardSeq);
+      const bytes = new Uint8Array(16); crypto.getRandomValues(bytes);
+      const encounterId = Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
+      const intent = { rewardId, encounterId, monsterId:'poring', exp:2, gold:0,
+        drops:[{ id:'jelly', name:'Poring Jelly' }],
+        cards:[{ cardId:'bash', stars:1, quantity:1 }], createdAt:new Date().toISOString() };
+      const beforeCards = E.CardCollection.get(save.characterId).data.owned.find(c => c.cardId === 'bash' && c.stars === 1).quantity;
+      const journal = E.RewardRecovery.create();
+      const result = await journal.runExclusive(save.characterId, async () => {
+        const prepared = await journal.prepare(save.characterId, intent);
+        if (!prepared.ok) return prepared;
+        const originalStage = E.CardCollection.stageReward;
+        E.CardCollection.stageReward = () => ({ ok:false, reason:'WRITE_FAILED' });
+        let failed;
+        try { failed = E.CardCollection.stageReward(save.characterId, rewardId, intent.cards); }
+        finally { E.CardCollection.stageReward = originalStage; }
+        if (failed.ok || failed.reason !== 'WRITE_FAILED') return { ok:false, reason:'STAGE_FAILURE_NOT_INJECTED' };
+        return { ok:true };
+      });
+      if (!result.ok) throw new Error('FI-07 fixture failed: ' + result.reason);
+      const beforeJournal = await journal.get(save.characterId, rewardId);
+      const beforeSidecar = E.CardCollection.get(save.characterId).data;
+      const beforeSave = E.GameSave.getCurrentSave();
+      if (!beforeJournal.ok || beforeJournal.entry.status !== 'prepared' ||
+          beforeSidecar.pendingRewards.some(r => r.rewardId === rewardId) ||
+          beforeSidecar.claimedRewardIds.includes(rewardId) ||
+          beforeSave.pendingReward !== null ||
+          beforeSave.stats.exp !== save.stats.exp ||
+          (beforeSave.items.jelly || 0) !== (save.items.jelly || 0) ||
+          beforeSidecar.owned.find(c => c.cardId === 'bash' && c.stars === 1).quantity !== beforeCards) {
+        throw new Error('FI-07: stage failure advanced Journal, Sidecar or Save');
+      }
+      return { characterId:save.characterId, rewardId, beforeExp:save.stats.exp,
+        beforeJelly:save.items.jelly || 0, beforeGold:save.gold, beforeCards };
+    });
+    await fi07Page.reload({ waitUntil:'networkidle' });
+    await fi07Page.locator('#screen-title.active').waitFor();
+    await fi07Page.getByRole('button', { name:'Continue' }).click();
+    await fi07Page.locator('#screen-select.active').waitFor();
+    await fi07Page.locator('.character-row').filter({ hasText:'FI07 Hero' }).getByRole('button', { name:'Play' }).click();
+    await fi07Page.locator('#screen-world.active').waitFor();
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const recovered = await fi07Page.evaluate(async fixture => {
+        const E = window.ELDORIA, save = E.GameSave.getCurrentSave();
+        const sidecar = E.CardCollection.get(save.characterId).data;
+        const journal = await E.RewardRecovery.create().get(save.characterId, fixture.rewardId);
+        return { save, sidecar, journal };
+      }, fi07Fixture);
+      if (recovered.save.pendingReward !== null ||
+          recovered.save.lastClaimedSeq !== Number(fi07Fixture.rewardId) ||
+          recovered.save.stats.exp !== fi07Fixture.beforeExp + 2 ||
+          (recovered.save.items.jelly || 0) !== fi07Fixture.beforeJelly + 1 ||
+          recovered.save.gold !== fi07Fixture.beforeGold ||
+          recovered.sidecar.owned.find(c => c.cardId === 'bash' && c.stars === 1).quantity !== fi07Fixture.beforeCards + 1 ||
+          recovered.sidecar.claimedRewardIds.filter(id => id === fi07Fixture.rewardId).length !== 1 ||
+          recovered.sidecar.pendingRewards.some(r => r.rewardId === fi07Fixture.rewardId) ||
+          !recovered.journal.ok || recovered.journal.entry.status !== 'completed') {
+        throw new Error('FI-07: stage failure reload did not settle exactly once (attempt ' + attempt + ')');
+      }
+      if (attempt === 0) {
+        await fi07Page.reload({ waitUntil:'networkidle' });
+        await fi07Page.locator('#screen-title.active').waitFor();
+        await fi07Page.getByRole('button', { name:'Continue' }).click();
+        await fi07Page.locator('#screen-select.active').waitFor();
+        await fi07Page.locator('.character-row').filter({ hasText:'FI07 Hero' }).getByRole('button', { name:'Play' }).click();
+        await fi07Page.locator('#screen-world.active').waitFor();
+      }
+    }
+    await fi07Context.close();
+
+
     // FI-15: crash immediately after durable Save Pending commit, before Journal savePending.
     // The reload must resume forward and settle cards/EXP/items exactly once.
     const fi15Context = await browser.newContext({ viewport:{ width:390, height:844 }, isMobile:true, hasTouch:true });
