@@ -587,11 +587,7 @@
   }
 
   function createEncounterId() {
-    var cryptoApi = window.crypto;
-    if (!cryptoApi || typeof cryptoApi.getRandomValues !== 'function') return null;
-    var bytes = new Uint8Array(16);
-    cryptoApi.getRandomValues(bytes);
-    return Array.prototype.map.call(bytes, function (value) { return value.toString(16).padStart(2, '0'); }).join('');
+    return rewardRecovery.createEncounterId();
   }
 
   function startBattle(monsterId) {
