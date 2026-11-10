@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 // End-to-end smoke test for character creation/selection and existing save flows.
+const assert = require('node:assert/strict');
 const { chromium } = require('playwright');
 const http = require('http');
 const fs = require('fs');
