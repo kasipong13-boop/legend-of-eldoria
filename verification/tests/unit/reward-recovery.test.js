@@ -250,3 +250,54 @@ test('F-02: missing marker and durable journal evidence never permits legacy fal
   assert.equal(result.activated, true);
 });
 
+
+
+test('FI-01: aborted Journal put leaves no partial record or activation marker', async () => {
+  const journal = new Map(), quarantine = new Map();
+  const stores = { journal, quarantine };
+  let abort = true;
+  const adapter = {
+    get: async (store, key) => stores[store].get(key) || null,
+    put: async (store, value) => {
+      if (store === 'journal' && abort) { abort = false; throw new Error('INJECTED_TRANSACTION_ABORT'); }
+      stores[store].set(value.key, JSON.parse(JSON.stringify(value)));
+      return value;
+    },
+    listByCharacter: async (store, id) => Array.from(stores[store].values()).filter(x => x.characterId === id)
+  };
+  const { API, markers } = boot({ adapter });
+  const failed = await locked(API, () => API.prepare(characterId, intent()));
+  assert.equal(failed.ok, false);
+  assert.equal(journal.size, 0);
+  assert.equal(markers.has('eldoria.reward.v1.active.' + characterId), false);
+  const retry = await locked(API, () => API.prepare(characterId, intent()));
+  assert.equal(retry.ok, true);
+  assert.equal(journal.size, 1);
+  assert.equal(markers.get('eldoria.reward.v1.active.' + characterId), '1');
+});
+
+test('FI-03: same reward identity cannot silently bind a different encounter', async () => {
+  const { API, records, quarantine } = boot();
+  await locked(API, async () => {
+    assert.equal((await API.prepare(characterId, intent())).ok, true);
+    const rebound = await API.prepare(characterId, intent({ encounterId: 'c'.repeat(32) }));
+    assert.equal(rebound.ok, false);
+    assert.equal(records.size, 1);
+    assert.equal(records.get(characterId + ':1').payload.encounterId, 'b'.repeat(32));
+    assert.ok(quarantine.size > 0);
+    return { ok: true };
+  });
+});
+
+test('FI-31: cross-reward encounter collision retains canonical record and conflict evidence', async () => {
+  const { API, records, quarantine } = boot();
+  await locked(API, async () => {
+    assert.equal((await API.prepare(characterId, intent())).ok, true);
+    const conflict = await API.prepare(characterId, intent({ rewardId: '2' }));
+    assert.equal(conflict.ok, false);
+    assert.equal(conflict.reason, 'ENCOUNTER_ID_REUSED');
+    assert.equal(records.has(characterId + ':2'), false);
+    assert.ok(quarantine.size >= 1);
+    return { ok: true };
+  });
+});
