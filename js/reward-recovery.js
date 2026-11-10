@@ -106,7 +106,8 @@
           typeof entry.rewardId !== 'string' || !/^[1-9][0-9]*$/.test(entry.rewardId) ||
           typeof entry.encounterId !== 'string' || !/^[0-9a-f]{32}$/.test(entry.encounterId) ||
           !entry.payload || entry.payload.encounterId !== entry.encounterId ||
-          typeof entry.payloadDigest !== 'string' || STATES.indexOf(entry.status) < 0 ||
+          typeof entry.payloadDigest !== 'string' || typeof entry.payloadCanonical !== 'string' ||
+          entry.payloadCanonical !== stable(entry.payload) || STATES.indexOf(entry.status) < 0 ||
           !entry.timestamps || !entry.timestamps.prepared) return false;
       try { return entry.payloadDigest === digest(entry.payload); } catch (error) { return false; }
     }
@@ -260,7 +261,7 @@
             var entry = {
               schemaVersion: 1, key: key, characterId: characterId, rewardId: intent.rewardId,
               encounterId: intent.encounterId, payload: payload, payloadDigest: payloadDigest,
-              status: 'prepared', createdAt: createdAt, updatedAt: createdAt,
+              payloadCanonical: stable(payload), status: 'prepared', createdAt: createdAt, updatedAt: createdAt,
               timestamps: { prepared: createdAt }
             };
             checkpoint('journal.prepare.write', { characterId: characterId, rewardId: intent.rewardId });
