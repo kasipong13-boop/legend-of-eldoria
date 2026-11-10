@@ -126,14 +126,14 @@ const server = http.createServer((req, res) => {
       for (let turn = 0; turn < 30; turn++) {
         if (await page.locator('#screen-result.active').count()) break;
         const playable = page.locator('#hand .card:not(.disabled)');
-        if (await playable.count()) { if (viewport.name === 'iphone') await playable.first().tap(); else await playable.first().click(); }
+        if (await playable.count()) await playable.first().click();
         else {
           const endTurn = page.locator('#btn-end-turn');
           if (await endTurn.isDisabled()) {
             await page.locator('#screen-result.active').waitFor({ timeout:3000 });
             break;
           }
-          if (viewport.name === 'iphone') await endTurn.tap(); else await endTurn.click();
+          await endTurn.click();
         }
         await page.waitForTimeout(80);
       }
