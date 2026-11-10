@@ -22,7 +22,7 @@ test('Return to Title persists before leaving the active game', () => {
 
 test('A pending victory reward blocks Continue when claim cannot commit', () => {
   assert.match(main, /function settlePendingReward\(save\)[\s\S]*?if \(!claim\.ok\) return null/);
-  assert.match(main, /if \(!settled\)[\s\S]*?lockGame\('A saved victory reward needs recovery/);
+  assert.match(main, /if \(!lockResult\.ok \|\| !lockResult\.save\)[\s\S]*?lockGame\('A saved victory reward needs recovery/);
 });
 
 test('All local script references resolve to packaged JavaScript files', () => {
@@ -115,13 +115,14 @@ test('A victory reward waiting for card-sidecar storage cannot be abandoned thro
 
 
 test('Retry recognizes an already-claimed Save sequence before staging another reward', () => {
-  assert.match(main, /currentSave\.lastClaimedSeq >= Number\(intent\.rewardId\)/);
-  assert.match(main, /if \(!currentSave\.pendingReward && currentSave\.lastClaimedSeq >= Number\(intent\.rewardId\)\)[\s\S]*?pendingBattleReward = null/);
+  assert.match(main, /async function retryPendingBattleReward\(\)/);
+  assert.match(main, /var recovered = await recoverRewardJournal\(currentSave\)/);
+  assert.match(main, /pendingBattleReward = null/);
 });
 
 
 test('A durable recovery block cannot be dismissed by retrying an unrelated world save', () => {
-  assert.match(main, /if \(result && result\.ok && rewardRecoveryBlocked\)[\s\S]*?recoverRewardJournal\(currentSave\)/);
+  assert.match(main, /var locked = await rewardRecovery\.runExclusive\(currentSave\.characterId[\s\S]*?recoverRewardJournal\(currentSave\)/);
   assert.match(main, /if \(pendingBattleReward \|\| rewardRecoveryBlocked\)/);
   assert.match(main, /rewardRecoveryBlocked = true/);
 });
