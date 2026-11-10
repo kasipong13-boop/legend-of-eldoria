@@ -88,6 +88,7 @@ test('one encounter identity cannot be rebound to another reward identity', asyn
   assert.equal(conflict.ok, false);
   assert.equal(conflict.reason, 'ENCOUNTER_ID_REUSED');
   assert.equal(quarantine.size, 1);
+  assert.equal((await API.get(characterId, '1')).entry.status, 'prepared');
 });
 
 test('journal records are retained after completion and quarantine', async () => {
