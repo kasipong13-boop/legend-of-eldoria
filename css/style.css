@@ -308,3 +308,25 @@ html, body {
 .inventory-row { display: flex; justify-content: space-between; gap: 12px; padding: 8px 2px; border-bottom: 1px solid rgba(255,255,255,.09); }
 .inventory-row:last-child { border-bottom: 0; }
 .inventory-empty { margin: 0; opacity: .72; }
+
+
+/* ---------- Read-only Card Collection ---------- */
+.collection-screen { background: rgba(8,16,17,.96); padding: 16px; overflow-y: auto; align-items: center; justify-content: flex-start; }
+.collection-panel { width: min(560px,100%); margin: auto 0; padding: 20px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); max-height: 100%; overflow-y: auto; }
+.collection-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+.collection-header h2 { margin: 0; font: 700 26px var(--serif); }
+.collection-kicker { margin: 0 0 4px; color: var(--gold); font-size: 10px; letter-spacing: 2px; }
+.collection-summary,.collection-source,.collection-note { color: var(--dim); font-size: 12px; line-height: 1.5; }
+.collection-source { margin: 4px 0 12px; color: var(--gold); }
+.collection-panel h3 { margin: 18px 0 8px; font: 700 17px var(--serif); }
+.collection-list { display: flex; flex-direction: column; gap: 7px; }
+.collection-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 9px; background: #101e1e; }
+.collection-row > div { min-width: 0; }
+.collection-row strong,.collection-row small { display: block; }
+.collection-row strong { font: 700 14px var(--serif); }
+.collection-row small { margin-top: 3px; color: var(--dim); font-size: 11px; }
+.collection-icon { display: inline-block; width: 28px; margin-right: 8px; font-size: 18px; vertical-align: middle; }
+.collection-quantity,.collection-state { color: var(--gold); font-weight: 700; white-space: nowrap; }
+.collection-empty { margin: 0; padding: 14px; border: 1px dashed var(--line); border-radius: 9px; color: var(--dim); font-size: 13px; line-height: 1.5; }
+.collection-note { margin: 18px 0 0; padding-top: 12px; border-top: 1px solid var(--line); }
+@media(max-width:420px) { .collection-screen { padding: 10px; } .collection-panel { padding: 15px; } .collection-header h2 { font-size: 22px; } }
