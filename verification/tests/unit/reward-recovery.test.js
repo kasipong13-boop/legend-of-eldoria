@@ -371,3 +371,22 @@ test('FI-31: collision across API sessions quarantines both identities without a
   assert.ok(evidence.entries.every(entry => entry.reason === 'ENCOUNTER_ID_REUSED'));
   assert.ok(evidence.entries.some(entry => entry.conflictingPayload && entry.conflictingPayload.encounterId === 'b'.repeat(32)));
 });
+
+
+test('FI-08: corrupted durable Journal payload fails closed without changing canonical bytes', async () => {
+  const { API, records, markers } = boot();
+  assert.equal((await locked(API, () => API.prepare(characterId, intent()))).ok, true);
+  const key = characterId + ':1';
+  const original = records.get(key);
+  const altered = JSON.parse(JSON.stringify(original));
+  altered.payload.exp = original.payload.exp + 1;
+  records.set(key, altered);
+  const bytesBefore = JSON.stringify(records.get(key));
+  const direct = await API.get(characterId, '1');
+  assert.equal(direct.ok, false);
+  assert.equal(direct.reason, 'JOURNAL_CORRUPT');
+  const listing = await API.list(characterId);
+  assert.equal(listing.ok, false);
+  assert.equal(JSON.stringify(records.get(key)), bytesBefore, 'read failure must not silently repair a corrupt record');
+  assert.equal(markers.get('eldoria.reward.v1.active.' + characterId), '1', 'activation must remain fail closed');
+});
