@@ -272,3 +272,54 @@ test('FI-24: repeated reload and claim retains exactly one durable receipt and c
     durable = next.values.get(key);
   }
 });
+
+
+test('FI-07: sidecar stage write failure leaves durable state unchanged and retry stages once', () => {
+  const { E, storage, values } = boot();
+  const rewardId = 'fi07-stage-failure';
+  const key = E.CardCollection.keyFor(characterId);
+  const before = JSON.stringify(E.CardCollection.get(characterId).data);
+  const originalSetItem = storage.setItem;
+  storage.setItem = () => { throw new Error('INJECTED_STAGE_WRITE_FAILURE'); };
+  const failed = E.CardCollection.stageReward(characterId, rewardId, [{ cardId: 'strike', stars: 1, quantity: 1 }]);
+  assert.equal(failed.ok, false);
+  assert.equal(failed.reason, 'WRITE_FAILED');
+  assert.equal(values.has(key), false, 'failed stage must not persist a partial sidecar');
+  assert.equal(JSON.stringify(E.CardCollection.get(characterId).data), before);
+  storage.setItem = originalSetItem;
+  const staged = E.CardCollection.stageReward(characterId, rewardId, [{ cardId: 'strike', stars: 1, quantity: 1 }]);
+  assert.equal(staged.ok, true);
+  const retry = E.CardCollection.stageReward(characterId, rewardId, [{ cardId: 'guard', stars: 1, quantity: 1 }]);
+  assert.equal(retry.ok, true);
+  assert.equal(retry.alreadyStaged, true);
+  const durable = E.CardCollection.get(characterId).data;
+  assert.equal(durable.pendingRewards.filter(entry => entry.rewardId === rewardId).length, 1);
+  assert.equal(durable.claimedRewardIds.includes(rewardId), false);
+  assert.equal(durable.owned.find(card => card.cardId === 'strike' && card.stars === 1).quantity, 4);
+});
+
+test('FI-25: claim write failure survives reload with pending stage and no receipt, then claims once', () => {
+  const rewardId = 'fi25-claim-failure';
+  const initial = boot();
+  assert.equal(initial.E.CardCollection.stageReward(characterId, rewardId, [{ cardId: 'strike', stars: 1, quantity: 1 }]).ok, true);
+  const key = initial.E.CardCollection.keyFor(characterId);
+  const stagedBytes = initial.values.get(key);
+  const failing = boot({ failWrites: true });
+  failing.values.set(key, stagedBytes);
+  const failed = failing.E.CardCollection.claimReward(characterId, rewardId);
+  assert.equal(failed.ok, false);
+  assert.equal(failed.reason, 'WRITE_FAILED');
+  assert.equal(failing.values.get(key), stagedBytes);
+  const reload = boot();
+  reload.values.set(key, failing.values.get(key));
+  const pending = reload.E.CardCollection.get(characterId).data;
+  assert.equal(pending.pendingRewards.filter(entry => entry.rewardId === rewardId).length, 1);
+  assert.equal(pending.claimedRewardIds.includes(rewardId), false);
+  assert.equal(pending.owned.find(card => card.cardId === 'strike' && card.stars === 1).quantity, 4);
+  assert.equal(reload.E.CardCollection.claimReward(characterId, rewardId).ok, true);
+  assert.equal(reload.E.CardCollection.claimReward(characterId, rewardId).alreadyClaimed, true);
+  const final = reload.E.CardCollection.get(characterId).data;
+  assert.equal(final.pendingRewards.some(entry => entry.rewardId === rewardId), false);
+  assert.equal(final.claimedRewardIds.filter(id => id === rewardId).length, 1);
+  assert.equal(final.owned.find(card => card.cardId === 'strike' && card.stars === 1).quantity, 5);
+});
