@@ -48,7 +48,7 @@ const server = http.createServer((req, res) => {
       });
       await page.locator('#btn-card-collection').click();
       await page.locator('#screen-card-collection.active').waitFor();
-      assert.match(await page.locator('#collection-summary').textContent(), /10 owned card copies · 5 card variants · 1 deck presets/);
+      assert.match(await page.locator('#collection-summary').textContent(), /10 owned card copies · 5 card variants · 1 deck preset/);
       assert.match(await page.locator('#collection-owned').textContent(), /Strike/);
       assert.match(await page.locator('#collection-presets').textContent(), /Starter Deck/);
       const sidecarSaved = await page.evaluate(() => {
