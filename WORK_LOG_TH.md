@@ -113,3 +113,35 @@ Validation — PR #30 head 5a17d75
 - State: Open / Draft / Mergeable / Not merged
 - Base: main; ahead 21 commits, behind 0
 - รอ Final Review และการอนุมัติ Merge จาก Game Owner
+
+
+
+PR #30 — TDR-030 Remediation (10 พฤศจิกายน 2026)
+--------------------------------------------------
+การตัดสินใจจาก Game Owner
+- Companion Journal Storage: IndexedDB (ตัวเลือก B)
+- Multi-tab Lock: Web Locks API + Fail-closed (ตัวเลือก A)
+- PR #30 ยังคง Draft และห้าม Merge
+
+การปรับสถาปัตยกรรม
+- เพิ่ม js/reward-recovery.js สำหรับ IndexedDB Journal แยกจาก Card Collection Sidecar และ Character Save
+- คืน Card Collection Sidecar เป็น schema v2; Journal payload/state ไม่ถูกเก็บใน Sidecar
+- เพิ่ม activation marker แยกใน localStorage เพื่อให้การสูญหายของ IndexedDB ไม่ถูกตีความเป็น Legacy Success; marker ไม่มี Reward Payload
+- ใช้ Web Locks exclusive ต่อ Character สำหรับการต่อสู้/Reward transition; หากไม่มี Lock, Lock ไม่ว่าง หรือเกิดข้อผิดพลาด ให้ Fail-closed
+- แยก Encounter Identity จาก Reward ID และยึด immutable payload ของ Journal record แรก
+- เพิ่ม Quarantine evidence สำหรับ identity/payload conflict, sidecar mismatch และ sequence mismatch
+- Reward Recovery เป็น forward-only; เก็บ Journal และ Quarantine evidence ไม่ลบระหว่าง settlement
+- ปรับ Reward Flow เป็น asynchronous และใช้ Save API เดิมโดยไม่แก้ js/save.js
+
+Validation ที่ทำ
+- เพิ่ม Unit Tests สำหรับ lock unavailable/busy, IndexedDB unavailable, reward identity collision, payload conflict, legal state transition และ quarantine retention
+- ปรับ Browser Smoke ให้ทดสอบ IndexedDB reload recovery และ Web Locks contention ระหว่างสอง Tab
+- ปรับ UI contract และ Gold invariant tests ให้สอดคล้องกับสถาปัตยกรรมใหม่
+- ผล CI ของ Head ล่าสุดต้องรอ Workflow จบก่อนสรุป; FI-01..FI-38 ยังไม่ถือว่าผ่านครบจนกว่าจะมีผลทดสอบจริงรายกรณี
+
+Compatibility
+- js/save.js ยังคง SHA 41717dcf41cfd9b967d8e57843a456c92bbf73d5
+- Character Save Schema v1 คงเดิม
+- Card Collection Sidecar v2 คงเดิม
+- Gold Economy ยังคง ON HOLD
+- ไม่มีการ Merge หรือ Release
