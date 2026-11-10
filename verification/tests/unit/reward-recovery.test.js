@@ -97,6 +97,7 @@ test('Journal prepares an immutable payload and permits only forward state trans
   assert.equal(list.entries.length, 1);
   assert.equal(list.entries[0].status, 'savePending');
   assert.equal(typeof list.entries[0].payloadDigest, 'string');
+  assert.equal(list.entries[0].payloadCanonical.length > 0, true);
 });
 
 test('same reward identity with a different payload is quarantined without invalidating the canonical intent', async () => {
