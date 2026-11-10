@@ -46,3 +46,11 @@
 - ผลทดสอบ: Unit 245, Integration/UI 30, World/UI 14, Monster Spawn 6 ผ่าน; 0 failures; Mutation 26/26 caught; regression 350 seeded battles คงเดิม
 - Browser smoke ผ่าน Desktop และ iPhone-sized Chromium พร้อม real localStorage reload; ไม่มี page errors
 - PR #30 ยังเป็น Draft และยังไม่ Merge; ต้องผ่าน Final Review และได้รับอนุมัติ Merge จาก Game Owner ก่อน
+
+
+## PR #30 — Reward Recovery Remediation
+- อนุมัติ TDR-030: IndexedDB Companion Journal + Web Locks API (Fail-closed)
+- ย้าย Durable Reward Journal ออกจาก Card Collection Sidecar; คง Sidecar schema v2 และ Character Save schema v1
+- เพิ่ม Encounter Identity, immutable reward payload, forward-only Journal transitions และ Quarantine
+- เพิ่ม multi-tab reward serialization และ reload recovery test coverage
+- สถานะ: implementation / verification in progress; PR remains Draft and unmerged
