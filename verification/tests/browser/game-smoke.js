@@ -354,8 +354,40 @@ const server = http.createServer((req, res) => {
     if (!lockMessage || !/recovery/i.test(lockMessage)) throw new Error('FI-38: missing Journal did not block gameplay');
     await fiContext.close();
 
-  if (errors.length) throw new Error(errors.join('\n'));
-    console.log(JSON.stringify({ results, pageErrors:errors, FI38:'pass' }, null, 2));
+      // FI-10: Sidecar pending reward without a matching IndexedDB Journal is orphaned.
+    const fi10Context = await browser.newContext({ viewport:{ width:390, height:844 }, isMobile:true, hasTouch:true });
+    const fi10Page = await fi10Context.newPage();
+    fi10Page.on('pageerror', error => errors.push('FI-10: ' + String(error)));
+    await fi10Page.goto('http://127.0.0.1:' + port + '/', { waitUntil:'networkidle' });
+    await fi10Page.getByRole('button', { name:'Create New Character' }).click();
+    await fi10Page.locator('#screen-create.active').waitFor();
+    await fi10Page.locator('#character-name').fill('FI10 Hero');
+    await fi10Page.getByRole('button', { name:'Create Character' }).click();
+    await fi10Page.locator('#screen-world.active').waitFor();
+    const fi10CharacterId = await fi10Page.evaluate(() => {
+      const save = window.ELDORIA.GameSave.getCurrentSave();
+      const staged = window.ELDORIA.CardCollection.stageReward(save.characterId, 'orphan-fi10',
+        [{ cardId:'bash', stars:1, quantity:1 }]);
+      if (!staged.ok) throw new Error('FI-10 setup failed: ' + staged.reason);
+      return save.characterId;
+    });
+    await fi10Page.reload({ waitUntil:'networkidle' });
+    await fi10Page.locator('#screen-title.active').waitFor();
+    await fi10Page.getByRole('button', { name:'Continue' }).click();
+    await fi10Page.locator('#screen-select.active').waitFor();
+    await fi10Page.locator('.character-row').filter({ hasText:'FI10 Hero' }).getByRole('button', { name:'Play' }).click();
+    await fi10Page.locator('#screen-world.active').waitFor();
+    const fi10Evidence = await fi10Page.evaluate(async id =>
+      window.ELDORIA.RewardRecovery.create().listQuarantine(id), fi10CharacterId);
+    if (!fi10Evidence.ok || !fi10Evidence.entries.some(entry => entry.reason === 'ORPHAN_SIDECAR_REWARD')) {
+      throw new Error('FI-10: orphan Sidecar reward was not quarantined');
+    }
+    const fi10LockMessage = await fi10Page.locator('#save-lock-message').textContent();
+    if (!fi10LockMessage || !/recovery/i.test(fi10LockMessage)) throw new Error('FI-10: orphan Sidecar reward did not block gameplay');
+    await fi10Context.close();
+
+if (errors.length) throw new Error(errors.join('\n'));
+    console.log(JSON.stringify({ results, pageErrors:errors, FI38:'pass', FI10:'pass' }, null, 2));
     console.log('PASS  character creation and selection smoke test on desktop and iPhone-sized Chromium');
   } finally {
     await browser.close();
