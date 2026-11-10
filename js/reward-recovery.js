@@ -61,6 +61,17 @@
       try { return !markerStorage || markerStorage.getItem(activeMarkerKey(characterId)) === '1'; }
       catch (error) { return true; }
     }
+    // A durable Journal is evidence of activation even if localStorage lost its marker.
+    // Refuse to proceed when the marker cannot be restored: losing IndexedDB later
+    // must never silently downgrade a journal-backed reward to a legacy reward.
+    function reconcileActivation(characterId, entries) {
+      if (!requireLock(characterId)) return { ok: false, reason: 'REWARD_LOCK_REQUIRED' };
+      if (!Array.isArray(entries)) return { ok: false, reason: 'JOURNAL_EVIDENCE_UNAVAILABLE' };
+      if (entries.length && !ensureActiveMarker(characterId)) {
+        return { ok: false, reason: 'REWARD_MARKER_WRITE_FAILED' };
+      }
+      return { ok: true, activated: entries.length > 0 || isActive(characterId) };
+    }
     function digest(payload) {
       if (!E.Save || typeof E.Save.checksumOf !== 'function') throw new Error('SAVE_CHECKSUM_UNAVAILABLE');
       return E.Save.checksumOf(payload);
@@ -344,7 +355,7 @@
     return {
       runExclusive: runExclusive, prepare: prepare, get: get, list: list,
       transition: transition, quarantine: quarantine, listQuarantine: listQuarantine,
-      isActive: isActive, createEncounterId: createEncounterId, checkpoint: checkpoint,
+      isActive: isActive, reconcileActivation: reconcileActivation, createEncounterId: createEncounterId, checkpoint: checkpoint,
       databaseName: DB_NAME, databaseVersion: DB_VERSION
     };
   }
