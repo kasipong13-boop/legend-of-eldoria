@@ -145,6 +145,8 @@
         };
         return db.get(JOURNAL_STORE, key).then(function (existing) {
           if (existing) {
+            if (existing.status === 'quarantined') return { ok: false, reason: 'REWARD_QUARANTINED' };
+            if (existing.status === 'completed') return { ok: false, reason: 'REWARD_ALREADY_COMPLETED' };
             if (stable(existing.payload) !== stable(payload)) {
               return quarantineRecord(characterId, key, existing, 'REWARD_ID_PAYLOAD_CONFLICT', payload)
                 .then(function () { return { ok: false, reason: 'REWARD_ID_PAYLOAD_CONFLICT', quarantined: true }; });
