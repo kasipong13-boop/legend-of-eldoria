@@ -909,6 +909,46 @@ const server = http.createServer((req, res) => {
         fi21Replay.cards !== fi21Fixture.beforeCards + 1) {
       throw new Error('FI-21: second reload replayed an already claimed reward');
     }
+
+    // FI-26: retry a settled journal-backed reward repeatedly without reapplying deltas.
+    // Use the same durable FI-21 fixture after its first recovery, then exercise
+    // the existing Sidecar claim retry and the Journal recovery path across reloads.
+    const fi26First = await fi21Page.evaluate(async fixture => {
+      const E = window.ELDORIA, save = E.GameSave.getCurrentSave();
+      const collection = E.CardCollection.get(save.characterId);
+      const claim = E.CardCollection.claimReward(save.characterId, fixture.rewardId);
+      const entry = await E.RewardRecovery.create().get(save.characterId, fixture.rewardId);
+      return { claim, entry:entry.entry, save, collection:collection.data };
+    }, fi21Fixture);
+    if (!fi26First.claim.ok || !fi26First.claim.alreadyClaimed ||
+        fi26First.entry.status !== 'completed' ||
+        fi26First.save.pendingReward !== null) {
+      throw new Error('FI-26: retry of completed reward did not preserve durable receipt');
+    }
+    for (let attempt = 0; attempt < 3; attempt++) {
+      await fi21Page.reload({ waitUntil:'networkidle' });
+      await fi21Page.getByRole('button', { name:'Continue' }).click();
+      await fi21Page.locator('#screen-select.active').waitFor();
+      await fi21Page.locator('.character-row').filter({ hasText:'FI21 Hero' }).getByRole('button', { name:'Play' }).click();
+      await fi21Page.locator('#screen-world.active').waitFor();
+      const evidence = await fi21Page.evaluate(async fixture => {
+        const E = window.ELDORIA, save = E.GameSave.getCurrentSave();
+        const claim = E.CardCollection.claimReward(save.characterId, fixture.rewardId);
+        const cards = E.CardCollection.get(save.characterId).data;
+        const entry = await E.RewardRecovery.create().get(save.characterId, fixture.rewardId);
+        return { save, claim, cards, entry:entry.entry };
+      }, fi21Fixture);
+      if (!evidence.claim.ok || !evidence.claim.alreadyClaimed ||
+          evidence.save.pendingReward !== null ||
+          evidence.save.lastClaimedSeq !== Number(fi21Fixture.rewardId) ||
+          evidence.save.stats.exp !== fi21Fixture.beforeExp + 2 ||
+          (evidence.save.items.jelly || 0) !== fi21Fixture.beforeItems + 1 ||
+          evidence.cards.owned.find(c => c.cardId === 'bash' && c.stars === 1).quantity !== fi21Fixture.beforeCards + 1 ||
+          evidence.cards.claimedRewardIds.filter(id => id === fi21Fixture.rewardId).length !== 1 ||
+          !evidence.entry || evidence.entry.status !== 'completed') {
+        throw new Error('FI-26: repeated claim/reload replayed EXP, items or cards (attempt ' + attempt + ')');
+      }
+    }
     await fi21Context.close();
 
 if (errors.length) throw new Error(errors.join('\n'));
