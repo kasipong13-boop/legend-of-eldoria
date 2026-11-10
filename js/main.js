@@ -357,7 +357,12 @@
     if (entries.some(function (entry) { return !validJournalEntry(entry, save.characterId); })) return null;
     var incomplete = entries.filter(function (entry) { return entry.status !== 'completed' && entry.status !== 'quarantined'; });
     if (entries.some(function (entry) { return entry.status === 'quarantined'; })) return null;
-    if (!entries.length && rewardRecovery.isActive(save.characterId)) return null;
+    if (!entries.length && rewardRecovery.isActive(save.characterId)) {
+      await rewardRecovery.quarantine(save.characterId,
+        save.pendingReward ? String(save.pendingReward.seq) : 'journal-missing',
+        'ACTIVATED_JOURNAL_MISSING', save.pendingReward || null);
+      return null;
+    }
     var collection = E.CardCollection.get(save.characterId);
     if (!collection.ok) return null;
     var sidecarPending = collection.data.pendingRewards || [];
