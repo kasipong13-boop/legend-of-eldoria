@@ -107,3 +107,20 @@ test('storage failures are reported without changing the character save', () => 
   assert.equal(values.size, 0);
   assert.equal(E.CardCollection.get('invalid').reason, 'BAD_CHARACTER_ID');
 });
+
+test('Card Collection UI is registered without modifying the transactional Save Engine', () => {
+  const main = fs.readFileSync(path.join(root, 'js', 'main.js'), 'utf8');
+  const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+  const save = fs.readFileSync(path.join(root, 'js', 'save.js'), 'utf8');
+  assert.match(main, /'screen-card-collection'/);
+  assert.match(main, /function openCardCollection\(\)[\s\S]*?E\.World\.pause\(\)[\s\S]*?show\('screen-card-collection'\)/);
+  assert.match(main, /function closeCardCollection\(\)[\s\S]*?E\.World\.resume\(\)/);
+  assert.match(main, /E\.CardCollection\.get\(currentSave\.characterId\)/);
+  assert.match(html, /id="btn-card-collection"/);
+  assert.match(html, /id="screen-card-collection"/);
+  assert.ok(html.indexOf('js/save.js') < html.indexOf('js/card-collection.js'));
+  assert.ok(html.indexOf('js/card-collection.js') < html.indexOf('js/main.js'));
+  assert.match(save, /var SCHEMA_VERSION = 1;/);
+  assert.match(save, /var SAVE_KEYS = \['schemaVersion'/);
+  assert.doesNotMatch(save, /CardCollection|deckCollection|deckPresets/);
+});
