@@ -137,6 +137,9 @@ test('completed and quarantined Journal records are retained', async () => {
     for (const state of ['sidecarStaged', 'savePending', 'cardsClaimed', 'saveClaimed', 'completed']) {
       assert.equal((await API.transition(characterId, '1', state)).ok, true);
     }
+    const replay = await API.prepare(characterId, intent());
+    assert.equal(replay.ok, false);
+    assert.equal(replay.reason, 'REWARD_ALREADY_COMPLETED');
     return { ok: true };
   });
   assert.equal(records.size, 1);
