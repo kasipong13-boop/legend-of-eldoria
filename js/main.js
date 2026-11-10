@@ -342,7 +342,17 @@
   async function recoverRewardJournal(save) {
     if (!save) return null;
     var listed = await rewardRecovery.list(save.characterId);
-    if (!listed.ok) return null;
+    if (!listed.ok) {
+      if (Array.isArray(listed.entries)) {
+        for (var invalidIndex = 0; invalidIndex < listed.entries.length; invalidIndex++) {
+          var invalidEntry = listed.entries[invalidIndex];
+          if (invalidEntry && typeof invalidEntry.rewardId === 'string' && /^[1-9][0-9]*$/.test(invalidEntry.rewardId)) {
+            await rewardRecovery.quarantine(save.characterId, invalidEntry.rewardId, 'JOURNAL_RECORD_CORRUPT');
+          }
+        }
+      }
+      return null;
+    }
     var entries = listed.entries;
     if (entries.some(function (entry) { return !validJournalEntry(entry, save.characterId); })) return null;
     var incomplete = entries.filter(function (entry) { return entry.status !== 'completed' && entry.status !== 'quarantined'; });
