@@ -7,13 +7,15 @@ const vm = require('node:vm');
 const root = path.resolve(__dirname, '../../..');
 
 function boot(options) {
-  const values = new Map();
+  const values = options && options.values ? options.values : new Map();
+  let writeCount = 0;
   const storage = {
     get length() { return values.size; },
     key(index) { return Array.from(values.keys())[index] || null; },
     getItem(key) { return values.has(key) ? values.get(key) : null; },
     setItem(key, value) {
-      if (options && options.failWrites) throw new Error('storage unavailable');
+      writeCount++;
+      if (options && (options.failWrites || options.failWriteAt === writeCount)) throw new Error('storage unavailable');
       values.set(String(key), String(value));
     },
     removeItem(key) { values.delete(key); }
@@ -170,10 +172,10 @@ test('legacy sidecar schema v1 is readable and upgrades only when a reward is wr
   values.set(E.CardCollection.keyFor(characterId), JSON.stringify(legacy));
   const loaded = E.CardCollection.get(characterId);
   assert.equal(loaded.ok, true);
-  assert.equal(loaded.source, 'legacy');
+  assert.equal(loaded.source, 'legacy-v1');
   assert.equal(values.get(E.CardCollection.keyFor(characterId)), JSON.stringify(legacy), 'read must not mutate old sidecar');
   assert.equal(E.CardCollection.stageReward(characterId, 'reward-legacy', []).ok, true);
-  assert.equal(E.CardCollection.get(characterId).data.schemaVersion, 2);
+  assert.equal(E.CardCollection.get(characterId).data.schemaVersion, 3);
 });
 
 test('sidecar write failure prevents card reward claim and preserves staged reward for retry', () => {
@@ -182,4 +184,179 @@ test('sidecar write failure prevents card reward claim and preserves staged rewa
   assert.equal(result.ok, false);
   assert.equal(result.reason, 'WRITE_FAILED');
   assert.equal(values.size, 0);
+});
+
+
+test('sidecar schema v2 migrates read-only to v3 with an empty durable journal', () => {
+  const { E, values } = boot();
+  const starter = E.CardCollection.get(characterId).data;
+  const previous = {
+    schemaVersion: 2, characterId, owned: starter.owned, presets: starter.presets,
+    activePresetId: 'starter', pendingRewards: [], claimedRewardIds: []
+  };
+  previous.checksum = E.Save.checksumOf(previous);
+  values.set(E.CardCollection.keyFor(characterId), JSON.stringify(previous));
+  const loaded = E.CardCollection.get(characterId);
+  assert.equal(loaded.ok, true);
+  assert.equal(loaded.source, 'legacy-v2');
+  assert.equal(loaded.data.schemaVersion, 3);
+  assert.deepEqual(JSON.parse(JSON.stringify(loaded.data.rewardJournal)), []);
+  assert.equal(values.get(E.CardCollection.keyFor(characterId)), JSON.stringify(previous), 'migration must remain read-only');
+});
+
+test('battle reward journal survives a fresh runtime and retains the complete reward intent', () => {
+  const first = boot();
+  const intent = {
+    rewardId: '1', monsterId: 'poring',
+    reward: { exp: 17, gold: 0, drops: [{ id: 'jelly', name: 'Poring Jelly' }] },
+    cards: [{ cardId: 'bash', stars: 1, quantity: 1 }],
+    createdAt: '2026-11-10T00:00:00.000Z'
+  };
+  const staged = first.E.CardCollection.stageBattleReward(characterId, intent);
+  assert.equal(staged.ok, true);
+  assert.equal(first.E.CardCollection.isRewardSystemActive(characterId), true);
+  const second = boot({ values: first.values });
+  const journal = second.E.CardCollection.getRewardJournal(characterId);
+  assert.equal(journal.ok, true);
+  assert.equal(journal.entries.length, 1);
+  assert.deepEqual(JSON.parse(JSON.stringify(journal.entries[0])), {
+    rewardId: '1', monsterId: 'poring', exp: 17, gold: 0,
+    drops: [{ id: 'jelly', name: 'Poring Jelly' }],
+    cards: [{ cardId: 'bash', stars: 1, quantity: 1 }],
+    createdAt: '2026-11-10T00:00:00.000Z', status: 'staged'
+  });
+  const claimed = second.E.CardCollection.claimReward(characterId, '1');
+  assert.equal(claimed.ok, true);
+  assert.equal(second.E.CardCollection.getRewardJournal(characterId).entries[0].status, 'cardsClaimed');
+  assert.equal(second.E.CardCollection.completeReward(characterId, '1').ok, true);
+  assert.equal(second.E.CardCollection.getRewardJournal(characterId).entries[0].status, 'completed');
+  assert.equal(second.E.CardCollection.claimReward(characterId, '1').alreadyClaimed, true);
+});
+
+test('corrupt primary sidecar recovers from its verified backup without resetting data', () => {
+  const { E, values } = boot();
+  const data = E.CardCollection.get(characterId).data;
+  assert.equal(E.CardCollection.save(characterId, data).ok, true);
+  values.set(E.CardCollection.keyFor(characterId), '{corrupt-primary');
+  const recovered = E.CardCollection.get(characterId);
+  assert.equal(recovered.ok, true);
+  assert.equal(recovered.source, 'backup');
+  assert.equal(recovered.recovered, true);
+  assert.equal(recovered.data.owned.reduce((sum, item) => sum + item.quantity, 0), E.STARTER_DECK.length);
+});
+
+test('activated reward sidecar cannot silently fall back to starter data if both copies disappear', () => {
+  const { E, values } = boot();
+  const staged = E.CardCollection.stageBattleReward(characterId, {
+    rewardId: '1', monsterId: 'poring', reward: { exp: 1, gold: 0, drops: [] },
+    cards: [], createdAt: '2026-11-10T00:00:00.000Z'
+  });
+  assert.equal(staged.ok, true);
+  values.delete(E.CardCollection.keyFor(characterId));
+  values.delete(E.CardCollection.backupKeyFor(characterId));
+  const missing = E.CardCollection.get(characterId);
+  assert.equal(missing.ok, false);
+  assert.equal(missing.reason, 'ACTIVE_SIDECAR_MISSING');
+});
+
+test('duplicate sequence retry reuses the first durable battle reward payload', () => {
+  const { E } = boot();
+  const intent = {
+    rewardId: '1', monsterId: 'poring',
+    reward: { exp: 17, gold: 0, drops: [] }, cards: [],
+    createdAt: '2026-11-10T00:00:00.000Z'
+  };
+  assert.equal(E.CardCollection.stageBattleReward(characterId, intent).ok, true);
+  const retry = E.CardCollection.stageBattleReward(characterId, {
+    rewardId: '1', monsterId: 'wolf',
+    reward: { exp: 99, gold: 0, drops: [] }, cards: [],
+    createdAt: '2026-11-10T00:00:01.000Z'
+  });
+  assert.equal(retry.ok, true);
+  assert.equal(retry.alreadyStaged, true);
+  assert.equal(retry.journal.monsterId, 'poring');
+  assert.equal(retry.journal.exp, 17);
+});
+
+
+test('sidecar revision selection recovers a newer backup after a crash before primary replacement', () => {
+  const { E, values } = boot();
+  const starter = E.CardCollection.get(characterId).data;
+  assert.equal(E.CardCollection.save(characterId, starter).ok, true);
+  const oldPrimary = values.get(E.CardCollection.keyFor(characterId));
+  const reward = E.CardCollection.stageBattleReward(characterId, {
+    rewardId: '1', monsterId: 'poring', reward: { exp: 5, gold: 0, drops: [] },
+    cards: [{ cardId: 'bash', stars: 1, quantity: 1 }], createdAt: '2026-11-10T00:00:00.000Z'
+  });
+  assert.equal(reward.ok, true);
+  // Simulate interruption after the new backup revision was written but before primary caught up.
+  values.set(E.CardCollection.keyFor(characterId), oldPrimary);
+  const recovered = E.CardCollection.getRewardJournal(characterId);
+  assert.equal(recovered.ok, true);
+  assert.equal(recovered.source, 'backup');
+  assert.equal(recovered.entries.length, 1);
+  assert.equal(recovered.entries[0].rewardId, '1');
+});
+
+
+test('two runtime instances sharing browser storage cannot double-claim the same reward', () => {
+  const first = boot();
+  const second = boot({ values: first.values });
+  const intent = {
+    rewardId: '1', monsterId: 'poring', reward: { exp: 3, gold: 0, drops: [] },
+    cards: [{ cardId: 'bash', stars: 1, quantity: 1 }], createdAt: '2026-11-10T00:00:00.000Z'
+  };
+  assert.equal(first.E.CardCollection.stageBattleReward(characterId, intent).ok, true);
+  assert.equal(second.E.CardCollection.stageBattleReward(characterId, intent).alreadyStaged, true);
+  assert.equal(first.E.CardCollection.claimReward(characterId, '1').ok, true);
+  assert.equal(second.E.CardCollection.claimReward(characterId, '1').alreadyClaimed, true);
+  const owned = second.E.CardCollection.get(characterId).data.owned.find(card => card.cardId === 'bash' && card.stars === 1);
+  assert.equal(owned.quantity, 2);
+});
+
+
+test('stale sidecar revisions are rejected instead of overwriting another tab update', () => {
+  const first = boot();
+  const second = boot({ values: first.values });
+  const firstView = first.E.CardCollection.get(characterId).data;
+  const secondView = second.E.CardCollection.get(characterId).data;
+  const firstEdit = JSON.parse(JSON.stringify(firstView));
+  firstEdit.owned.find(card => card.cardId === 'strike' && card.stars === 1).quantity += 1;
+  assert.equal(first.E.CardCollection.save(characterId, firstEdit).ok, true);
+  const staleEdit = JSON.parse(JSON.stringify(secondView));
+  staleEdit.owned.find(card => card.cardId === 'strike' && card.stars === 1).quantity += 2;
+  const rejected = second.E.CardCollection.save(characterId, staleEdit);
+  assert.equal(rejected.ok, false);
+  assert.equal(rejected.reason, 'STALE_SIDECAR_WRITE');
+  const finalOwned = first.E.CardCollection.get(characterId).data.owned.find(card => card.cardId === 'strike' && card.stars === 1);
+  assert.equal(finalOwned.quantity, firstView.owned.find(card => card.cardId === 'strike' && card.stars === 1).quantity + 1);
+});
+
+
+test('backup-first journal write remains recoverable when primary replacement throws', () => {
+  const { E } = boot({ failWriteAt: 2 });
+  const staged = E.CardCollection.stageBattleReward(characterId, {
+    rewardId: '1', monsterId: 'poring', reward: { exp: 4, gold: 0, drops: [] },
+    cards: [{ cardId: 'bash', stars: 1, quantity: 1 }], createdAt: '2026-11-10T00:00:00.000Z'
+  });
+  assert.equal(staged.ok, true);
+  assert.equal(staged.degraded, true);
+  const recovered = E.CardCollection.getRewardJournal(characterId);
+  assert.equal(recovered.ok, true);
+  assert.equal(recovered.source, 'backup');
+  assert.equal(recovered.entries[0].rewardId, '1');
+});
+
+test('same-revision sidecar copies with different checksums fail closed', () => {
+  const { E, values } = boot();
+  const data = E.CardCollection.get(characterId).data;
+  assert.equal(E.CardCollection.save(characterId, data).ok, true);
+  const primary = JSON.parse(values.get(E.CardCollection.keyFor(characterId)));
+  const conflicting = JSON.parse(JSON.stringify(primary));
+  conflicting.owned.find(card => card.cardId === 'strike' && card.stars === 1).quantity += 1;
+  conflicting.checksum = E.Save.checksumOf(conflicting);
+  values.set(E.CardCollection.backupKeyFor(characterId), JSON.stringify(conflicting));
+  const result = E.CardCollection.get(characterId);
+  assert.equal(result.ok, false);
+  assert.equal(result.reason, 'SIDECAR_REVISION_CONFLICT');
 });
