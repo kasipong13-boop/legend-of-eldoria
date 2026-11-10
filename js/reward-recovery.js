@@ -33,8 +33,13 @@
       /^[1-9][0-9]*$/.test(intent.rewardId) && typeof intent.encounterId === 'string' &&
       /^[0-9a-f]{32}$/.test(intent.encounterId) && typeof intent.monsterId === 'string' &&
       !!intent.monsterId && Number.isInteger(intent.exp) && intent.exp >= 0 &&
-      intent.gold === 0 && Array.isArray(intent.drops) && Array.isArray(intent.cards) &&
-      typeof intent.createdAt === 'string' && !!intent.createdAt;
+      intent.gold === 0 && Array.isArray(intent.drops) && intent.drops.every(function (drop) {
+        return drop && typeof drop.id === 'string' && !!drop.id && typeof drop.name === 'string' && !!drop.name;
+      }) && Array.isArray(intent.cards) && intent.cards.every(function (card) {
+        return card && typeof card.cardId === 'string' && !!card.cardId &&
+          Number.isInteger(card.stars) && card.stars >= 1 && card.stars <= 3 &&
+          Number.isInteger(card.quantity) && card.quantity >= 1 && card.quantity <= 1000000;
+      }) && typeof intent.createdAt === 'string' && !!intent.createdAt;
   }
 
   function create(options) {
