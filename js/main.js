@@ -14,6 +14,7 @@
   var saveLocked = false;
   var pendingSaveTx = null;
   var pendingBattleReward = null;
+  var rewardRecoveryBlocked = false;
   var screens = ['screen-title', 'screen-select', 'screen-create', 'screen-world', 'screen-card-collection', 'screen-battle', 'screen-result'];
   var characterCreationReturnScreen = 'screen-title';
 
@@ -88,6 +89,11 @@
       $('app').appendChild(overlay);
       $('btn-save-retry').addEventListener('click', function () {
         var result = persist('manual-retry');
+        if (result && result.ok && rewardRecoveryBlocked) {
+          var recoveredReward = recoverRewardJournal(currentSave);
+          if (!recoveredReward) result = { ok: false };
+          else { currentSave = recoveredReward; rewardRecoveryBlocked = false; syncPlayerFromSave(currentSave); }
+        }
         if (result && result.ok && pendingBattleReward) {
           if (!retryPendingBattleReward()) result = { ok: false };
         } else if (result && result.ok && currentSave && currentSave.pendingReward) {
@@ -104,8 +110,8 @@
       });
       $('btn-save-title').addEventListener('click', function () {
         // Do not abandon a victory reward that exists only as an in-memory retry intent.
-        if (pendingBattleReward) {
-          $('save-lock-message').textContent = 'A victory reward is still waiting to be saved. Retry after browser storage is available; returning to the title is temporarily disabled.';
+        if (pendingBattleReward || rewardRecoveryBlocked) {
+          $('save-lock-message').textContent = 'A victory reward is still waiting for recovery. Retry after browser storage is available; returning to the title is temporarily disabled.';
           return;
         }
         // Leaving the game does not discard or overwrite the current save.
@@ -162,40 +168,96 @@
 
   function settlePendingReward(save) {
     if (!save || !save.pendingReward) return save;
-    // Card sidecar receipt is committed first. If the Save Engine commit later needs retry,
-    // the receipt makes this step idempotent and prevents duplicate card grants.
-    var cardClaim = E.CardCollection.claimReward(save.characterId, String(save.pendingReward.seq));
+    var rewardId = String(save.pendingReward.seq);
+    var cardClaim = E.CardCollection.claimReward(save.characterId, rewardId);
     if (!cardClaim.ok) return null;
+    if (cardClaim.missingStage) {
+      var collection = E.CardCollection.get(save.characterId);
+      if (!collection.ok || E.CardCollection.isRewardSystemActive(save.characterId)) return null;
+    }
     var claim = E.Save.withClaim(save, applyRewardToSave);
     if (!claim.ok) return null;
     var committed = saveSystem.commit(save, claim.save);
-    if (committed.ok) return committed.save;
-    if (committed.tx && committed.durable) {
+    if (committed.ok) currentSave = committed.save;
+    else if (committed.tx && committed.durable) {
       var resumed = saveSystem.resume(committed.tx);
-      if (resumed.ok) return resumed.save;
-      pendingSaveTx = committed.tx;
+      if (resumed.ok) currentSave = resumed.save;
+      else { pendingSaveTx = committed.tx; return null; }
+    } else return null;
+    if (E.CardCollection.isRewardSystemActive(save.characterId)) {
+      var completed = E.CardCollection.completeReward(save.characterId, rewardId);
+      if (!completed.ok) return null;
     }
-    return null;
+    return currentSave;
+  }
+
+  function syncPlayerFromSave(save) {
+    player.exp = save.stats.exp; player.level = save.stats.level;
+    player.gold = save.gold; player.items = JSON.parse(JSON.stringify(save.items)); player.jelly = save.items.jelly;
+    player.maxHp = save.stats.maxHp; player.hp = save.stats.hp;
+    updateHud();
+  }
+
+  function recoverRewardJournal(save) {
+    if (!save) return null;
+    var journal = E.CardCollection.getRewardJournal(save.characterId);
+    if (!journal.ok) return save.pendingReward || E.CardCollection.isRewardSystemActive(save.characterId) ? null : save;
+    var entries = journal.entries;
+    var incomplete = entries.filter(function (entry) { return entry.status !== 'completed'; });
+    var completedAhead = entries.some(function (entry) { return entry.status === 'completed' && Number(entry.rewardId) > save.lastClaimedSeq; });
+    if (completedAhead || incomplete.length > 1) return null;
+    if (!incomplete.length) {
+      if (save.pendingReward) return settlePendingReward(save);
+      return save;
+    }
+    var entry = incomplete[0], seq = Number(entry.rewardId);
+    if (seq <= save.lastClaimedSeq) {
+      var receipt = E.CardCollection.claimReward(save.characterId, entry.rewardId);
+      if (!receipt.ok || receipt.missingStage) return null;
+      var finalized = E.CardCollection.completeReward(save.characterId, entry.rewardId);
+      return finalized.ok ? save : null;
+    }
+    if (seq > save.nextRewardSeq) return null;
+    if (save.pendingReward) {
+      if (String(save.pendingReward.seq) !== entry.rewardId ||
+          save.pendingReward.monsterId !== entry.monsterId ||
+          save.pendingReward.exp !== entry.exp || save.pendingReward.gold !== 0 ||
+          JSON.stringify(save.pendingReward.drops) !== JSON.stringify(entry.drops)) return null;
+      return settlePendingReward(save);
+    }
+    if (seq !== save.nextRewardSeq) return null;
+    var pending = E.Save.withPendingReward(save,
+      { exp: entry.exp, gold: 0, drops: entry.drops }, entry.monsterId, entry.createdAt);
+    if (!pending.ok) return null;
+    var committed = saveSystem.commit(save, pending.save);
+    if (committed.ok) currentSave = committed.save;
+    else if (committed.tx && committed.durable) {
+      var resumed = saveSystem.resume(committed.tx);
+      if (resumed.ok) currentSave = resumed.save;
+      else { pendingSaveTx = committed.tx; return null; }
+    } else return null;
+    return settlePendingReward(currentSave);
   }
 
   function retryPendingBattleReward() {
     var intent = pendingBattleReward;
     if (!intent || !currentSave) return false;
-    // Resume may have completed the character claim just before the page retried.
-    // Recognize its monotonic sequence before creating any new pending reward.
     if (!currentSave.pendingReward && currentSave.lastClaimedSeq >= Number(intent.rewardId)) {
-      player.exp = currentSave.stats.exp; player.level = currentSave.stats.level;
-      player.gold = currentSave.gold; player.items = JSON.parse(JSON.stringify(currentSave.items)); player.jelly = currentSave.items.jelly;
-      player.maxHp = currentSave.stats.maxHp; player.hp = currentSave.stats.hp;
+      if (E.CardCollection.isRewardSystemActive(currentSave.characterId)) {
+        var done = E.CardCollection.completeReward(currentSave.characterId, intent.rewardId);
+        if (!done.ok) return false;
+      }
       pendingBattleReward = null;
-      updateHud();
+      syncPlayerFromSave(currentSave);
       return true;
     }
-    var stagedCards = E.CardCollection.stageReward(currentSave.characterId, intent.rewardId, intent.cards);
+    var stagedCards = E.CardCollection.stageBattleReward(currentSave.characterId, intent);
     if (!stagedCards.ok) return false;
     if (!currentSave.pendingReward) {
+      var durableIntent = stagedCards.journal;
+      if (!durableIntent) return false;
       var pending = E.Save.withPendingReward(currentSave,
-        { exp: intent.reward.exp, gold: 0, drops: intent.reward.drops }, intent.monsterId, new Date().toISOString());
+        { exp: durableIntent.exp, gold: 0, drops: durableIntent.drops }, durableIntent.monsterId, durableIntent.createdAt);
       if (!pending.ok) return false;
       var staged = saveSystem.commit(currentSave, pending.save);
       if (staged.ok) currentSave = staged.save;
@@ -209,11 +271,8 @@
     var settled = settlePendingReward(currentSave);
     if (!settled) return false;
     currentSave = settled;
-    player.exp = currentSave.stats.exp; player.level = currentSave.stats.level;
-    player.gold = currentSave.gold; player.items = JSON.parse(JSON.stringify(currentSave.items)); player.jelly = currentSave.items.jelly;
-    player.maxHp = currentSave.stats.maxHp; player.hp = currentSave.stats.hp;
     pendingBattleReward = null;
-    updateHud();
+    syncPlayerFromSave(currentSave);
     return true;
   }
 
@@ -368,12 +427,15 @@
       renderCharacterSelection();
       return;
     }
-    var settled = settlePendingReward(loaded.save);
+    var recovered = recoverRewardJournal(loaded.save);
+    var settled = recovered && (recovered.pendingReward ? settlePendingReward(recovered) : recovered);
     if (!settled) {
+      rewardRecoveryBlocked = true;
       beginFromSave(loaded.save);
-      lockGame('A saved victory reward still needs to be committed. Retry Save to finish the existing reward before continuing.');
+      lockGame('A saved victory reward needs recovery. Existing data is protected; Retry Save after storage is available.');
       return;
     }
+    rewardRecoveryBlocked = false;
     beginFromSave(settled);
   }
 
@@ -384,6 +446,14 @@
   }
 
   function startBattle(monsterId) {
+    var recovered = recoverRewardJournal(currentSave);
+    if (!recovered || recovered.pendingReward) {
+      rewardRecoveryBlocked = true;
+      lockGame('A previous victory reward must be recovered before another battle can begin.');
+      return;
+    }
+    rewardRecoveryBlocked = false;
+    currentSave = recovered;
     var saved = persist('before-battle');
     if (!saved.ok) return;
     show('screen-battle');
@@ -403,16 +473,20 @@
       $('result-title').textContent = 'Victory!';
       var rewardId = String(currentSave.nextRewardSeq);
       var rolledCards = E.CardAcquisition.rollMonsterDrops(result.monsterId);
-      pendingBattleReward = { rewardId: rewardId, monsterId: result.monsterId, reward: rw, cards: rolledCards };
-      // Stage card rewards outside Save Schema before issuing the transactional Save reward.
-      // Repeated attempts reuse the same staged result instead of rerolling.
-      var stagedCards = E.CardCollection.stageReward(currentSave.characterId, rewardId, rolledCards);
+      pendingBattleReward = {
+        rewardId: rewardId, monsterId: result.monsterId,
+        reward: { exp: rw.exp, gold: 0, drops: rw.drops }, cards: rolledCards,
+        createdAt: new Date().toISOString()
+      };
+      // Persist the complete battle reward intent before issuing the transactional Save reward.
+      var stagedCards = E.CardCollection.stageBattleReward(currentSave.characterId, pendingBattleReward);
       var rewardSaved = false;
       if (stagedCards.ok) {
         // Save Schema v1 is intentionally unchanged; monster victories still store zero Gold.
-        var pendingReward = { exp: rw.exp, gold: 0, drops: rw.drops };
-        var pending = E.Save.withPendingReward(currentSave, pendingReward, result.monsterId, new Date().toISOString());
-        if (pending.ok) {
+        var durableReward = stagedCards.journal;
+        var pending = durableReward && E.Save.withPendingReward(currentSave,
+          { exp: durableReward.exp, gold: 0, drops: durableReward.drops }, durableReward.monsterId, durableReward.createdAt);
+        if (pending && pending.ok) {
           var staged = saveSystem.commit(currentSave, pending.save);
           if (staged.ok) currentSave = staged.save;
           else if (staged.tx && staged.durable) {
