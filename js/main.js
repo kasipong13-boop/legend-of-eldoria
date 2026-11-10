@@ -15,6 +15,8 @@
   var pendingSaveTx = null;
   var pendingBattleReward = null;
   var rewardRecoveryBlocked = false;
+  var rewardRecovery = E.RewardRecovery.create();
+  var activeEncounterId = null;
   var screens = ['screen-title', 'screen-select', 'screen-create', 'screen-world', 'screen-card-collection', 'screen-battle', 'screen-result'];
   var characterCreationReturnScreen = 'screen-title';
 
@@ -87,25 +89,24 @@
       overlay.setAttribute('aria-modal', 'true');
       overlay.innerHTML = '<div class="save-lock-card"><h2>Save needs attention</h2><p id="save-lock-message"></p><button id="btn-save-retry" class="btn primary" type="button">Retry Save</button><button id="btn-save-title" class="btn" type="button">Return to Title</button></div>';
       $('app').appendChild(overlay);
-      $('btn-save-retry').addEventListener('click', function () {
+      $('btn-save-retry').addEventListener('click', async function () {
         var result = persist('manual-retry');
-        if (result && result.ok && rewardRecoveryBlocked) {
-          var recoveredReward = recoverRewardJournal(currentSave);
-          if (!recoveredReward) result = { ok: false };
-          else { currentSave = recoveredReward; rewardRecoveryBlocked = false; syncPlayerFromSave(currentSave); }
-        }
-        if (result && result.ok && pendingBattleReward) {
-          if (!retryPendingBattleReward()) result = { ok: false };
-        } else if (result && result.ok && currentSave && currentSave.pendingReward) {
-          var settled = settlePendingReward(currentSave);
-          if (settled && !settled.pendingReward) currentSave = settled;
-          else result = { ok: false };
+        if (result && result.ok && currentSave) {
+          var locked = await rewardRecovery.runExclusive(currentSave.characterId, async function () {
+            var recoveredReward = await recoverRewardJournal(currentSave);
+            if (!recoveredReward) return { ok: false, reason: 'RECOVERY_FAILED' };
+            currentSave = recoveredReward;
+            rewardRecoveryBlocked = false;
+            syncPlayerFromSave(currentSave);
+            return { ok: true };
+          });
+          if (!locked.ok) result = locked;
         }
         if (result && result.ok) {
           saveLocked = false; active = true; overlay.classList.remove('show');
           show('screen-world'); E.World.resume(); toast('Save completed.', 2500);
         } else {
-          $('save-lock-message').textContent = 'The save is still not complete. Your progress is locked to prevent data loss. Try again.';
+          $('save-lock-message').textContent = 'The save is still not complete (' + (result.reason || 'recovery failed') + '). Your progress is locked to prevent data loss. Try again.';
         }
       });
       $('btn-save-title').addEventListener('click', function () {
@@ -166,111 +167,177 @@
     target.stats.hp = target.stats.maxHp;
   }
 
-  function settlePendingReward(save) {
-    if (!save || !save.pendingReward) return save;
-    var rewardId = String(save.pendingReward.seq);
-    var cardClaim = E.CardCollection.claimReward(save.characterId, rewardId);
-    if (!cardClaim.ok) return null;
-    if (cardClaim.missingStage) {
-      var collection = E.CardCollection.get(save.characterId);
-      if (!collection.ok || E.CardCollection.isRewardSystemActive(save.characterId)) return null;
+  function commitPendingSave(save, pendingSave) {
+    var committed = saveSystem.commit(save, pendingSave);
+    if (committed.ok) { currentSave = committed.save; return Promise.resolve(currentSave); }
+    if (committed.tx && committed.durable) {
+      return Promise.resolve(saveSystem.resume(committed.tx)).then(function (resumed) {
+        if (resumed.ok) { currentSave = resumed.save; return currentSave; }
+        pendingSaveTx = committed.tx; return null;
+      });
     }
-    var claim = E.Save.withClaim(save, applyRewardToSave);
-    if (!claim.ok) return null;
-    var committed = saveSystem.commit(save, claim.save);
-    if (committed.ok) currentSave = committed.save;
-    else if (committed.tx && committed.durable) {
-      var resumed = saveSystem.resume(committed.tx);
-      if (resumed.ok) currentSave = resumed.save;
-      else { pendingSaveTx = committed.tx; return null; }
-    } else return null;
-    if (E.CardCollection.isRewardSystemActive(save.characterId)) {
-      var completed = E.CardCollection.completeReward(save.characterId, rewardId);
+    return Promise.resolve(null);
+  }
+
+  async function transitionJournal(entry, target) {
+    var order = ['prepared', 'sidecarStaged', 'savePending', 'cardsClaimed', 'saveClaimed', 'completed'];
+    var current = entry.status;
+    while (current !== target) {
+      var next = order[order.indexOf(current) + 1];
+      if (!next) return { ok: false, reason: 'INVALID_JOURNAL_STATE' };
+      var result = await rewardRecovery.transition(entry.characterId, entry.rewardId, next);
+      if (!result.ok) return result;
+      entry = result.entry;
+      current = next;
+    }
+    return { ok: true, entry: entry };
+  }
+
+  async function settleJournalEntry(save, entry) {
+    var payload = entry.payload;
+    var rewardId = entry.rewardId;
+    var seq = Number(rewardId);
+    if (!payload || payload.gold !== 0 || payload.monsterId !== entry.payload.monsterId) {
+      await rewardRecovery.quarantine(save.characterId, rewardId, 'JOURNAL_PAYLOAD_INVALID');
+      return null;
+    }
+    var stagedCards = E.CardCollection.stageReward(save.characterId, rewardId, payload.cards);
+    if (!stagedCards.ok) return null;
+    if (entry.status === 'prepared') {
+      var stagedState = await transitionJournal(entry, 'sidecarStaged');
+      if (!stagedState.ok) return null;
+      entry = stagedState.entry;
+    }
+    if (!save.pendingReward && seq === save.nextRewardSeq) {
+      var pending = E.Save.withPendingReward(save,
+        { exp: payload.exp, gold: 0, drops: payload.drops }, payload.monsterId, payload.createdAt);
+      if (!pending.ok) return null;
+      var committedSave = await commitPendingSave(save, pending.save);
+      if (!committedSave) return null;
+      save = committedSave;
+    }
+    if (save.pendingReward) {
+      if (String(save.pendingReward.seq) !== rewardId ||
+          save.pendingReward.monsterId !== payload.monsterId ||
+          save.pendingReward.exp !== payload.exp || save.pendingReward.gold !== 0 ||
+          JSON.stringify(save.pendingReward.drops) !== JSON.stringify(payload.drops)) {
+        await rewardRecovery.quarantine(save.characterId, rewardId, 'SAVE_JOURNAL_PAYLOAD_MISMATCH', save.pendingReward);
+        return null;
+      }
+      if (entry.status === 'sidecarStaged') {
+        var pendingState = await transitionJournal(entry, 'savePending');
+        if (!pendingState.ok) return null;
+        entry = pendingState.entry;
+      }
+      var cardClaim = E.CardCollection.claimReward(save.characterId, rewardId);
+      if (!cardClaim.ok || cardClaim.missingStage) {
+        await rewardRecovery.quarantine(save.characterId, rewardId, 'MISSING_SIDECAR_STAGE');
+        return null;
+      }
+      if (entry.status === 'savePending') {
+        var cardState = await transitionJournal(entry, 'cardsClaimed');
+        if (!cardState.ok) return null;
+        entry = cardState.entry;
+      }
+      var claim = E.Save.withClaim(save, applyRewardToSave);
+      if (!claim.ok) return null;
+      var claimedSave = await commitPendingSave(save, claim.save);
+      if (!claimedSave) return null;
+      save = claimedSave;
+      if (entry.status === 'cardsClaimed') {
+        var saveClaimed = await transitionJournal(entry, 'saveClaimed');
+        if (!saveClaimed.ok) return null;
+        entry = saveClaimed.entry;
+      }
+    } else if (seq <= save.lastClaimedSeq) {
+      var receiptCheck = E.CardCollection.claimReward(save.characterId, rewardId);
+      if (!receiptCheck.ok || receiptCheck.missingStage) {
+        await rewardRecovery.quarantine(save.characterId, rewardId, 'CLAIMED_SAVE_WITHOUT_CARD_RECEIPT');
+        return null;
+      }
+      if (entry.status === 'sidecarStaged' || entry.status === 'savePending') {
+        var cardFinal = await transitionJournal(entry, 'cardsClaimed');
+        if (!cardFinal.ok) return null;
+        entry = cardFinal.entry;
+      }
+      if (entry.status === 'cardsClaimed') {
+        var saveFinal = await transitionJournal(entry, 'saveClaimed');
+        if (!saveFinal.ok) return null;
+        entry = saveFinal.entry;
+      }
+    } else {
+      await rewardRecovery.quarantine(save.characterId, rewardId, 'REWARD_SEQUENCE_GAP');
+      return null;
+    }
+    if (entry.status === 'saveClaimed') {
+      var completed = await transitionJournal(entry, 'completed');
       if (!completed.ok) return null;
     }
-    return currentSave;
+    return save;
   }
 
-  function syncPlayerFromSave(save) {
-    player.exp = save.stats.exp; player.level = save.stats.level;
-    player.gold = save.gold; player.items = JSON.parse(JSON.stringify(save.items)); player.jelly = save.items.jelly;
-    player.maxHp = save.stats.maxHp; player.hp = save.stats.hp;
-    updateHud();
+  async function settlePendingReward(save) {
+    if (!save || !save.pendingReward) return save;
+    var rewardId = String(save.pendingReward.seq);
+    var found = await rewardRecovery.get(save.characterId, rewardId);
+    if (!found.ok) return null;
+    if (found.entry) return settleJournalEntry(save, found.entry);
+    var collection = E.CardCollection.get(save.characterId);
+    // Only positively identified pre-acquisition sidecars may use the legacy path.
+    if (!collection.ok || (collection.source !== 'starter' && collection.source !== 'legacy')) return null;
+    var cardClaim = E.CardCollection.claimReward(save.characterId, rewardId);
+    if (!cardClaim.ok || !cardClaim.missingStage) return null;
+    var claim = E.Save.withClaim(save, applyRewardToSave);
+    if (!claim.ok) return null;
+    return commitPendingSave(save, claim.save);
   }
 
-  function recoverRewardJournal(save) {
+  async function recoverRewardJournal(save) {
     if (!save) return null;
-    var journal = E.CardCollection.getRewardJournal(save.characterId);
-    if (!journal.ok) return save.pendingReward || E.CardCollection.isRewardSystemActive(save.characterId) ? null : save;
-    var entries = journal.entries;
-    var incomplete = entries.filter(function (entry) { return entry.status !== 'completed'; });
-    var completedAhead = entries.some(function (entry) { return entry.status === 'completed' && Number(entry.rewardId) > save.lastClaimedSeq; });
-    if (completedAhead || incomplete.length > 1) return null;
-    if (!incomplete.length) {
-      if (save.pendingReward) return settlePendingReward(save);
-      return save;
+    var listed = await rewardRecovery.list(save.characterId);
+    if (!listed.ok) return null;
+    var entries = listed.entries;
+    var incomplete = entries.filter(function (entry) { return entry.status !== 'completed' && entry.status !== 'quarantined'; });
+    var collection = E.CardCollection.get(save.characterId);
+    if (!collection.ok) return null;
+    var sidecarPending = collection.data.pendingRewards || [];
+    var orphan = sidecarPending.find(function (pending) {
+      return !entries.some(function (entry) { return entry.rewardId === pending.rewardId && entry.status !== 'quarantined'; });
+    });
+    if (orphan) {
+      await rewardRecovery.quarantine(save.characterId, orphan.rewardId, 'ORPHAN_SIDECAR_REWARD');
+      return null;
     }
+    if (incomplete.length > 1) {
+      for (var i = 0; i < incomplete.length; i++) await rewardRecovery.quarantine(save.characterId, incomplete[i].rewardId, 'MULTIPLE_INCOMPLETE_REWARDS');
+      return null;
+    }
+    var completedAhead = entries.some(function (entry) {
+      return entry.status === 'completed' && Number(entry.rewardId) > save.lastClaimedSeq;
+    });
+    if (completedAhead) {
+      var ahead = entries.find(function (entry) { return entry.status === 'completed' && Number(entry.rewardId) > save.lastClaimedSeq; });
+      await rewardRecovery.quarantine(save.characterId, ahead.rewardId, 'COMPLETED_JOURNAL_AHEAD_OF_SAVE');
+      return null;
+    }
+    if (!incomplete.length) return save.pendingReward ? settlePendingReward(save) : save;
     var entry = incomplete[0], seq = Number(entry.rewardId);
-    if (seq <= save.lastClaimedSeq) {
-      var receipt = E.CardCollection.claimReward(save.characterId, entry.rewardId);
-      if (!receipt.ok || receipt.missingStage) return null;
-      var finalized = E.CardCollection.completeReward(save.characterId, entry.rewardId);
-      return finalized.ok ? save : null;
+    if (seq > save.nextRewardSeq || (seq > save.lastClaimedSeq + 1 && seq !== save.nextRewardSeq)) {
+      await rewardRecovery.quarantine(save.characterId, entry.rewardId, 'REWARD_SEQUENCE_GAP');
+      return null;
     }
-    if (seq > save.nextRewardSeq) return null;
-    if (save.pendingReward) {
-      if (String(save.pendingReward.seq) !== entry.rewardId ||
-          save.pendingReward.monsterId !== entry.monsterId ||
-          save.pendingReward.exp !== entry.exp || save.pendingReward.gold !== 0 ||
-          JSON.stringify(save.pendingReward.drops) !== JSON.stringify(entry.drops)) return null;
-      return settlePendingReward(save);
+    if (save.pendingReward && String(save.pendingReward.seq) !== entry.rewardId) {
+      await rewardRecovery.quarantine(save.characterId, entry.rewardId, 'SAVE_JOURNAL_ID_MISMATCH', save.pendingReward);
+      return null;
     }
-    if (seq !== save.nextRewardSeq) return null;
-    var pending = E.Save.withPendingReward(save,
-      { exp: entry.exp, gold: 0, drops: entry.drops }, entry.monsterId, entry.createdAt);
-    if (!pending.ok) return null;
-    var committed = saveSystem.commit(save, pending.save);
-    if (committed.ok) currentSave = committed.save;
-    else if (committed.tx && committed.durable) {
-      var resumed = saveSystem.resume(committed.tx);
-      if (resumed.ok) currentSave = resumed.save;
-      else { pendingSaveTx = committed.tx; return null; }
-    } else return null;
-    return settlePendingReward(currentSave);
+    return settleJournalEntry(save, entry);
   }
 
-  function retryPendingBattleReward() {
-    var intent = pendingBattleReward;
-    if (!intent || !currentSave) return false;
-    if (!currentSave.pendingReward && currentSave.lastClaimedSeq >= Number(intent.rewardId)) {
-      if (E.CardCollection.isRewardSystemActive(currentSave.characterId)) {
-        var done = E.CardCollection.completeReward(currentSave.characterId, intent.rewardId);
-        if (!done.ok) return false;
-      }
-      pendingBattleReward = null;
-      syncPlayerFromSave(currentSave);
-      return true;
-    }
-    var stagedCards = E.CardCollection.stageBattleReward(currentSave.characterId, intent);
-    if (!stagedCards.ok) return false;
-    if (!currentSave.pendingReward) {
-      var durableIntent = stagedCards.journal;
-      if (!durableIntent) return false;
-      var pending = E.Save.withPendingReward(currentSave,
-        { exp: durableIntent.exp, gold: 0, drops: durableIntent.drops }, durableIntent.monsterId, durableIntent.createdAt);
-      if (!pending.ok) return false;
-      var staged = saveSystem.commit(currentSave, pending.save);
-      if (staged.ok) currentSave = staged.save;
-      else if (staged.tx && staged.durable) {
-        var resumed = saveSystem.resume(staged.tx);
-        if (resumed.ok) currentSave = resumed.save;
-        else { pendingSaveTx = staged.tx; return false; }
-      } else return false;
-    }
-    if (!currentSave.pendingReward || String(currentSave.pendingReward.seq) !== intent.rewardId) return false;
-    var settled = settlePendingReward(currentSave);
-    if (!settled) return false;
-    currentSave = settled;
+  async function retryPendingBattleReward() {
+    if (!currentSave) return false;
+    var recovered = await recoverRewardJournal(currentSave);
+    if (!recovered || recovered.pendingReward) return false;
+    currentSave = recovered;
     pendingBattleReward = null;
     syncPlayerFromSave(currentSave);
     return true;
