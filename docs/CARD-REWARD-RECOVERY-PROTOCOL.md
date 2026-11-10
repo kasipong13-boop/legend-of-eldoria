@@ -28,7 +28,7 @@ Status: implementation specification; TDR-030 approved (IndexedDB / Web Locks); 
 
 - Lock name: `eldoria:reward:<characterId>`.
 - Request: exclusive mode with `ifAvailable: true`.
-- Lock is held across the full reward operation: Journal prepare, Sidecar stage/claim, Save Engine commit/resume, Journal transitions and recovery.
+- Lock is acquired before entering a battle and held through its settlement or explicit abandonment. It therefore serializes the character's encounter/reward sequence as well as Journal prepare, Sidecar stage/claim, Save Engine commit/resume, Journal transitions and recovery.
 - Missing Web Locks, denied/busy locks, or lock request failures fail closed. No localStorage or IndexedDB pseudo-lock fallback is permitted.
 - This requires a secure context and a browser implementing Web Locks. Unsupported browsers cannot process reward mutations until a supported browser is used.
 
