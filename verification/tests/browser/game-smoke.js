@@ -176,17 +176,27 @@ const server = http.createServer((req, res) => {
 
       // Crash-recovery scenario: persist a complete battle intent to the sidecar,
       // then reload before the character Save Engine receives its Pending Reward.
-      const crashIntent = await page.evaluate(() => {
+      const crashIntent = await page.evaluate(async () => {
         const E = window.ELDORIA;
         const save = E.GameSave.getCurrentSave();
+        const bytes = new Uint8Array(16);
+        crypto.getRandomValues(bytes);
+        const encounterId = Array.from(bytes, value => value.toString(16).padStart(2, '0')).join('');
         const intent = {
-          rewardId: String(save.nextRewardSeq), monsterId: 'poring',
-          reward: { exp: 1, gold: 0, drops: [{ id: 'jelly', name: 'Poring Jelly' }] },
+          rewardId: String(save.nextRewardSeq), encounterId, monsterId: 'poring',
+          exp: 1, gold: 0, drops: [{ id: 'jelly', name: 'Poring Jelly' }],
           cards: [{ cardId: 'bash', stars: 1, quantity: 1 }],
           createdAt: new Date().toISOString()
         };
-        const staged = E.CardCollection.stageBattleReward(save.characterId, intent);
-        if (!staged.ok) throw new Error('could not stage crash-recovery fixture: ' + staged.reason);
+        const journal = E.RewardRecovery.create();
+        const staged = await journal.runExclusive(save.characterId, async () => {
+          const prepared = await journal.prepare(save.characterId, intent);
+          if (!prepared.ok) return prepared;
+          const sidecar = E.CardCollection.stageReward(save.characterId, intent.rewardId, intent.cards);
+          if (!sidecar.ok) return sidecar;
+          return journal.transition(save.characterId, intent.rewardId, 'sidecarStaged');
+        });
+        if (!staged.ok) throw new Error('could not stage IndexedDB crash-recovery fixture: ' + staged.reason);
         return { rewardId: intent.rewardId, beforeJelly: save.items.jelly };
       });
       await page.reload({ waitUntil:'networkidle' });
@@ -195,12 +205,12 @@ const server = http.createServer((req, res) => {
       await page.locator('#screen-select.active').waitFor();
       await page.getByRole('button', { name:'Play' }).click();
       await page.locator('#screen-world.active').waitFor();
-      const afterCrashRecovery = await page.evaluate(() => {
+      const afterCrashRecovery = await page.evaluate(async () => {
         const E = window.ELDORIA;
         const save = E.GameSave.getCurrentSave();
         const collection = E.CardCollection.get(save.characterId);
         const bash = collection.data.owned.find(card => card.cardId === 'bash' && card.stars === 1);
-        const journal = E.CardCollection.getRewardJournal(save.characterId);
+        const journal = await E.RewardRecovery.create().list(save.characterId);
         return { save, bash, journal: journal.entries };
       });
       if (afterCrashRecovery.save.lastClaimedSeq !== Number(crashIntent.rewardId) ||
