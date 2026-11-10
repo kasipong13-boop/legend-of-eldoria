@@ -243,6 +243,7 @@
                 .then(function () { return { ok: false, reason: 'EXISTING_JOURNAL_INVALID', quarantined: true }; });
             }
             if (existing.status === 'quarantined') return { ok: false, reason: 'JOURNAL_QUARANTINED' };
+            if (existing.status === 'completed') return { ok: false, reason: 'REWARD_ALREADY_COMPLETED' };
             if (existing.payloadDigest !== payloadDigest || stable(existing.payload) !== stable(payload)) {
               return quarantineRecord(characterId, key + ':incoming', null, 'REWARD_ID_PAYLOAD_CONFLICT', payload)
                 .then(function () { return { ok: false, reason: 'REWARD_ID_PAYLOAD_CONFLICT', quarantined: true }; });
