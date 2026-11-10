@@ -396,12 +396,6 @@
           : 'Card reward storage is unavailable. Your victory reward is locked to prevent losing or duplicating cards; retry after storage is available.');
         $('btn-result').textContent = 'Retry Save';
       }
-else {
-        line('Reward is pending and has not been confirmed as saved.');
-        line('Do not close the game. Use Retry Save to finish safely.', 'loot');
-        lockGame('Victory reward could not be fully saved. The reward is pending; retry will finish the same reward without rolling it again.');
-        $('btn-result').textContent = 'Retry Save';
-      }
     } else {
       $('result-title').textContent = 'Defeated';
       line('You wake up safe in Greenvale Village.');
