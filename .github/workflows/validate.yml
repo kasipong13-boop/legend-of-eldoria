@@ -33,6 +33,7 @@ jobs:
           test -f js/world.js
           test -f js/main.js
           test -f js/card-collection.js
+          test -f js/card-acquisition.js
           test -f assets/icon.svg
           test -f assets/apple-touch-icon.png
 
