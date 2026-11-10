@@ -1,6 +1,6 @@
 /* Legend of Eldoria — IndexedDB Companion Reward Journal + Web Locks.
-   The journal is deliberately separate from the Card Collection Sidecar and Character Save.
-   It is forward-only: records are retained, including completed and quarantined evidence.
+   The journal is separate from Card Collection Sidecar v2 and Character Save Schema v1.
+   Journal and quarantine evidence are retained; no reward record is physically deleted.
 */
 (function (root) {
   'use strict';
@@ -24,43 +24,95 @@
   function stable(value) {
     if (value === null || typeof value !== 'object') return JSON.stringify(value);
     if (Array.isArray(value)) return '[' + value.map(stable).join(',') + ']';
-    return '{' + Object.keys(value).sort().map(function (key) { return JSON.stringify(key) + ':' + stable(value[key]); }).join(',') + '}';
+    return '{' + Object.keys(value).sort().map(function (key) {
+      return JSON.stringify(key) + ':' + stable(value[key]);
+    }).join(',') + '}';
   }
   function makeKey(characterId, rewardId) { return characterId + ':' + rewardId; }
   function validId(value) { return typeof value === 'string' && /^[0-9a-f]{32}$/.test(value); }
-  function validIntent(characterId, intent) {
-    return validId(characterId) && intent && typeof intent.rewardId === 'string' &&
-      /^[1-9][0-9]*$/.test(intent.rewardId) && typeof intent.encounterId === 'string' &&
-      /^[0-9a-f]{32}$/.test(intent.encounterId) && typeof intent.monsterId === 'string' &&
-      !!intent.monsterId && Number.isInteger(intent.exp) && intent.exp >= 0 &&
-      intent.gold === 0 && Array.isArray(intent.drops) && intent.drops.every(function (drop) {
-        return drop && typeof drop.id === 'string' && !!drop.id && typeof drop.name === 'string' && !!drop.name;
-      }) && Array.isArray(intent.cards) && intent.cards.every(function (card) {
-        return card && typeof card.cardId === 'string' && !!card.cardId &&
-          Number.isInteger(card.stars) && card.stars >= 1 && card.stars <= 3 &&
-          Number.isInteger(card.quantity) && card.quantity >= 1 && card.quantity <= 1000000;
-      }) && typeof intent.createdAt === 'string' && !!intent.createdAt;
-  }
 
   function create(options) {
     options = options || {};
-    var indexedDB = options.indexedDB || root.indexedDB;
-    var locks = options.locks || (root.navigator && root.navigator.locks);
-    var markerStorage = options.markerStorage || null;
-    if (!markerStorage) { try { markerStorage = root.localStorage || null; } catch (storageError) { markerStorage = null; } }
+    var indexedDB = Object.prototype.hasOwnProperty.call(options, 'indexedDB') ? options.indexedDB : root.indexedDB;
+    var locks = Object.prototype.hasOwnProperty.call(options, 'locks') ? options.locks : (root.navigator && root.navigator.locks);
+    var markerStorage = Object.prototype.hasOwnProperty.call(options, 'markerStorage') ? options.markerStorage : null;
+    if (!Object.prototype.hasOwnProperty.call(options, 'markerStorage')) {
+      try { markerStorage = root.localStorage || null; } catch (storageError) { markerStorage = null; }
+    }
+    var cryptoApi = Object.prototype.hasOwnProperty.call(options, 'crypto') ? options.crypto : root.crypto;
+    var now = options.now || function () { return new Date().toISOString(); };
+    var fault = typeof options.fault === 'function' ? options.fault : function () {};
+    var adapter = options.adapter || null;
+    var dbPromise = null;
+    var lockHeld = Object.create(null);
+    var quarantineCounter = 0;
+
+    function checkpoint(point, context) { fault(point, context || null); }
+    function requireLock(characterId) { return lockHeld[characterId] === true; }
     function activeMarkerKey(characterId) { return 'eldoria.reward.v1.active.' + characterId; }
     function ensureActiveMarker(characterId) {
-      try { if (!markerStorage) return false; markerStorage.setItem(activeMarkerKey(characterId), '1'); return markerStorage.getItem(activeMarkerKey(characterId)) === '1'; }
-      catch (error) { return false; }
+      try {
+        if (!markerStorage) return false;
+        markerStorage.setItem(activeMarkerKey(characterId), '1');
+        return markerStorage.getItem(activeMarkerKey(characterId)) === '1';
+      } catch (error) { return false; }
     }
     function isActive(characterId) {
       try { return !markerStorage || markerStorage.getItem(activeMarkerKey(characterId)) === '1'; }
       catch (error) { return true; }
     }
-    var adapter = options.adapter || null;
-    var dbPromise = null;
+    function digest(payload) {
+      if (!E.Save || typeof E.Save.checksumOf !== 'function') throw new Error('SAVE_CHECKSUM_UNAVAILABLE');
+      return E.Save.checksumOf(payload);
+    }
+    function createEncounterId() {
+      if (!cryptoApi || typeof cryptoApi.getRandomValues !== 'function') return null;
+      try {
+        var bytes = new Uint8Array(16);
+        cryptoApi.getRandomValues(bytes);
+        return Array.prototype.map.call(bytes, function (value) { return value.toString(16).padStart(2, '0'); }).join('');
+      } catch (error) { return null; }
+    }
+    function normalizeIntent(characterId, intent) {
+      if (!validId(characterId) || !intent || typeof intent.rewardId !== 'string' ||
+          !/^[1-9][0-9]*$/.test(intent.rewardId) || typeof intent.encounterId !== 'string' ||
+          !/^[0-9a-f]{32}$/.test(intent.encounterId) || typeof intent.monsterId !== 'string' ||
+          !intent.monsterId || !Number.isInteger(intent.exp) || intent.exp < 0 || intent.exp > 1000000000 ||
+          intent.gold !== 0 || !Array.isArray(intent.drops) || intent.drops.length > 100 ||
+          !Array.isArray(intent.cards) || intent.cards.length > 100 ||
+          typeof intent.createdAt !== 'string' || !intent.createdAt || intent.createdAt.length > 64) return null;
+      var drops = [], cards = [];
+      for (var i = 0; i < intent.drops.length; i++) {
+        var drop = intent.drops[i];
+        if (!drop || typeof drop.id !== 'string' || !drop.id || typeof drop.name !== 'string' || !drop.name) return null;
+        drops.push({ id: drop.id, name: drop.name });
+      }
+      for (var j = 0; j < intent.cards.length; j++) {
+        var card = intent.cards[j];
+        if (!card || typeof card.cardId !== 'string' ||
+            (E.CARDS && !Object.prototype.hasOwnProperty.call(E.CARDS, card.cardId)) ||
+            !Number.isInteger(card.stars) || card.stars < 1 || card.stars > 3 ||
+            !Number.isInteger(card.quantity) || card.quantity < 1 || card.quantity > 1000000) return null;
+        cards.push({ cardId: card.cardId, stars: card.stars, quantity: card.quantity });
+      }
+      return {
+        encounterId: intent.encounterId, monsterId: intent.monsterId, exp: intent.exp, gold: 0,
+        drops: drops, cards: cards, createdAt: intent.createdAt
+      };
+    }
+    function validateRecord(entry, characterId) {
+      if (!entry || entry.schemaVersion !== 1 || entry.characterId !== characterId ||
+          entry.key !== makeKey(characterId, entry.rewardId) ||
+          typeof entry.rewardId !== 'string' || !/^[1-9][0-9]*$/.test(entry.rewardId) ||
+          typeof entry.encounterId !== 'string' || !/^[0-9a-f]{32}$/.test(entry.encounterId) ||
+          !entry.payload || entry.payload.encounterId !== entry.encounterId ||
+          typeof entry.payloadDigest !== 'string' || STATES.indexOf(entry.status) < 0 ||
+          !entry.timestamps || !entry.timestamps.prepared) return false;
+      try { return entry.payloadDigest === digest(entry.payload); } catch (error) { return false; }
+    }
 
     function open() {
+      try { checkpoint('idb.open.before'); } catch (error) { return Promise.reject(error); }
       if (adapter) return Promise.resolve(adapter);
       if (!indexedDB || typeof indexedDB.open !== 'function') return Promise.reject(new Error('INDEXEDDB_UNAVAILABLE'));
       if (!dbPromise) dbPromise = new Promise(function (resolve, reject) {
@@ -69,9 +121,8 @@
         catch (error) { reject(new Error('INDEXEDDB_OPEN_FAILED')); return; }
         request.onupgradeneeded = function () {
           var db = request.result;
-          var journal;
           if (!db.objectStoreNames.contains(JOURNAL_STORE)) {
-            journal = db.createObjectStore(JOURNAL_STORE, { keyPath: 'key' });
+            var journal = db.createObjectStore(JOURNAL_STORE, { keyPath: 'key' });
             journal.createIndex('byCharacter', 'characterId', { unique: false });
             journal.createIndex('byEncounter', ['characterId', 'encounterId'], { unique: true });
           }
@@ -83,12 +134,13 @@
         request.onsuccess = function () {
           var db = request.result;
           db.onversionchange = function () { db.close(); dbPromise = null; };
-          resolve(makeIndexedDbAdapter(db));
+          try { checkpoint('idb.open.after'); resolve(makeIndexedDbAdapter(db)); }
+          catch (error) { reject(error); }
         };
         request.onerror = function () { reject(new Error('INDEXEDDB_OPEN_FAILED')); };
         request.onblocked = function () { reject(new Error('INDEXEDDB_BLOCKED')); };
       });
-      return dbPromise.catch(function (error) { dbPromise = null; throw error; });
+      return dbPromise;
     }
 
     function makeIndexedDbAdapter(db) {
@@ -128,51 +180,95 @@
     function runExclusive(characterId, callback) {
       if (!validId(characterId) || typeof callback !== 'function') return Promise.resolve({ ok: false, reason: 'BAD_LOCK_ARGUMENT' });
       if (!locks || typeof locks.request !== 'function') return Promise.resolve({ ok: false, reason: 'WEB_LOCKS_UNAVAILABLE' });
+      var entered = false;
+      var request;
       try {
-        return Promise.resolve(locks.request('eldoria:reward:' + characterId,
-          { mode: 'exclusive', ifAvailable: true }, function (lock) {
-            if (!lock) return { ok: false, reason: 'REWARD_LOCK_BUSY' };
-            return Promise.resolve().then(callback).then(function (value) {
-              return value && typeof value.ok === 'boolean' ? value : { ok: true, value: value };
-            });
-          })).catch(function () { return { ok: false, reason: 'REWARD_LOCK_FAILED' }; });
+        request = locks.request('eldoria:reward:' + characterId, { mode: 'exclusive', ifAvailable: true }, async function (lock) {
+          entered = true;
+          if (!lock) return { ok: false, reason: 'REWARD_LOCK_BUSY' };
+          lockHeld[characterId] = true;
+          try {
+            checkpoint('lock.acquired', { characterId: characterId });
+            var value = await callback();
+            return value && typeof value.ok === 'boolean' ? value : { ok: true, value: value };
+          } catch (error) {
+            return { ok: false, reason: error.message || 'REWARD_CALLBACK_FAILED' };
+          } finally { delete lockHeld[characterId]; }
+        });
       } catch (error) { return Promise.resolve({ ok: false, reason: 'REWARD_LOCK_FAILED' }); }
+      return Promise.resolve(request).then(function (value) {
+        if (!entered) return { ok: false, reason: 'REWARD_LOCK_NOT_GRANTED' };
+        return value || { ok: false, reason: 'REWARD_LOCK_NOT_GRANTED' };
+      }).catch(function () { return { ok: false, reason: 'REWARD_LOCK_FAILED' }; });
+    }
+
+    function quarantineRecord(characterId, sourceKey, existing, reason, conflictingPayload) {
+      return open().then(function (db) {
+        quarantineCounter += 1;
+        var key = characterId + ':' + sourceKey + ':' + now() + ':' + quarantineCounter;
+        var evidence = {
+          schemaVersion: 1, key: key, characterId: characterId, sourceKey: sourceKey, reason: reason,
+          existing: existing ? clone(existing) : null,
+          conflictingPayload: conflictingPayload ? clone(conflictingPayload) : null,
+          quarantinedAt: now()
+        };
+        checkpoint('quarantine.write.before', { characterId: characterId, reason: reason });
+        return db.put(QUARANTINE_STORE, evidence).then(function () {
+          checkpoint('quarantine.write.after', { characterId: characterId, reason: reason });
+          if (!existing) return { ok: true, evidence: clone(evidence) };
+          existing.status = 'quarantined';
+          existing.updatedAt = evidence.quarantinedAt;
+          existing.timestamps = existing.timestamps || {};
+          existing.timestamps.quarantined = evidence.quarantinedAt;
+          existing.quarantineReason = reason;
+          return db.put(JOURNAL_STORE, existing).then(function () { return { ok: true, evidence: clone(evidence) }; });
+        });
+      });
     }
 
     function prepare(characterId, intent) {
-      if (!validIntent(characterId, intent)) return Promise.resolve({ ok: false, reason: 'BAD_REWARD_INTENT' });
-      if (!ensureActiveMarker(characterId)) return Promise.resolve({ ok: false, reason: 'REWARD_MARKER_WRITE_FAILED' });
+      if (!lockHeld[characterId]) return Promise.resolve({ ok: false, reason: 'REWARD_LOCK_REQUIRED' });
+      var payload = normalizeIntent(characterId, intent);
+      if (!payload) return Promise.resolve({ ok: false, reason: 'BAD_REWARD_INTENT' });
+      var payloadDigest;
+      try { payloadDigest = digest(payload); } catch (error) { return Promise.resolve({ ok: false, reason: error.message }); }
       return open().then(function (db) {
         var key = makeKey(characterId, intent.rewardId);
-        var payload = {
-          encounterId: intent.encounterId, monsterId: intent.monsterId, exp: intent.exp, gold: 0,
-          drops: clone(intent.drops), cards: clone(intent.cards), createdAt: intent.createdAt
-        };
+        checkpoint('journal.prepare.before', { characterId: characterId, rewardId: intent.rewardId });
         return db.get(JOURNAL_STORE, key).then(function (existing) {
           if (existing) {
-            if (existing.status === 'quarantined') return { ok: false, reason: 'REWARD_QUARANTINED' };
-            if (existing.status === 'completed') return { ok: false, reason: 'REWARD_ALREADY_COMPLETED' };
-            if (stable(existing.payload) !== stable(payload)) {
-              // Preserve the first durable reward as the canonical winner. Quarantine only
-              // the conflicting incoming intent; never invalidate the already-staged reward.
-              return quarantineRecord(characterId, key + ':incoming', null, 'REWARD_ID_PAYLOAD_CONFLICT', {
-                rewardId: intent.rewardId, payload: payload, existingKey: existing.key
-              }).then(function () { return { ok: false, reason: 'REWARD_ID_PAYLOAD_CONFLICT', quarantined: true }; });
+            if (!validateRecord(existing, characterId)) {
+              return quarantineRecord(characterId, key, existing, 'EXISTING_JOURNAL_INVALID')
+                .then(function () { return { ok: false, reason: 'EXISTING_JOURNAL_INVALID', quarantined: true }; });
             }
+            if (existing.status === 'quarantined') return { ok: false, reason: 'JOURNAL_QUARANTINED' };
+            if (existing.payloadDigest !== payloadDigest || stable(existing.payload) !== stable(payload)) {
+              return quarantineRecord(characterId, key + ':incoming', null, 'REWARD_ID_PAYLOAD_CONFLICT', payload)
+                .then(function () { return { ok: false, reason: 'REWARD_ID_PAYLOAD_CONFLICT', quarantined: true }; });
+            }
+            if (!ensureActiveMarker(characterId)) return { ok: false, reason: 'REWARD_MARKER_WRITE_FAILED', durable: true };
             return { ok: true, alreadyPrepared: true, entry: clone(existing) };
           }
           return db.listByCharacter(JOURNAL_STORE, characterId).then(function (entries) {
             var encounter = entries.find(function (entry) { return entry.encounterId === intent.encounterId; });
             if (encounter && encounter.rewardId !== intent.rewardId) {
-              return quarantineRecord(characterId, encounter.key + ':incoming', null, 'ENCOUNTER_ID_REUSED', {
-                rewardId: intent.rewardId, payload: payload, existingKey: encounter.key
-              }).then(function () { return { ok: false, reason: 'ENCOUNTER_ID_REUSED', quarantined: true }; });
+              return quarantineRecord(characterId, encounter.key, encounter, 'ENCOUNTER_ID_REUSED', payload)
+                .then(function () { return quarantineRecord(characterId, key + ':incoming', null, 'ENCOUNTER_ID_REUSED', payload); })
+                .then(function () { return { ok: false, reason: 'ENCOUNTER_ID_REUSED', quarantined: true }; });
             }
+            var createdAt = payload.createdAt;
             var entry = {
-              key: key, characterId: characterId, rewardId: intent.rewardId, encounterId: intent.encounterId,
-              payload: payload, status: 'prepared', createdAt: intent.createdAt, updatedAt: intent.createdAt
+              schemaVersion: 1, key: key, characterId: characterId, rewardId: intent.rewardId,
+              encounterId: intent.encounterId, payload: payload, payloadDigest: payloadDigest,
+              status: 'prepared', createdAt: createdAt, updatedAt: createdAt,
+              timestamps: { prepared: createdAt }
             };
-            return db.put(JOURNAL_STORE, entry).then(function () { return { ok: true, entry: clone(entry) }; });
+            checkpoint('journal.prepare.write', { characterId: characterId, rewardId: intent.rewardId });
+            return db.put(JOURNAL_STORE, entry).then(function () {
+              checkpoint('journal.prepare.after', { characterId: characterId, rewardId: intent.rewardId });
+              if (!ensureActiveMarker(characterId)) return { ok: false, reason: 'REWARD_MARKER_WRITE_FAILED', durable: true };
+              return { ok: true, entry: clone(entry) };
+            });
           });
         });
       }).catch(function (error) { return { ok: false, reason: error.message || 'JOURNAL_WRITE_FAILED' }; });
@@ -181,63 +277,59 @@
     function get(characterId, rewardId) {
       if (!validId(characterId) || typeof rewardId !== 'string' || !rewardId) return Promise.resolve({ ok: false, reason: 'BAD_JOURNAL_KEY' });
       return open().then(function (db) { return db.get(JOURNAL_STORE, makeKey(characterId, rewardId)); })
-        .then(function (entry) { return { ok: true, entry: entry ? clone(entry) : null }; })
+        .then(function (entry) {
+          if (entry && !validateRecord(entry, characterId)) return { ok: false, reason: 'JOURNAL_CORRUPT', entry: clone(entry) };
+          return { ok: true, entry: entry ? clone(entry) : null };
+        })
         .catch(function (error) { return { ok: false, reason: error.message || 'JOURNAL_READ_FAILED' }; });
     }
 
     function list(characterId) {
       if (!validId(characterId)) return Promise.resolve({ ok: false, reason: 'BAD_CHARACTER_ID' });
       return open().then(function (db) { return db.listByCharacter(JOURNAL_STORE, characterId); })
-        .then(function (entries) { return { ok: true, entries: entries.map(clone) }; })
+        .then(function (entries) {
+          var invalid = entries.filter(function (entry) { return !validateRecord(entry, characterId); });
+          return invalid.length ? { ok: false, reason: 'JOURNAL_CORRUPT', entries: invalid.map(clone) } : { ok: true, entries: entries.map(clone) };
+        })
         .catch(function (error) { return { ok: false, reason: error.message || 'JOURNAL_READ_FAILED' }; });
     }
 
     function transition(characterId, rewardId, nextStatus, details) {
+      if (!lockHeld[characterId]) return Promise.resolve({ ok: false, reason: 'REWARD_LOCK_REQUIRED' });
       if (!validId(characterId) || typeof rewardId !== 'string' || !rewardId || STATES.indexOf(nextStatus) < 0) {
         return Promise.resolve({ ok: false, reason: 'BAD_TRANSITION_ARGUMENT' });
       }
       return open().then(function (db) {
         var key = makeKey(characterId, rewardId);
+        checkpoint('journal.transition.before', { characterId: characterId, rewardId: rewardId, nextStatus: nextStatus });
         return db.get(JOURNAL_STORE, key).then(function (entry) {
-          if (!entry) return { ok: false, reason: 'JOURNAL_ENTRY_MISSING' };
+          if (!entry || !validateRecord(entry, characterId)) return { ok: false, reason: 'JOURNAL_ENTRY_MISSING_OR_CORRUPT' };
           if (entry.status === nextStatus) return { ok: true, alreadyTransitioned: true, entry: clone(entry) };
-          if (NEXT[entry.status].indexOf(nextStatus) < 0) return { ok: false, reason: 'INVALID_JOURNAL_TRANSITION' };
+          if (!NEXT[entry.status] || NEXT[entry.status].indexOf(nextStatus) < 0) return { ok: false, reason: 'INVALID_JOURNAL_TRANSITION' };
           entry.status = nextStatus;
-          entry.updatedAt = new Date().toISOString();
+          entry.updatedAt = now();
+          entry.timestamps[nextStatus] = entry.updatedAt;
           if (details && typeof details === 'object') entry.details = clone(details);
-          return db.put(JOURNAL_STORE, entry).then(function () { return { ok: true, entry: clone(entry) }; });
+          checkpoint('journal.transition.write', { characterId: characterId, rewardId: rewardId, nextStatus: nextStatus });
+          return db.put(JOURNAL_STORE, entry).then(function () {
+            checkpoint('journal.transition.after', { characterId: characterId, rewardId: rewardId, nextStatus: nextStatus });
+            return { ok: true, entry: clone(entry) };
+          });
         });
       }).catch(function (error) { return { ok: false, reason: error.message || 'JOURNAL_WRITE_FAILED' }; });
     }
 
-    function quarantineRecord(characterId, sourceKey, existing, reason, conflictingPayload) {
-      return open().then(function (db) {
-        var key = characterId + ':' + sourceKey + ':' + Date.now() + ':' + Math.random().toString(16).slice(2);
-        var evidence = {
-          key: key, characterId: characterId, sourceKey: sourceKey, reason: reason,
-          existing: existing ? clone(existing) : null,
-          conflictingPayload: conflictingPayload ? clone(conflictingPayload) : null,
-          quarantinedAt: new Date().toISOString()
-        };
-        return db.put(QUARANTINE_STORE, evidence).then(function () {
-          if (!existing) return { ok: true, evidence: clone(evidence) };
-          existing.status = 'quarantined';
-          existing.updatedAt = evidence.quarantinedAt;
-          existing.quarantineReason = reason;
-          return db.put(JOURNAL_STORE, existing).then(function () { return { ok: true, evidence: clone(evidence) }; });
-        });
-      });
-    }
-
     function quarantine(characterId, rewardId, reason, conflictingPayload) {
+      if (!lockHeld[characterId]) return Promise.resolve({ ok: false, reason: 'REWARD_LOCK_REQUIRED' });
       if (!validId(characterId) || typeof rewardId !== 'string' || !rewardId || typeof reason !== 'string' || !reason) {
         return Promise.resolve({ ok: false, reason: 'BAD_QUARANTINE_ARGUMENT' });
       }
       return get(characterId, rewardId).then(function (result) {
+        if (!result.ok && result.entry) return quarantineRecord(characterId, makeKey(characterId, rewardId), result.entry, reason, conflictingPayload);
         if (!result.ok) return result;
-        return quarantineRecord(characterId, makeKey(characterId, rewardId), result.entry, reason, conflictingPayload)
-          .then(function (value) { return { ok: true, evidence: value.evidence }; });
-      }).catch(function (error) { return { ok: false, reason: error.message || 'QUARANTINE_FAILED' }; });
+        return quarantineRecord(characterId, makeKey(characterId, rewardId), result.entry, reason, conflictingPayload);
+      }).then(function (value) { return value && value.ok ? { ok: true, evidence: value.evidence } : value; })
+        .catch(function (error) { return { ok: false, reason: error.message || 'QUARANTINE_FAILED' }; });
     }
 
     function listQuarantine(characterId) {
@@ -249,7 +341,8 @@
 
     return {
       runExclusive: runExclusive, prepare: prepare, get: get, list: list,
-      transition: transition, quarantine: quarantine, listQuarantine: listQuarantine, isActive: isActive,
+      transition: transition, quarantine: quarantine, listQuarantine: listQuarantine,
+      isActive: isActive, createEncounterId: createEncounterId, checkpoint: checkpoint,
       databaseName: DB_NAME, databaseVersion: DB_VERSION
     };
   }
