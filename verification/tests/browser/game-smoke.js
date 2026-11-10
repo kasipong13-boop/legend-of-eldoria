@@ -672,6 +672,67 @@ const server = http.createServer((req, res) => {
     }
     await fi17Context.close();
 
+
+    // FI-18: matching reward sequence but conflicting EXP/items must quarantine.
+    // Distinct from FI-20, which changes the pending reward sequence itself.
+    const fi18Context = await browser.newContext({ viewport:{ width:390, height:844 }, isMobile:true, hasTouch:true });
+    const fi18Page = await fi18Context.newPage();
+    fi18Page.on('pageerror', error => errors.push('FI-18: ' + String(error)));
+    await fi18Page.goto('http://127.0.0.1:' + port + '/', { waitUntil:'networkidle' });
+    await fi18Page.getByRole('button', { name:'Create New Character' }).click();
+    await fi18Page.locator('#screen-create.active').waitFor();
+    await fi18Page.locator('#character-name').fill('FI18 Hero');
+    await fi18Page.getByRole('button', { name:'Create Character' }).click();
+    await fi18Page.locator('#screen-world.active').waitFor();
+    const fi18Fixture = await fi18Page.evaluate(async () => {
+      const E = window.ELDORIA, save = E.GameSave.getCurrentSave();
+      const rewardId = String(save.nextRewardSeq);
+      const bytes = new Uint8Array(16); crypto.getRandomValues(bytes);
+      const encounterId = Array.from(bytes, n => n.toString(16).padStart(2, '0')).join('');
+      const createdAt = new Date().toISOString(), journal = E.RewardRecovery.create();
+      const beforeCards = E.CardCollection.get(save.characterId).data.owned.find(c => c.cardId === 'bash' && c.stars === 1).quantity;
+      const prepared = await journal.runExclusive(save.characterId, async () => {
+        const intent = { rewardId, encounterId, monsterId:'poring', exp:2, gold:0,
+          drops:[{ id:'jelly', name:'Poring Jelly' }],
+          cards:[{ cardId:'bash', stars:1, quantity:1 }], createdAt };
+        const entry = await journal.prepare(save.characterId, intent);
+        if (!entry.ok) return entry;
+        const staged = E.CardCollection.stageReward(save.characterId, rewardId, intent.cards);
+        if (!staged.ok) return staged;
+        const transitioned = await journal.transition(save.characterId, rewardId, 'sidecarStaged');
+        if (!transitioned.ok) return transitioned;
+        // Valid Save pending sequence, but EXP and drops conflict with immutable Journal intent.
+        const pending = E.Save.withPendingReward(save, { exp:9, gold:0, drops:[] }, 'poring', createdAt);
+        if (!pending.ok) return pending;
+        const system = E.Save.createSystem({ backend:E.Save.getBrowserBackend() });
+        return system.commit(save, pending.save);
+      });
+      if (!prepared.ok) throw new Error('FI-18 setup failed: ' + prepared.reason);
+      return { characterId:save.characterId, rewardId, beforeExp:save.stats.exp,
+        beforeItems:save.items.jelly || 0, beforeCards };
+    });
+    await fi18Page.reload({ waitUntil:'networkidle' });
+    await fi18Page.locator('#screen-title.active').waitFor();
+    await fi18Page.getByRole('button', { name:'Continue' }).click();
+    await fi18Page.locator('#screen-select.active').waitFor();
+    await fi18Page.locator('.character-row').filter({ hasText:'FI18 Hero' }).getByRole('button', { name:'Play' }).click();
+    await fi18Page.locator('#screen-world.active').waitFor();
+    const fi18Evidence = await fi18Page.evaluate(async fixture => {
+      const E = window.ELDORIA, save = E.GameSave.getCurrentSave();
+      const cards = E.CardCollection.get(save.characterId).data;
+      const quarantine = await E.RewardRecovery.create().listQuarantine(fixture.characterId);
+      return { save, cards, quarantine };
+    }, fi18Fixture);
+    if (!fi18Evidence.quarantine.ok ||
+        !fi18Evidence.quarantine.entries.some(e => e.reason === 'SAVE_JOURNAL_PAYLOAD_MISMATCH') ||
+        fi18Evidence.save.stats.exp !== fi18Fixture.beforeExp ||
+        (fi18Evidence.save.items.jelly || 0) !== fi18Fixture.beforeItems ||
+        fi18Evidence.cards.owned.find(c => c.cardId === 'bash' && c.stars === 1).quantity !== fi18Fixture.beforeCards ||
+        fi18Evidence.cards.claimedRewardIds.includes(fi18Fixture.rewardId)) {
+      throw new Error('FI-18: conflicting reward payload was claimed or not quarantined');
+    }
+    await fi18Context.close();
+
 if (errors.length) throw new Error(errors.join('\n'));
     console.log(JSON.stringify({ results, pageErrors:errors, FI38:'pass', FI10:'pass', FI20:'pass', FI22:'pass' }, null, 2));
     console.log('PASS  character creation and selection smoke test on desktop and iPhone-sized Chromium');
