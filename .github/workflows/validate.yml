@@ -32,6 +32,7 @@ jobs:
           test -f js/battle-ui.js
           test -f js/world.js
           test -f js/main.js
+          test -f js/card-collection.js
           test -f assets/icon.svg
           test -f assets/apple-touch-icon.png
 
