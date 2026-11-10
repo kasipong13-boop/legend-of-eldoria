@@ -19,6 +19,7 @@ Legacy source reviewed: PR #23 (`feature/card-acquisition-foundation`).
 - A card reward is staged before the character's existing pending reward is committed. The card grant and receipt are written together in one verified sidecar write.
 - The character pending reward remains the existing Save Schema v1 shape: `seq, characterId, monsterId, exp, gold, drops, createdAt`. Card rewards are not inserted into character Main / Backup / Guard records.
 - On settlement, the sidecar receipt is claimed first; the existing Save Engine then claims EXP and item rewards. A retry sees the receipt and cannot duplicate cards.
+- If card-sidecar storage temporarily fails, the victory reward remains locked in an in-memory retry intent; the lock dialog cannot return to the title until the same reward is staged and settled.
 - Missing staged data is treated as a legacy pre-acquisition pending reward, preserving the ability to settle older saves.
 
 ## Protected systems
