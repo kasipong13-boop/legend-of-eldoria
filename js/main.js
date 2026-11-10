@@ -610,6 +610,8 @@
           $('btn-result').textContent = 'Return to the village';
           updateHud();
         }
+        updateHud();
+        show('screen-result');
       })();
     } else {
       $('result-title').textContent = 'Defeated';
@@ -627,7 +629,7 @@
       backToVillage(!result.won);
     };
     updateHud();
-    show('screen-result');
+    if (!result.won) show('screen-result');
   }
 
   function backToVillage(resetHero) {
