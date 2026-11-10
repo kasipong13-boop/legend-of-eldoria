@@ -733,6 +733,90 @@ const server = http.createServer((req, res) => {
     }
     await fi18Context.close();
 
+
+    // FI-19: interrupted Save Engine resume after a durable pending-reward write.
+    // Inject W4 failure, interrupt the first resume at W5, then resume the same tx.
+    // Do not recompute the reward, reroll cards, or change the production Save Engine.
+    const fi19Context = await browser.newContext({ viewport:{ width:390, height:844 }, isMobile:true, hasTouch:true });
+    const fi19Page = await fi19Context.newPage();
+    fi19Page.on('pageerror', error => errors.push('FI-19: ' + String(error)));
+    await fi19Page.goto('http://127.0.0.1:' + port + '/', { waitUntil:'networkidle' });
+    await fi19Page.getByRole('button', { name:'Create New Character' }).click();
+    await fi19Page.locator('#screen-create.active').waitFor();
+    await fi19Page.locator('#character-name').fill('FI19 Hero');
+    await fi19Page.getByRole('button', { name:'Create Character' }).click();
+    await fi19Page.locator('#screen-world.active').waitFor();
+    const fi19Fixture = await fi19Page.evaluate(async () => {
+      const E = window.ELDORIA, save = E.GameSave.getCurrentSave();
+      const rewardId = String(save.nextRewardSeq);
+      const bytes = new Uint8Array(16); crypto.getRandomValues(bytes);
+      const encounterId = Array.from(bytes, n => n.toString(16).padStart(2, '0')).join('');
+      const createdAt = new Date().toISOString(), journal = E.RewardRecovery.create();
+      const beforeCards = E.CardCollection.get(save.characterId).data.owned.find(c => c.cardId === 'bash' && c.stars === 1).quantity;
+      const result = await journal.runExclusive(save.characterId, async () => {
+        const intent = { rewardId, encounterId, monsterId:'poring', exp:2, gold:0, drops:[],
+          cards:[{ cardId:'bash', stars:1, quantity:1 }], createdAt };
+        const prepared = await journal.prepare(save.characterId, intent);
+        if (!prepared.ok) return prepared;
+        const staged = E.CardCollection.stageReward(save.characterId, rewardId, intent.cards);
+        if (!staged.ok) return staged;
+        const sidecar = await journal.transition(save.characterId, rewardId, 'sidecarStaged');
+        if (!sidecar.ok) return sidecar;
+        const pending = E.Save.withPendingReward(save, { exp:2, gold:0, drops:[] }, 'poring', createdAt);
+        if (!pending.ok) return pending;
+        let failW4 = true, interruptW5 = true;
+        const hooks = {
+          actionFor(step) { if (step === 'W4' && failW4) { failW4 = false; return 'fail'; } return null; },
+          haltAfter(step) { if (step === 'W5' && interruptW5) { interruptW5 = false; return true; } return false; }
+        };
+        const system = E.Save.createSystem({ backend:E.Save.getBrowserBackend(), hooks });
+        const interrupted = system.commit(save, pending.save);
+        if (interrupted.ok || !interrupted.durable || interrupted.stage !== 'W4' || !interrupted.tx) {
+          throw new Error('FI-19 expected durable W4 failure with resumable transaction');
+        }
+        let halted = false;
+        try { system.resume(interrupted.tx); }
+        catch (error) {
+          if (!(error instanceof E.Save.SaveHalt)) throw error;
+          halted = true;
+        }
+        if (!halted) throw new Error('FI-19 expected interruption during resume W5');
+        const recovered = system.resume(interrupted.tx);
+        if (!recovered.ok || !recovered.full || !recovered.durable ||
+            recovered.save.pendingReward.seq !== Number(rewardId)) {
+          throw new Error('FI-19 second resume did not finish the same pending reward');
+        }
+        const duplicateResume = system.resume(interrupted.tx);
+        if (!duplicateResume.ok || duplicateResume.save.checksum !== recovered.save.checksum) {
+          throw new Error('FI-19 repeated resume changed the durable target');
+        }
+        return { ok:true };
+      });
+      if (!result.ok) throw new Error('FI-19 setup failed: ' + result.reason);
+      return { characterId:save.characterId, rewardId, beforeExp:save.stats.exp, beforeCards };
+    });
+    await fi19Page.reload({ waitUntil:'networkidle' });
+    await fi19Page.locator('#screen-title.active').waitFor();
+    await fi19Page.getByRole('button', { name:'Continue' }).click();
+    await fi19Page.locator('#screen-select.active').waitFor();
+    await fi19Page.locator('.character-row').filter({ hasText:'FI19 Hero' }).getByRole('button', { name:'Play' }).click();
+    await fi19Page.locator('#screen-world.active').waitFor();
+    const fi19Recovered = await fi19Page.evaluate(async fixture => {
+      const E = window.ELDORIA, save = E.GameSave.getCurrentSave();
+      const cards = E.CardCollection.get(save.characterId).data;
+      const journal = await E.RewardRecovery.create().get(save.characterId, fixture.rewardId);
+      return { save, cards, journal:journal.entry };
+    }, fi19Fixture);
+    if (fi19Recovered.save.pendingReward !== null ||
+        fi19Recovered.save.lastClaimedSeq !== Number(fi19Fixture.rewardId) ||
+        fi19Recovered.save.stats.exp !== fi19Fixture.beforeExp + 2 ||
+        fi19Recovered.cards.owned.find(c => c.cardId === 'bash' && c.stars === 1).quantity !== fi19Fixture.beforeCards + 1 ||
+        fi19Recovered.cards.claimedRewardIds.filter(id => id === fi19Fixture.rewardId).length !== 1 ||
+        !fi19Recovered.journal || fi19Recovered.journal.status !== 'completed') {
+      throw new Error('FI-19: interrupted Save resume did not settle exactly once after reload');
+    }
+    await fi19Context.close();
+
 if (errors.length) throw new Error(errors.join('\n'));
     console.log(JSON.stringify({ results, pageErrors:errors, FI38:'pass', FI10:'pass', FI20:'pass', FI22:'pass' }, null, 2));
     console.log('PASS  character creation and selection smoke test on desktop and iPhone-sized Chromium');
