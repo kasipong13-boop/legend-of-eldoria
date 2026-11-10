@@ -571,6 +571,66 @@ const server = http.createServer((req, res) => {
     }
     await fi15Context.close();
 
+
+    // FI-16: durable pending Save and savePending Journal, interrupted before Card Claim.
+    const fi16Context = await browser.newContext({ viewport:{ width:390, height:844 }, isMobile:true, hasTouch:true });
+    const fi16Page = await fi16Context.newPage();
+    fi16Page.on('pageerror', error => errors.push('FI-16: ' + String(error)));
+    await fi16Page.goto('http://127.0.0.1:' + port + '/', { waitUntil:'networkidle' });
+    await fi16Page.getByRole('button', { name:'Create New Character' }).click();
+    await fi16Page.locator('#screen-create.active').waitFor();
+    await fi16Page.locator('#character-name').fill('FI16 Hero');
+    await fi16Page.getByRole('button', { name:'Create Character' }).click();
+    await fi16Page.locator('#screen-world.active').waitFor();
+    const fi16Fixture = await fi16Page.evaluate(async () => {
+      const E = window.ELDORIA, save = E.GameSave.getCurrentSave();
+      const rewardId = String(save.nextRewardSeq);
+      const bytes = new Uint8Array(16); crypto.getRandomValues(bytes);
+      const encounterId = Array.from(bytes, n => n.toString(16).padStart(2, '0')).join('');
+      const createdAt = new Date().toISOString();
+      const journal = E.RewardRecovery.create();
+      const beforeCards = E.CardCollection.get(save.characterId).data.owned.find(c => c.cardId === 'bash' && c.stars === 1).quantity;
+      const result = await journal.runExclusive(save.characterId, async () => {
+        const intent = { rewardId, encounterId, monsterId:'poring', exp:2, gold:0, drops:[],
+          cards:[{ cardId:'bash', stars:1, quantity:1 }], createdAt };
+        const entry = await journal.prepare(save.characterId, intent);
+        if (!entry.ok) return entry;
+        const stage = E.CardCollection.stageReward(save.characterId, rewardId, intent.cards);
+        if (!stage.ok) return stage;
+        const sidecarState = await journal.transition(save.characterId, rewardId, 'sidecarStaged');
+        if (!sidecarState.ok) return sidecarState;
+        const pending = E.Save.withPendingReward(save, { exp:2, gold:0, drops:[] }, 'poring', createdAt);
+        if (!pending.ok) return pending;
+        const system = E.Save.createSystem({ backend:E.Save.getBrowserBackend() });
+        const commit = system.commit(save, pending.save);
+        if (!commit.ok) return commit;
+        return journal.transition(save.characterId, rewardId, 'savePending');
+      });
+      if (!result.ok) throw new Error('FI-16 setup failed: ' + result.reason);
+      return { characterId:save.characterId, rewardId, beforeExp:save.stats.exp, beforeCards };
+    });
+    await fi16Page.reload({ waitUntil:'networkidle' });
+    await fi16Page.locator('#screen-title.active').waitFor();
+    await fi16Page.getByRole('button', { name:'Continue' }).click();
+    await fi16Page.locator('#screen-select.active').waitFor();
+    await fi16Page.locator('.character-row').filter({ hasText:'FI16 Hero' }).getByRole('button', { name:'Play' }).click();
+    await fi16Page.locator('#screen-world.active').waitFor();
+    const fi16Recovered = await fi16Page.evaluate(async fixture => {
+      const E = window.ELDORIA, save = E.GameSave.getCurrentSave();
+      const cards = E.CardCollection.get(save.characterId).data;
+      const journal = await E.RewardRecovery.create().get(save.characterId, fixture.rewardId);
+      return { save, cards, journal:journal.entry };
+    }, fi16Fixture);
+    if (fi16Recovered.save.pendingReward !== null ||
+        fi16Recovered.save.lastClaimedSeq !== Number(fi16Fixture.rewardId) ||
+        fi16Recovered.save.stats.exp !== fi16Fixture.beforeExp + 2 ||
+        fi16Recovered.cards.owned.find(c => c.cardId === 'bash' && c.stars === 1).quantity !== fi16Fixture.beforeCards + 1 ||
+        fi16Recovered.cards.claimedRewardIds.filter(id => id === fi16Fixture.rewardId).length !== 1 ||
+        !fi16Recovered.journal || fi16Recovered.journal.status !== 'completed') {
+      throw new Error('FI-16: durable savePending did not recover exactly once');
+    }
+    await fi16Context.close();
+
 if (errors.length) throw new Error(errors.join('\n'));
     console.log(JSON.stringify({ results, pageErrors:errors, FI38:'pass', FI10:'pass', FI20:'pass', FI22:'pass' }, null, 2));
     console.log('PASS  character creation and selection smoke test on desktop and iPhone-sized Chromium');
