@@ -125,6 +125,7 @@
           return;
         }
         // Leaving the game does not discard or overwrite the current save.
+        if (battleLockFinished) { var releaseBattle = battleLockFinished; battleLockFinished = null; releaseBattle(); }
         saveLocked = false; active = false; overlay.classList.remove('show'); show('screen-title');
       });
     }
@@ -202,11 +203,23 @@
     return { ok: true, entry: entry };
   }
 
+  function validJournalEntry(entry, characterId) {
+    var payload = entry && entry.payload;
+    return !!entry && entry.characterId === characterId &&
+      typeof entry.rewardId === 'string' && /^[1-9][0-9]*$/.test(entry.rewardId) &&
+      typeof entry.encounterId === 'string' && /^[0-9a-f]{32}$/.test(entry.encounterId) &&
+      ['prepared', 'sidecarStaged', 'savePending', 'cardsClaimed', 'saveClaimed', 'completed', 'quarantined'].indexOf(entry.status) >= 0 &&
+      !!payload && typeof payload.monsterId === 'string' && !!payload.monsterId &&
+      Number.isInteger(payload.exp) && payload.exp >= 0 && payload.gold === 0 &&
+      Array.isArray(payload.drops) && payload.drops.every(function (drop) { return drop && typeof drop.id === 'string' && !!drop.id && typeof drop.name === 'string' && !!drop.name; }) &&
+      Array.isArray(payload.cards) && typeof payload.createdAt === 'string' && !!payload.createdAt;
+  }
+
   async function settleJournalEntry(save, entry) {
     var payload = entry.payload;
     var rewardId = entry.rewardId;
     var seq = Number(rewardId);
-    if (!payload || payload.gold !== 0 || payload.monsterId !== entry.payload.monsterId) {
+    if (!validJournalEntry(entry, save.characterId)) {
       await rewardRecovery.quarantine(save.characterId, rewardId, 'JOURNAL_PAYLOAD_INVALID');
       return null;
     }
@@ -312,6 +325,7 @@
     var listed = await rewardRecovery.list(save.characterId);
     if (!listed.ok) return null;
     var entries = listed.entries;
+    if (entries.some(function (entry) { return !validJournalEntry(entry, save.characterId); })) return null;
     var incomplete = entries.filter(function (entry) { return entry.status !== 'completed' && entry.status !== 'quarantined'; });
     if (entries.some(function (entry) { return entry.status === 'quarantined'; })) return null;
     if (!entries.length && rewardRecovery.isActive(save.characterId)) return null;
