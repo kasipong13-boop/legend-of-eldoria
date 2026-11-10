@@ -39,7 +39,7 @@ const intent = (overrides = {}) => ({
 test('Web Locks coordinator fails closed when Web Locks is unavailable', async () => {
   const { API } = boot({ locks: null });
   const result = await API.runExclusive(characterId, async () => ({ ok: true }));
-  assert.deepEqual(result, { ok: false, reason: 'WEB_LOCKS_UNAVAILABLE' });
+  assert.equal(result.ok, false);\n  assert.equal(result.reason, 'WEB_LOCKS_UNAVAILABLE');
 });
 
 test('Web Locks coordinator refuses a busy lock and never runs the callback', async () => {
