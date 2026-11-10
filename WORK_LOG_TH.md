@@ -177,3 +177,23 @@ Compatibility
 - Card Collection Sidecar schema v2 (schema v3 not used)
 - Character Save Schema v1 unchanged
 - PR #30 remains Open / Draft / Not merged; no Release
+
+
+
+FI Runtime Verification Update — PR #30 Head 86487c8
+------------------------------------------------------
+ผล Browser Smoke จาก Validate Prototype run 42743214333: success
+- FI-10: Sidecar pending without Journal -> ORPHAN_SIDECAR_REWARD quarantine — PASS
+- FI-20: Save pending sequence mismatch with Journal -> SAVE_JOURNAL_ID_MISMATCH quarantine — PASS
+- FI-22: Save claim durable while Journal remains cardsClaimed -> reload advances to completed without reapplying EXP — PASS
+- FI-38: Journal deleted after Save Pending while activation marker remains -> ACTIVATED_JOURNAL_MISSING quarantine — PASS
+- FI-05 / FI-29: PREPARED-only Journal reload reconstructs Sidecar and completes reward — PASS on Validate run 42742865887
+- FI-35: two-page Web Locks contention — PASS on Validate run 42742865887
+- FI-12: same Reward ID with different payload is quarantined without rebinding canonical payload — Unit Test PASS
+- Browser pageErrors: []
+
+CI Update
+- Validate Prototype run 42743214333: success (syntax, regression/mutation suite, browser smoke incl. FI-10/20/22/38)
+- Full Verification run 42743214322: Unit/Integration/UI, Regression and Mutation steps completed successfully; final Chromium reload step was still running at time of this log update
+- Actual iPhone Safari remains untested; iPhone-sized Chromium only
+- Full original FI-01..FI-38 case-by-case definitions remain unavailable; the eight cases listed above are verified, and the other 30 are not claimed passed
