@@ -26,7 +26,7 @@ PR: #30 (Draft; do not merge).
 - Object stores:
   - `journal`: durable reward intents keyed by character + reward identity; retains completed receipts.
   - `quarantine`: immutable evidence for conflicting, orphaned, malformed, or sequence-inconsistent records.
-- Journal record contains: characterId, rewardId, encounterId, monsterId, EXP, zero Gold, item drops, card payload, createdAt, payload digest, lifecycle status and timestamps.
+- Journal record contains: characterId, rewardId, encounterId, monsterId, EXP, zero Gold, item drops, normalized card payload, createdAt, Save checksum digest, canonical payload string, lifecycle status and per-state timestamps.
 - Lifecycle: `prepared -> sidecarStaged -> savePending -> cardsClaimed -> saveClaimed -> completed`.
 - No journal record is physically deleted as part of normal settlement or recovery.
 - Reward identity remains bound to the character's monotonic Save sequence; encounter identity is a separate unique identifier bound to exactly one reward.
@@ -45,7 +45,7 @@ PR: #30 (Draft; do not merge).
 ## Implementation sequence
 
 1. Record this approved TDR and capture the exact current PR head.
-2. Add an IndexedDB Journal module with schema versioning, deterministic payload comparison, durable transactions, list/get/transition, and quarantine operations.
+2. Add an IndexedDB Journal module with schema versioning, checksum + canonical payload validation, lock-required mutations, durable transactions, list/get/transition, fault checkpoints and quarantine operations.
 3. Add a Web Locks coordinator with fail-closed behavior and injectable test adapters.
 4. Restore Card Collection Sidecar to schema v2; retain only card ownership, pending card reward and claimed receipt responsibilities.
 5. Refactor reward staging/settlement/recovery to async operations under the per-character Web Lock:
