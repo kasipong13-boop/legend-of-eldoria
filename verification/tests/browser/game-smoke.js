@@ -503,6 +503,74 @@ const server = http.createServer((req, res) => {
     }
     await fi22Context.close();
 
+
+    // FI-15: crash immediately after durable Save Pending commit, before Journal savePending.
+    // The reload must resume forward and settle cards/EXP/items exactly once.
+    const fi15Context = await browser.newContext({ viewport:{ width:390, height:844 }, isMobile:true, hasTouch:true });
+    const fi15Page = await fi15Context.newPage();
+    fi15Page.on('pageerror', error => errors.push('FI-15: ' + String(error)));
+    await fi15Page.goto('http://127.0.0.1:' + port + '/', { waitUntil:'networkidle' });
+    await fi15Page.getByRole('button', { name:'Create New Character' }).click();
+    await fi15Page.locator('#screen-create.active').waitFor();
+    await fi15Page.locator('#character-name').fill('FI15 Hero');
+    await fi15Page.getByRole('button', { name:'Create Character' }).click();
+    await fi15Page.locator('#screen-world.active').waitFor();
+    const fi15Fixture = await fi15Page.evaluate(async () => {
+      const E = window.ELDORIA;
+      const save = E.GameSave.getCurrentSave();
+      const rewardId = String(save.nextRewardSeq);
+      const bytes = new Uint8Array(16); crypto.getRandomValues(bytes);
+      const encounterId = Array.from(bytes, value => value.toString(16).padStart(2, '0')).join('');
+      const createdAt = new Date().toISOString();
+      const journal = E.RewardRecovery.create();
+      const beforeCards = E.CardCollection.get(save.characterId).data.owned.find(c => c.cardId === 'bash' && c.stars === 1).quantity;
+      const prepared = await journal.runExclusive(save.characterId, async () => {
+        const intent = { rewardId, encounterId, monsterId:'poring', exp:3, gold:0,
+          drops:[{ id:'jelly', name:'Poring Jelly' }],
+          cards:[{ cardId:'bash', stars:1, quantity:1 }], createdAt };
+        const entry = await journal.prepare(save.characterId, intent);
+        if (!entry.ok) return entry;
+        const staged = E.CardCollection.stageReward(save.characterId, rewardId, intent.cards);
+        if (!staged.ok) return staged;
+        const state = await journal.transition(save.characterId, rewardId, 'sidecarStaged');
+        if (!state.ok) return state;
+        const pending = E.Save.withPendingReward(save, { exp:3, gold:0, drops:intent.drops }, 'poring', createdAt);
+        if (!pending.ok) return pending;
+        const system = E.Save.createSystem({ backend:E.Save.getBrowserBackend() });
+        const committed = system.commit(save, pending.save);
+        if (!committed.ok) return { ok:false, reason:committed.reason || 'SAVE_PENDING_FAILED' };
+        // Simulated crash checkpoint: no Journal transition to savePending and no claim.
+        return { ok:true };
+      });
+      if (!prepared.ok) throw new Error('FI-15 fixture failed: ' + prepared.reason);
+      return { characterId:save.characterId, rewardId, beforeExp:save.stats.exp,
+        beforeJelly:save.items.jelly || 0, beforeCards, beforeGold:save.gold };
+    });
+    await fi15Page.reload({ waitUntil:'networkidle' });
+    await fi15Page.locator('#screen-title.active').waitFor();
+    await fi15Page.getByRole('button', { name:'Continue' }).click();
+    await fi15Page.locator('#screen-select.active').waitFor();
+    await fi15Page.locator('.character-row').filter({ hasText:'FI15 Hero' }).getByRole('button', { name:'Play' }).click();
+    await fi15Page.locator('#screen-world.active').waitFor();
+    const fi15After = await fi15Page.evaluate(async fixture => {
+      const E = window.ELDORIA;
+      const save = E.GameSave.getCurrentSave();
+      const collection = E.CardCollection.get(save.characterId).data;
+      const journal = await E.RewardRecovery.create().get(save.characterId, fixture.rewardId);
+      return { save, collection, journal:journal.entry };
+    }, fi15Fixture);
+    if (fi15After.save.pendingReward !== null ||
+        fi15After.save.lastClaimedSeq !== Number(fi15Fixture.rewardId) ||
+        fi15After.save.stats.exp !== fi15Fixture.beforeExp + 3 ||
+        (fi15After.save.items.jelly || 0) !== fi15Fixture.beforeJelly + 1 ||
+        fi15After.save.gold !== fi15Fixture.beforeGold ||
+        fi15After.collection.owned.find(c => c.cardId === 'bash' && c.stars === 1).quantity !== fi15Fixture.beforeCards + 1 ||
+        fi15After.collection.claimedRewardIds.filter(id => id === fi15Fixture.rewardId).length !== 1 ||
+        !fi15After.journal || fi15After.journal.status !== 'completed') {
+      throw new Error('FI-15: pending-commit crash did not recover exactly once');
+    }
+    await fi15Context.close();
+
 if (errors.length) throw new Error(errors.join('\n'));
     console.log(JSON.stringify({ results, pageErrors:errors, FI38:'pass', FI10:'pass', FI20:'pass', FI22:'pass' }, null, 2));
     console.log('PASS  character creation and selection smoke test on desktop and iPhone-sized Chromium');
