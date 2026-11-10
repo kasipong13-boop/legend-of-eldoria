@@ -283,10 +283,12 @@
     if (!found.ok) return null;
     if (found.entry) return settleJournalEntry(save, found.entry);
     var collection = E.CardCollection.get(save.characterId);
-    // Only positively identified pre-acquisition sidecars may use the legacy path.
-    if (!collection.ok || (collection.source !== 'starter' && collection.source !== 'legacy')) return null;
+    // A separate activation marker survives IndexedDB loss. Once rewards are journaled,
+    // a missing Journal entry is never reinterpreted as a legacy success.
+    if (!collection.ok || rewardRecovery.isActive(save.characterId)) return null;
+    if ((collection.data.pendingRewards || []).some(function (item) { return item.rewardId === rewardId; })) return null;
     var cardClaim = E.CardCollection.claimReward(save.characterId, rewardId);
-    if (!cardClaim.ok || !cardClaim.missingStage) return null;
+    if (!cardClaim.ok || (!cardClaim.missingStage && !cardClaim.alreadyClaimed)) return null;
     var claim = E.Save.withClaim(save, applyRewardToSave);
     if (!claim.ok) return null;
     return commitPendingSave(save, claim.save);
