@@ -130,7 +130,7 @@ const server = http.createServer((req, res) => {
         else {
           const endTurn = page.locator('#btn-end-turn');
           if (await endTurn.isDisabled()) {
-            await page.locator('#screen-result.active').waitFor({ timeout:3000 });
+            await page.locator('#screen-result.active').waitFor({ timeout:15000 });
             break;
           }
           await endTurn.click();
