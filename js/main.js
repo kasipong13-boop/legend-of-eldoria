@@ -664,6 +664,7 @@
     };
     updateHud();
     if (!result.won) show('screen-result');
+    return result.won ? rewardFlow : Promise.resolve();
   }
 
   function backToVillage(resetHero) {
@@ -754,6 +755,7 @@
     if (!active || saveLocked) return;
     var saved = persist('menu-return-title');
     if (!saved.ok) return;
+    if (battleLockFinished) { var releaseBattle = battleLockFinished; battleLockFinished = null; releaseBattle(); }
     active = false;
     E.World.pause();
     closeGameMenu();
