@@ -27,3 +27,18 @@ Record fixture versions, test commands, actual exit status, run ID/URL, head SHA
 
 ## Stop conditions
 Any legacy save regression, unapproved schema change, data loss, unproven recovery, or unexplained reward duplication => FAIL/NO-GO. Missing evidence => NOT ASSESSED/HOLD.
+
+## Synthetic fixture inventory (QG05-M03)
+| ID | Scenario | Required assertion |
+|---|---|---|
+| SV-01 | Valid legacy schema v1 save | Load without data loss |
+| SV-02 | Corrupt main, recoverable backup | Recover per existing contract |
+| SV-03 | Missing guard or stale index | Preserve valid records and recovery behavior |
+| SV-04 | Interrupted or failed write | Preserve previously recoverable data |
+| SV-05 | Unavailable storage or quota exceeded | Report failure, never fabricate success |
+| SV-06 | Duplicate reward retry | No duplicate award |
+| SV-07 | Multiple character records | Preserve index/character isolation |
+| SV-08 | Future-schema rollback | Assess forward and backward compatibility |
+
+## Fixture acceptance and provenance
+Use synthetic isolated storage only. Record fixture version and SHA, test command, expected and observed result, environment, head SHA and CI run ID/URL. Lost recoverable saves, unapproved migrations and duplicate rewards are NO-GO. Missing evidence is NOT ASSESSED/HOLD. These fixtures are specifications, not executed tests; Chromium evidence does not prove physical iPhone Safari compatibility.
