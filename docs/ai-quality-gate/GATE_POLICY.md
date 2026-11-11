@@ -44,3 +44,24 @@ Owner merge authorization; Owner authorization for protected/save/schema changes
 
 ## Review order
 G1 preflight -> G2/G3 -> G4/G5 -> G6 -> aggregate decision -> Owner review. Read-only reviews may inspect in parallel; implementation remains separately authorized.
+
+## Activation security and budget gate (QG05-H02)
+- Before paid or unattended execution, Owner must approve provider, model, currency, per-run and billing-period spending ceilings, concurrency, retries, trigger allowlist, and a named stop operator. No default budget is implied.
+- Verify enforceable provider-side limits where available. If hard spending controls are absent or unverified, record NOT VERIFIED and block unattended paid execution; prompts and advisory hooks are not hard caps.
+- Verify recursive-trigger prevention, concurrency locks, least-privilege tool tokens, secret handling, dependency provenance and an independently tested stop mechanism.
+- Unapproved spending, runaway triggers, missing usage evidence or permission escalation requires FAIL and halt. This specification does not authorize paid calls.
+
+## Owner merge gate enforcement (QG05-H03)
+- Owner merge approval must separately identify PR number and exact current head SHA. Approval to edit or review is never merge approval.
+- Before merge, recheck current head/base SHA, required checks, independent reviews, branch protection/rulesets, bypass permissions and authorization provenance.
+- Inaccessible ruleset evidence is NOT ASSESSED, never PASS. A new commit makes SHA-bound approval STALE. No agent may self-approve or merge.
+
+## Decision examples (QG05-L01)
+| Condition | Status | Decision |
+|---|---|---|
+| Required CI absent/inaccessible | NOT ASSESSED | HOLD |
+| Required CI running | PENDING | HOLD |
+| Reviewed head SHA changed | STALE | HOLD and re-review |
+| Unauthorized protected edit | FAIL | NO-GO |
+| All mandatory gates passed | PASS | ELIGIBLE FOR OWNER REVIEW only |
+| Owner waiver on explicitly waivable criterion | WAIVED | Not equivalent to PASS |
