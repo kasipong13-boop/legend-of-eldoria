@@ -1,5 +1,24 @@
 # LEGEND OF ELDORIA — AI Collaboration Protocol v1.0
 
+## Model A Collaboration Amendment v1.1 — Proposed for Owner Review
+
+**Status: PROPOSED, NOT ACTIVE.** This proposed Model A workflow supersedes the v1.0 Claude-implementation lifecycle only after owner approval and merge; legacy content below is preserved for traceability.
+
+**Proposed roles:** ChatGPT = Development Director and acceptance coordinator; Codex = primary implementation agent; Claude Code = independent read-only PR reviewer; GitHub = issue/PR/CI evidence hub; Game Owner = exclusive final merge and spending authority.
+
+**Proposed lifecycle:** DIRECTOR PLAN → OWNER EXECUTION GATE → CODEX PREFLIGHT → CODEX BRANCH/IMPLEMENT/TEST → PR → CLAUDE READ-ONLY REVIEW + REQUIRED CI → DIRECTOR ACCEPTANCE → OWNER SHA-BOUND MERGE GATE → OWNER MERGE.
+
+**Task packet contract:** task ID, GitHub issue, owner approval reference, base branch, exact expected base SHA, target branch, allowed and protected paths, non-goals, acceptance tests, save compatibility, risk, budget authorization, max attempts, and idempotency key. Missing or conflicting fields BLOCK dispatch.
+
+**Review contract:** Claude may inspect diff, relevant code and CI evidence, and produce severity-ranked findings with file/line, impact and recommendation. Claude must not edit, commit, push, merge, deploy, alter settings, or invoke paid services without authorization. Review results are advisory, must name the exact PR head SHA, and become STALE if that SHA changes.
+
+**Evidence and approval:** record issue/PR URLs, dispatch and run IDs, base/head/reviewed SHAs, CI conclusions, findings, approval references, cost and audit events. Owner execution authorization is distinct from owner merge authorization. No automated merge, automatic paid retry, workflow activation or settings changes are authorized by this amendment.
+
+**Preservation:** protect `js/save.js`, `js/data.js`, `js/battle.js`, `js/world.js`, `verification/tests/baseline/`, save/recovery behavior, confirmed rules, existing PRs, and historical project records. Any high-risk changes require a separately approved scope.
+
+---
+
+
 **Status:** Adopted operating protocol  
 **Applies to:** ChatGPT, Claude/Claude Code, GitHub Actions and the Game Owner  
 **Project:** Existing HTML/CSS/JavaScript browser RPG
