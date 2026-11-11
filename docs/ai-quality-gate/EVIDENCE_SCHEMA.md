@@ -41,3 +41,15 @@ A file blob SHA is not the branch HEAD SHA. A PR base SHA is not necessarily the
 
 ## Reporting and privacy
 Redact secrets, credentials, personal identifiers and save payloads. Prefer minimal log excerpts and stable GitHub links. Preserve failure findings and Owner decisions; do not fabricate PASS, timestamps, URLs or costs.
+
+## Machine-validation contract (QG05-M01)
+This is a normative field contract, not an installed executable validator.
+Required top-level keys: `schema_version`, `report_id`, `task_id`, `generated_at_utc`, `reviewer_identity`, `review_mode`, `repository`, `pr`, `base_branch`, `base_sha`, `head_branch`, `head_sha`, `active_governance`, `approved_scope`, `owner_authorization`, `gates`, `ci_runs`, `findings`, `overall`, `owner_decision`.
+- IDs, branch names, repository and SHA values are strings; `pr` is an integer or null; `ci_runs` and `findings` are arrays; `gates` contains G1–G6; `generated_at_utc` uses ISO 8601 UTC.
+- Gate status enum: PASS, FAIL, PENDING, NOT_ASSESSED, WAIVED, STALE. Overall enum: ELIGIBLE_FOR_OWNER_REVIEW, HOLD, NO_GO. Owner decision enum: PENDING, APPROVED, REJECTED.
+- Each gate has status, reviewer, observed_at_utc, mandatory_criteria and evidence_refs. PASS requires verifiable SHA-bound evidence. WAIVED requires Owner reference, scope, rationale, expiry and proof the criterion is waivable.
+- CI records identify workflow, run_id, run_url, head_sha, job and conclusion. Missing, malformed or stale fields invalidate a report; never default to PASS.
+- Executable schema validation requires a separately approved implementation.
+
+## Traceability and freshness (QG05-L02)
+Link each finding to gate, requirement, changed path, evidence reference, reviewer and resolution. Record baseline/reviewed head SHA, observation time and provenance; a changed head makes dependent results STALE. Illustrative examples are not actual test evidence.
