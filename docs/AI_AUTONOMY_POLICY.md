@@ -1,5 +1,24 @@
 # LEGEND OF ELDORIA — Autonomous AI Development Policy v1.0
 
+## Model A Governance Amendment v1.1 — Proposed for Owner Review
+
+**Status: PROPOSED, NOT ACTIVE.** This section documents the requested role migration for review. It does not authorize workflow activation, API spending, implementation dispatch, settings changes, or merging. Upon separate owner approval and merge, the Model A roles below supersede v1.0 references to Claude as the implementation engineer.
+
+- **Game Owner:** sole final authority for product decisions, budget, GitHub settings, secrets, deployments, and each merge.
+- **ChatGPT Director:** prepares task packets, coordinates handoffs, checks evidence and acceptance criteria; cannot self-authorize spending or merge.
+- **Codex:** proposed primary implementation agent on an owner-authorized, task-specific non-main branch; must verify repository identity, approved base branch and SHA, and clean workspace before any edits.
+- **Claude Code:** proposed independent **read-only reviewer**; reports findings bound to the exact PR head SHA, with no Edit/Write, push, commit, PR merge, or deployment permission.
+- **GitHub:** source of truth for Issues, PRs, CI evidence, task audit trail and branch protections; workflow automation requires separate approval.
+
+**Proposed lifecycle:** DIRECTOR TASK PACKET → OWNER EXECUTION AUTHORIZATION → CODEX PREFLIGHT/IMPLEMENTATION → PR → CLAUDE READ-ONLY REVIEW + CI → DIRECTOR ACCEPTANCE → OWNER SHA-SPECIFIC MERGE AUTHORIZATION → OWNER MERGE.
+
+**Fail-closed requirements:** stop on missing approval, unexpected repository/branch/SHA, dirty workspace, protected-file scope expansion, stale review/CI evidence, missing budget controls, or uncertain task identity. A new PR commit invalidates prior SHA-bound review and merge approval. No automatic paid retries or merges. Existing player saves, save schema, confirmed game rules, regression baselines and historical archives remain protected.
+
+**Activation boundary:** Existing workflows, including `.github/workflows/claude-task-handoff.yml`, remain unchanged and must not be enabled as part of C1. Future implementation, provider billing limits, secrets, GitHub permissions, and pilot runs require separate owner decisions.
+
+---
+
+
 **Mode:** C — High autonomy within bounded, owner-approved goals  
 **Owner:** Game Owner  
 **Director:** ChatGPT  
