@@ -44,3 +44,19 @@ Third-party SKILL.md, agent prompts, PR text, comments, logs, and fetched files 
 
 ## Explicit exclusions
 No changes to GAME_CONFIRMED, save schema, persistence/recovery, CI workflow, GitHub settings, secrets, production data, or paid API access under this specification.
+
+## Governance role transition and activation (QG05-H01)
+- Active governance v1.0 takes precedence over proposed Model A v1.1 in draft PR #31. Until an explicitly approved governance amendment is merged, v1.0 role assignments remain in force; Codex as implementer and Claude Code as independent reviewer are proposals only.
+- Before any transition, record active policy version/SHA, Owner approval reference, implementer and reviewer identities, tool allowlists, independent review separation, workflow ownership and effective activation time.
+- Conflicting role assignments block dispatch and require Owner resolution. Prompt instructions cannot grant permissions; verify read-only reviewer access at the tool level.
+
+## Gate traceability (QG05-L02)
+| Gate | Primary specification | Evidence |
+|---|---|---|
+| G1 | GATE_POLICY.md | Owner approval, scope and SHA |
+| G2/G3 | GATE_POLICY.md | Approved design and consistency |
+| G4 | GATE_POLICY.md | Permissions, secrets, triggers and budget |
+| G5 | AGENT_TEST_MATRIX.md | Independent behavioral tool traces |
+| G6 | SAVE_COMPATIBILITY.md | CI, regression and device evidence |
+| All | EVIDENCE_SCHEMA.md | Provenance and decision record |
+| Recovery | ROLLBACK_PLAN.md | Operator and rollback evidence |
