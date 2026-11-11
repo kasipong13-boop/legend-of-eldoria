@@ -19,3 +19,16 @@ Unexpected diff, SHA mismatch, new high/critical security issue, paid API reques
 
 ## Post-rollback checks
 Verify branch/PR state, absence of unintended changed paths, no unexpected workflow dispatch, test status tied to exact SHA, and unchanged Save Engine/Schema. Record all remaining uncertainties as NOT VERIFIED.
+
+## Pilot rollback runbook (QG05-M04)
+1. Record failure, affected environment, PR/head SHA, time and evidence.
+2. Stop task dispatch and paid retries with the previously approved stop mechanism; advisory prompts are not kill switches.
+3. Notify Owner and identify authorized rollback operator.
+4. Preserve redacted audit logs, configuration baseline and failure evidence.
+5. Revert only authorized isolated pilot artifacts; never silently change main, security settings, workflows, production data or user saves.
+6. Verify no unintended writes, dispatches, spending or protected-file changes remain.
+7. Record outcome, unresolved risks, escalation and Owner decisions.
+
+## Rollback readiness and security controls (QG05-H03)
+Before activation, document operator, authorization reference, configuration baseline, safe-stop procedure, recovery objective, validation checklist and escalation contact. Recovery-time objectives require Owner approval; no unverified time guarantee is implied.
+Never disable branch protection, required checks or reviews to expedite rollback. Settings, permission, workflow, deployment or production-save changes need separate authorization. If safe rollback cannot be verified, HOLD and escalate.
