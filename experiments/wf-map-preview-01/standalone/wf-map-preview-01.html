@@ -1,0 +1,745 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#132128">
+  <!-- built by tools/build_standalone.py; do not edit -->
+  <title>Whispering Forest — Map Preview (WF-MAP-01)</title>
+  <link rel="icon" href="data:,">
+  <style>
+/* WF-MAP-01 Whispering Forest Map Preview - standalone styles */
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body {
+  margin: 0; height: 100%; overflow: hidden; background: #132128; color: #e9efe6;
+  font: 13px/1.35 system-ui, -apple-system, "Segoe UI", "Noto Sans Thai", sans-serif;
+  overscroll-behavior: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
+}
+canvas#view {
+  position: fixed; inset: 0; display: block; touch-action: none;
+  image-rendering: pixelated; image-rendering: crisp-edges;
+}
+
+.hud {
+  position: fixed; left: calc(10px + env(safe-area-inset-left)); top: calc(8px + env(safe-area-inset-top));
+  right: calc(10px + env(safe-area-inset-right));
+  pointer-events: none; text-shadow: 0 1px 2px #000;
+}
+.hud .title { font-weight: 700; font-size: 14px; color: #f3e7b6; }
+.hud .title span { display: block; font-weight: 400; font-size: 11px; color: #b9c8bd; }
+.hud .meta { font-size: 11px; color: #cfe0d3; margin-top: 2px; font-variant-numeric: tabular-nums; }
+
+.tools, .zoom { position: fixed; display: flex; flex-direction: column; gap: 6px; }
+.tools { right: calc(8px + env(safe-area-inset-right)); top: calc(70px + env(safe-area-inset-top)); }
+.zoom { right: calc(10px + env(safe-area-inset-right)); bottom: calc(30px + env(safe-area-inset-bottom)); gap: 10px; }
+.tools button, .zoom button {
+  min-height: 34px; padding: 4px 9px; border-radius: 9px;
+  border: 1px solid #4b6a5b; background: rgba(18, 32, 28, 0.78); color: #e9efe6;
+  font: 600 11px system-ui, -apple-system, sans-serif; touch-action: manipulation;
+}
+.zoom button { width: 48px; height: 48px; font-size: 22px; line-height: 1; border-radius: 50%; }
+.tools button:active, .zoom button:active { background: rgba(60, 96, 80, 0.9); }
+.tools button.on { border-color: #e8c66f; color: #ffe9a8; }
+
+.stick {
+  position: fixed; left: calc(22px + env(safe-area-inset-left)); bottom: calc(26px + env(safe-area-inset-bottom));
+  width: 128px; height: 128px; border-radius: 50%; touch-action: none;
+  background: radial-gradient(circle, rgba(255,255,255,0.10) 0 55%, rgba(255,255,255,0.04) 56%);
+  border: 2px solid rgba(232, 198, 111, 0.45);
+}
+.stick.active { border-color: rgba(255, 233, 168, 0.9); }
+.knob {
+  position: absolute; left: 50%; top: 50%; width: 54px; height: 54px; margin: -27px 0 0 -27px;
+  border-radius: 50%; background: rgba(232, 198, 111, 0.55); border: 2px solid rgba(255, 240, 190, 0.85);
+  pointer-events: none;
+}
+
+.hint {
+  position: fixed; left: 0; right: 0; bottom: calc(4px + env(safe-area-inset-bottom));
+  text-align: center; font-size: 10px; color: rgba(220, 232, 222, 0.6); pointer-events: none;
+}
+
+.toast {
+  position: fixed; left: 50%; top: 30%; transform: translate(-50%, -8px); opacity: 0;
+  max-width: 82vw; padding: 10px 16px; border-radius: 12px; white-space: pre-line; text-align: center;
+  background: rgba(16, 22, 28, 0.92); border: 1px solid #e8c66f; color: #fff4cf; font-weight: 600;
+  transition: opacity .2s, transform .2s; pointer-events: none;
+}
+.toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+.loading {
+  position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; text-align: center;
+  background: #132128; color: #f3e7b6; font-size: 15px; padding: 24px;
+}
+.loading.error { color: #ff9b8a; }
+
+@media (orientation: landscape) and (max-height: 500px) {
+  .stick { width: 112px; height: 112px; bottom: calc(14px + env(safe-area-inset-bottom)); }
+  .tools { top: calc(8px + env(safe-area-inset-top)); }
+  .zoom { bottom: calc(14px + env(safe-area-inset-bottom)); flex-direction: row; right: calc(110px + env(safe-area-inset-right)); }
+  .hint { display: none; }
+}
+</style>
+</head>
+<body>
+  <canvas id="view" aria-label="Whispering Forest isometric map preview"></canvas>
+
+  <header class="hud">
+    <div class="title">Whispering Forest <span>WF-MAP-01 · Preview แยกจากเกมหลัก · ไม่บันทึกข้อมูล</span></div>
+    <div class="meta"><span id="pos">—</span> · <span id="fps">—</span></div>
+  </header>
+
+  <nav class="zoom" aria-label="Zoom">
+    <button id="zoomIn" aria-label="ซูมเข้า">+</button>
+    <button id="zoomOut" aria-label="ซูมออก">−</button>
+  </nav>
+  <nav class="tools" aria-label="Preview tools">
+    <button id="btnGrid">Grid</button>
+    <button id="btnCol">Collision</button>
+    <button id="btnFade">Tree fade</button>
+    <button id="btnHero">Hero ×1</button>
+    <button id="btnHome">Start</button>
+  </nav>
+
+  <div id="stick" class="stick" aria-label="Joystick"><div id="knob" class="knob"></div></div>
+  <div class="hint">ลากจอยซ้ายล่างเพื่อเดิน · แตะพื้นเพื่อเดินไปจุดนั้น · PC: WASD / ลูกศร</div>
+
+  <div id="toast" class="toast" role="status"></div>
+  <div id="loading" class="loading">กำลังโหลด PNG จาก WF-ASSET-01…</div>
+
+  <script>window.WF_ASSET_URLS = {"tree_01": "data:image/png;base64,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", "tree_02": "data:image/png;base64,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", "tree_03": "data:image/png;base64,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", "bush_01": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAAAwCAYAAAChS3wfAAACm0lEQVR4nO2asU4DMQyGDWLo0gHdDUg3ITGdqBh4AZY+BE/IQ7DwAgwI1AmJ6SRAVzFUVW8rAzqUpk5iJ3Z6oPsmiq6J/dtOnFwBRkZGRjJxeXuzPbQNNkc5Jjm7mm3LumB95+XuIYttqpPEOG6SQwSVCTiOX1yf7nx+ffzae0ZTCNGBUxzv+XjfwKrpvN9tF0t4f3oWsf1YYhCA9HTnUNYFnF3NRBZUMQGkCEW/R0oEkTTKGX2b1HJIFoDiPFbv2GIXQ7tYQlkX0QtlsgC+5sa10AHQBJhWk73/hUqEK8QJ52EbqYXIBnPcR58FALsBoZRHtACXtzfbdrH0PiOV5pqwBcjRz1N3gmk18T77kxWzrS8LWAIM5TDDLREfJAEOuc1hUDMEIJwFwUbI5bxkFLTxNU3sTnBaTX6dH1JWhHDZ6hUAi/6q6WDVdPB238hZlwksC5L6gH4bPEQmhLZgKk4BzOhjZ/ayLn6NMBuR3KTO6yyBsi7g4vrU286ak0tFxMW67WDddjtzSYiOCsBpcbUjbzquAVoCvVPUVvZ8XsHbfZO1FLjzuDJ0TwBO9LFewJ5IQpDN5xr9mwvWDCXtAiZ9FtjE1Kv2emKSJIDdkmJOUnaKkMOaZYUKIFnL/TjtYkmObM4tFT0gaB1+XAKcz6udz5zDDmde1hpAyQLKSw0Ts3myndaAknHOiwJ7NzDFcDVHlG3TNEoz1W3nXcdhsgAAcgZri2COH7oTJN2gmmJIGIylpqQQogK4GqNYg311qSUuQEQJAIS7whiDU5ocX59BAROBtQaESDUwB7YIYq0wwPCcpeC8D5B6/z4kMJ+8d4L/SYSoRdBE6z2gNiJ9gMlfEYKavSK/D0gdQ4LYclX/mZzkeP9pTRoZCt81bkeeOOtKzwAAAABJRU5ErkJggg==", "bush_02": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAAAwCAYAAAChS3wfAAAC4ElEQVR4nO1ZMWvbQBT+Ujq4hECMRDH1EoMmUZNBS8csnrKkmzr0H+SndOwvyNJ2LnjJ0rGQeggpmgLpYuOCTCih1Js6hEuv5zvp6e6dojj+IMtFuvfed+99750MbLDBBhs8Ymw1bfDlm4Oi6pnvH7405ldjhiiBq2iCCO8GbAJX4ZMI1o17+8MijAPOLbXIswXm5xcsvj/h2ARoLngACOMAvf2hc2YBwFOOTXwHHyVdw3+GhWsmOBPgM3hz4Le4tetGAlsJ3CdchNYpfe4v9YHLybV2vW7HaDUBVOTZArIfdbpEoyUwTlKksz2ksz1vNqKki1dvIxy9e11QOkVtEXSpt5PPX0nPRUkXl5Nr7PQ7/63fTJeV78qlQRHJSgJMaa6mHQdEzf+c/1kJ3hZhHCCMDwpTWbDMAVR8fPGDfc88Wzi976QBrsZN+NQ7wuFZD4dnPdxMl3d/JgxGfeuMKc2AMpUP44CdAFG/JzOaVnDYb7QEfCCMA5I4mmBUR0qPFyfQhlmAAt2QZNQASlDimSb6Owd0c4GWgLpXTWp/50aeLcg68Dtf4tnz7ZV150lQzRRfnUGFrR31cFlEUPR34ZSPIUmGHLxsR7RCnShuhx0taax3AfVCwg015YW9nX6HPAeo06CRANsAfJCQZwuMkxTHuwmOd5MVO/KwVLclaktgfn6x5fLNTR6SbFqljjhZaDnLy9sgFMYBxkl65/j7bOJleqTCZNfrJKi2R2rw6glHSRff8OvfwsTOH5bboCw2deptMOrj6nSKwagPALg6nQKgpbPp8xcFVaSXjsLqmnBewHYGV53y1TJVO84Z4HLpENCdiI+5QbZj9UVIfYnrl5gmQA0eIHwVlgN3PaWqeuTIApMNExGlBKinbuOgS9uj2Kuzv46EWiK4DiCPwo8FRgK4fn9vE3QxlWbAOpFgJYIyHqomOLdBFQ+FCGr2Oqd4WwixLVevNc5Nzjpp0gZtwV+5jV3VzZLNTAAAAABJRU5ErkJggg==", "rock_01": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAAAwCAYAAAChS3wfAAAC3ElEQVR4nO2asWvbQBTGX0pJhg5NqIeSkEAgiyFFmwIB15hOgW5Z3alz944Zu2fO1PwPnYIxgUAzFEwLplAoNG0ppMT2kMGTOz35fNLp3rt7d/VwPxDEQjrd971P7ywrAIlEIpFIJJaFZt6axbzeSsyLVWESPLy+jDK36AZwKxzaiAchB0eaeWuGm+3YdyevSucGmxgESgBn0rpg5O3J+9K+EGkQGVBCMHJ6dgFvXr8oPutGSJvgPVideJtYHV08EjINDyUGQbiCueOqRjTz1kzCBK8B1Op3u0fF/v29BnssU/V1pNMQZBX48u2v+Hi4dbtHC2YD+K0Uzs6Zqq9DSUNV9Skmnp9/KO3jpsE7AXXiAebVo8I5XiINTga4RM4k6vTsAjrtjG2Uytb2ptN5AJ6rgK36Oihwf68h0id6/UHlfs4KwU6AxFdTFN/rD6DTzpzG0MW7poCVAGrjC4mp6jrUFDj1ACnxnXZGFgRgF++SAnICQj2VqSaYbgeOSVzIayYaEDL6VT3BRfyvm9/F37bbgHQLxBAPsJiGXn8QtPJIlB9EOHD7QhVqL7DdutYegAMcHM6jedcYwtWn24XjXu48Z06zTIyK61gNGF5frjTz1uzj1XxyX3/c1pxhJ4bQre3NhV5ggt0E1SSoPMknpVQ8+v6YOjyZ7HiVfB1KMyT3ABxATYKKPikpsuNVuN+dFBvnOpTvBezHYVsSkJ83Mobc705K+zjJsqWAbMDT7FnRTTfW1gGg3gQpA1ww3ftOBqjCVepMkBDPudcBzKIBAEbTMfwZfK7UWmuASTyCJqgcHGYiBlCjbxI+mo5L+6pMMBpgE49UmUDF9RHWVu06dBO8fxYfTcfOJlDWaQDamm4TbkLkvYDt4j4pAfCruA2vHiAJxyRX0awegMQ0oY6NtXWvajutAirLYgQXk3DE6cXIspthE60i8ob1fxvCEawT9N9PpI3xEZpIJCr5B/RgbF8v7c3mAAAAAElFTkSuQmCC", "rock_02": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAAAwCAYAAAChS3wfAAAC5klEQVR4nO2Zv4sTQRTHn3JoYaHiCXJnCiEggZPtEggEEavUtttZX295jf4BlteaXq65A5sQhAMthGhAxKDFXoJwAe8KiwNhLY63mZ3Mj/dmZvdOmE+Vm0t29vuZNz+SBYhEIpFIJBKJXDytdi+vu8+rdXeoA8Pv7e/mrXYvr0vGlTo6MbG3v6sM+mLnzUrb14/vg99v7QJ0gQEAJtMFDEdj2H7+tGhTiQAIJ6NSAaawMhj+yeOk1L7VXNdKEHEVElQAJ7CMToCKweBA2e4iIZiAl69fFeG3muusz3LCq0AhLgIq2QUm00UVl7XisnMEESCOPjKZLkgifEcfACBN+86f9RagCi9CFREKbhXUdhBSSQgx+r54CbCNvszbd58LEVVWBacK1qq4+Pcfc+v/BoMD2GxsBBv9NO1rt0cTLAFi+DTtG4OacLlRLq12L6dsi6x9EwX4hEc+HI4BALyrYDgal/6eZcv7ogggV0BV385m2RyGo/PXFBFyYBOUKmCvASFGHwCg002KKsDguh2BE3qzsVGqAhukKRCy9GVQAh5mUAIntIwswFQFrG0wdHgRXBh9wwOcVwEVawXg6He6y9K80z6Fw0/Hpfc9/NskdyojLoihoFaB00FIDu/DUba8Fmfu2qDKNFaAauUXK0GEWxUYXAxNuenk2bWVfm78vKl8L6UKWIsgopLwbW260qYTwAmvCiyjEyD2oZsC5IMQRQKFo+yYNep/HpyutJkCy8yyuXEXIAu4lzzKAQBuX79VtHEkuJa8C5zToFUABhexSRAXtvuNu07hOXNdvjby++ykeP1r/IU/BVThRUQRSKeblATIzLI5aeSppW/aOUQBAGoJWgG28IhKAhXXKUDZLuXwiCyB/V1A15GLCOq+zz3f68KrCPaTGKdTLlWFB/BcA3T4TAsfbOFZawDiKuGy4bQLiPyvInTBEadHY5ddhi20SJBngxcthBNYptLH46HF+ASNRCJK/gEFvJUxvmwSpwAAAABJRU5ErkJggg==", "grass_tile_01": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAAAgCAYAAACinX6EAAABfElEQVR4nOWZMW7CMBSG/0gd2qFDh6iVqm49QTqRC5Slt+EY3IYFLgAbl0BIRYwMZaNDlSr+k4Bj+/lZ8rflJbHz/4nfc2xAkclsepnMphfNZyg0Oh0SvZkvoz9P1A5t33ZMI6J05PqZxzBCtINQ41vSCJGGpRKbhBFBG4yV0UMaEaQhrVIWwgivBrRreIOPEU43piKccTFi1A2pCmfGGGF1oY/w55cHHL5/jGMARkwKGyOuXmAr/LQ/4/H13jgG8B9rRANxhDPXjOg94fLGG9EADDNSos8IIxByjNdVifX2iLoqsVrs8Pn1ZpxfLXZqRrWNKAC55FZXZSemKZzZzJfFnWQH6+2xExsjPkYCFRsCoRhKoD7mdIYAk6IRfZz2Z7x/PAH4E87Vh7mZBBltI26V13aM421Gl0Em1HzABZ/y6j0RYmyMSGE+EHwqzGgPjSHEf4aYVIyI/jvMZLsgwmS7JMZkuyjKZLsszmS7McJkuzXGpLQ5qkoK2+O/Z8jJoacn1LUAAAAASUVORK5CYII=", "grass_tile_02": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAAAgCAYAAACinX6EAAABhElEQVR4nOWZO07EMBCG/0gUUFAikLgF3XKCPdAeYw+0J2A7bkAJAlGCBN1uZWEPdjK25xHJXxfHsTP/eMYvwJHNbnva7LYnz3+YPDotGX3cH8z/x7RDrrcthTDpqHWYWwih2oFUfGsKodKwVmLTEEK0QauMLimESENeU5mEEF0NeM/hgR4hmj6UNPzr9RfX95fJM4CkjEuLEFUf1Bh+e3eFj/ef5BlAUhYIRgNthlNqhGBVbPV4MBrIG57j8eEGT8+fyTOApIwLR4jZCl4xHowGUsNrRlXMnBDZFx6Gz3k+NrxlVAVyQiQFmoZzkl3s+Ze376y3gT/DWxNoLMQE2Hm8NtlxvN2TQI/7w3TBrSwxXXHrhr5iT5e+7501qkJAerry6utfCFCsQqI1q7eymAQpGkLQUCrFudV6QHUhVII7vEvrAS7dCyHKWjY/S4gvhSlcIdYQ40uob4d7Vm5czLfDlGEPRCjDHolRhj0UpQx7LE4Z9mKEMuzVGGVNl6OurOF6/Az/y/0avaEeXwAAAABJRU5ErkJggg==", "grass_tile_03": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAAAgCAYAAACinX6EAAABqElEQVR4nO2ZsW7CMBCG/0gdWqkdUat27BuwQVcGHgipz1CJB2LoWth4g45FrRiLBBsMyMi+JuF8vrOR0m+L49j5/5zPdgwUZDAZ7weT8b7kO1QlOm0SvZjOsr9P1g65XzunEVk6koZ5DiNMO9Aa35ZGmDRsldgsjFBtMFdG1zRCpaFSU5mGEUkNpAi/f7jBz/c2uAYQlHFJMUL0oNYXd6IBmXCKxIioB0qF+tvoBa/vH+z6MUawKmoL54Z/6jDhGNFawfKLc8O/qV6MGW1G1N4ovUEZ9nuYL9fBNQB8rjanMq1kGRSUFu6H/LDfOwnWSJA+vhEVUF64j/bM0MZiOquuTHsQYC2aYjoEmkIaAJ4fbwEA8+U6aREk4c8QoGga4Ye0Ew2kJzQJZ5MgxSI3uKhwmd4Z5JtTNwP4ZbFET4OUGCOapjC/rC4q6p6h5bEkL4QoXCMkAn6/drh7ug6uAQRlXNSXwhTp0Di3tHWigaNwyz2AI/t2mDPPx+4Bsm+HKVbJ0mEh3PH/S0yrIZ/O/hSldPa3OKWzByOUzh6NUS7pcLQol3A8fgANL/+6I5krfQAAAABJRU5ErkJggg==", "dirt_path_tile_01": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAAAgCAYAAACinX6EAAABJElEQVR4nO2ZMRKCMBBFlxkbCws7Z7Sxs/E+nIBz5BycgIPpjB0FBSVWzpg/iJBsdlfi64CwyT5IAgmRIrUrh9qVg2YbCo1KPyVduUa8PaIVzn3akiJEKgp9zSVEJK2Aq3+nFJEkcKqBLYUI1oBSIzqnCJZAWlMZh4ioANpz+IsYEUE3WkkcCRGx6AariSNLRMwq+CuJI3NETBaISbzteu94v9uGhopmSsToBatPPFbqmAjvhNXEuXkXURDlkzhSuabYaDeCiOh0PHjHt/tDrO5/FxgrsFYRXwdBZC0iFk+DSKiItuvpejl75yT7d/SHEPIrbwT7pzBiVUTynyHEigjx32Ek2wURJNslMSTbRVEk22VxJNuNESTbrTHE0uaoKha2x588yIzmWbirAwAAAABJRU5ErkJggg==", "dirt_path_tile_02": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAAAgCAYAAACinX6EAAABRklEQVR4nOWZOw7CMAyGU4mFASHoggQLG0fqCXqOnKMn6JEYkGAAqUtBiIGxTAxxX0ljO4Z8W/qw47+13SZKBaTQWVPorAk5hySE076gc12yz4fVoe3T5hSCxdHU15xDCFIHWPlNKQSJYarCRiEEqkGuio4pBIqhUK0MQwgvA6F7+BcfISbdKCVwyBQhnG6gCDxNl8b4dKnUajH3sukihNWFlE/8eL4b48N+jWbbRojBCygC3203xvh6q7BdtBgSovOE1Bz3pUsI44DUwB+vtzHGrBGJUnIDpybXZTILPQlb+t4C2EXq+ulkFy0FsIubb2BDtFIAwpUS2Lk9xmgRhPxLbXBug5BfFcL7QwjyK0KgfwpDpApB/jMEkSIE++8wBFMIl84QfEEEEu2SGCTaRVFItMvikGg3RiDRbo1BJG2OBkXC9vgHMr+b5gAkwzEAAAAASUVORK5CYII="};</script>
+<script>
+/* Legend of Eldoria - WF-MAP-01 Whispering Forest Map Preview
+   forest-map.js: map layout + asset table for the standalone preview.
+
+   SOURCES (read-only, nothing in the main game is modified):
+   - Tile layout copied verbatim from js/map-data.js -> whispering_forest.tiles
+     at main c79744071f9b6ea78b3f21b669aaeaffae4633a9.
+   - Asset canvas / pivot values copied from experiments/wf-asset-01/manifest.json
+     at e26cf54ea22746559b3bd68b850177e83bd166db (verified by tests/smoke.py).
+
+   This file never touches the save engine, save schema or localStorage. */
+(function (root) {
+  'use strict';
+
+  var ASSET_BASE = '../wf-asset-01/assets/';
+
+  // id -> { file, w, h, px, py }  (px/py = pivot from manifest.json)
+  var ASSETS = {
+    tree_01:           { file: 'tree_01.png',           w: 128, h: 160, px: 64, py: 144, kind: 'tree' },
+    tree_02:           { file: 'tree_02.png',           w: 128, h: 160, px: 64, py: 144, kind: 'tree' },
+    tree_03:           { file: 'tree_03.png',           w: 128, h: 160, px: 64, py: 144, kind: 'tree' },
+    bush_01:           { file: 'bush_01.png',           w: 64,  h: 48,  px: 32, py: 39,  kind: 'bush' },
+    bush_02:           { file: 'bush_02.png',           w: 64,  h: 48,  px: 32, py: 39,  kind: 'bush' },
+    rock_01:           { file: 'rock_01.png',           w: 64,  h: 48,  px: 32, py: 38,  kind: 'rock' },
+    rock_02:           { file: 'rock_02.png',           w: 64,  h: 48,  px: 32, py: 38,  kind: 'rock' },
+    grass_tile_01:     { file: 'grass_tile_01.png',     w: 64,  h: 32,  px: 32, py: 16,  kind: 'ground' },
+    grass_tile_02:     { file: 'grass_tile_02.png',     w: 64,  h: 32,  px: 32, py: 16,  kind: 'ground' },
+    grass_tile_03:     { file: 'grass_tile_03.png',     w: 64,  h: 32,  px: 32, py: 16,  kind: 'ground' },
+    dirt_path_tile_01: { file: 'dirt_path_tile_01.png', w: 64,  h: 32,  px: 32, py: 16,  kind: 'ground' },
+    dirt_path_tile_02: { file: 'dirt_path_tile_02.png', w: 64,  h: 32,  px: 32, py: 16,  kind: 'ground' }
+  };
+
+  // Verbatim copy of js/map-data.js whispering_forest.tiles (16 x 16).
+  // '#' blocked_tree_or_cliff, '~' water, '=' forest_trail, '.' forest_floor
+  var TILES = [
+    '################',
+    '#===.....#.....#',
+    '#..#.....#..#..#',
+    '#..#..~~....#..#',
+    '#.....~~.##....#',
+    '#.##......#....#',
+    '#....####......#',
+    '#....#.........#',
+    '#....#..##.#...#',
+    '#.......##.....#',
+    '#..###.........#',
+    '#......####....#',
+    '#..#...........#',
+    '#..#....#......#',
+    '#......##......#',
+    '################'
+  ];
+
+  var ROWS = TILES.length, COLS = TILES[0].length;
+  var START = { c: 1, r: 1 };
+
+  // Warps. forest_to_greenvale mirrors map-data.js; the two "test" warps are
+  // preview-only and teleport between the NE and SE corners of the forest.
+  var WARPS = [
+    { id: 'forest_to_greenvale', at: { c: 1, r: 1 }, label: 'Greenvale', kind: 'exit' },
+    { id: 'wf_test_ne', at: { c: 14, r: 1 }, label: 'Warp → SE', kind: 'test', target: 'wf_test_se' },
+    { id: 'wf_test_se', at: { c: 14, r: 14 }, label: 'Warp → NE', kind: 'test', target: 'wf_test_ne' }
+  ];
+
+  function hash(c, r) { return (((c * 73856093) ^ (r * 19349663)) >>> 0); }
+  function tile(c, r) { return (c < 0 || r < 0 || c >= COLS || r >= ROWS) ? '#' : TILES[r].charAt(c); }
+  function walkable(c, r) { var t = tile(c, r); return t !== '#' && t !== '~'; }
+
+  // 4-direction BFS used only to lay a visual dirt trail between points of interest.
+  function bfs4(a, b) {
+    var key = function (c, r) { return r * COLS + c; };
+    var prev = {}, q = [a], seen = {}; seen[key(a.c, a.r)] = true;
+    var D = [[1, 0], [0, 1], [-1, 0], [0, -1]];
+    while (q.length) {
+      var p = q.shift();
+      if (p.c === b.c && p.r === b.r) break;
+      for (var i = 0; i < 4; i++) {
+        var nc = p.c + D[i][0], nr = p.r + D[i][1], k = key(nc, nr);
+        if (!seen[k] && walkable(nc, nr)) { seen[k] = true; prev[k] = p; q.push({ c: nc, r: nr }); }
+      }
+    }
+    var out = [], cur = b;
+    if (!seen[key(b.c, b.r)]) return out;
+    while (cur) { out.push(cur); cur = prev[key(cur.c, cur.r)]; }
+    return out.reverse();
+  }
+
+  // Visual-only exploration trail (does NOT change collision; every trail tile
+  // is already '.' or '=' in the map data).
+  var TRAIL_POINTS = [START, { c: 8, r: 2 }, { c: 14, r: 1 }];
+  var TRAIL_BRANCH = [{ c: 8, r: 2 }, { c: 7, r: 7 }, { c: 6, r: 12 }, { c: 11, r: 12 }, { c: 14, r: 14 }];
+  function buildTrail() {
+    var set = {};
+    function lay(points) {
+      for (var i = 0; i + 1 < points.length; i++) {
+        bfs4(points[i], points[i + 1]).forEach(function (p) { set[p.r * COLS + p.c] = true; });
+      }
+    }
+    lay(TRAIL_POINTS); lay(TRAIL_BRANCH);
+    for (var r = 0; r < ROWS; r++) for (var c = 0; c < COLS; c++) if (tile(c, r) === '=') set[r * COLS + c] = true;
+    return set;
+  }
+
+  function groundFor(c, r, trail) {
+    var t = tile(c, r), h = hash(c, r);
+    if (t === '~') return 'water';
+    if (trail[r * COLS + c]) return (h % 3 === 0) ? 'dirt_path_tile_02' : 'dirt_path_tile_01';
+    var g = h % 7;
+    return g < 3 ? 'grass_tile_01' : (g < 5 ? 'grass_tile_02' : 'grass_tile_03');
+  }
+
+  // One blocking prop per '#' tile, chosen deterministically.
+  function propFor(c, r) {
+    if (tile(c, r) !== '#') return null;
+    var h = hash(c + 3, r + 7), edge = (c === 0 || r === 0 || c === COLS - 1 || r === ROWS - 1);
+    var trees = ['tree_01', 'tree_02', 'tree_03'];
+    if (edge) return (h % 9 === 0) ? 'bush_01' : trees[h % 3];
+    var k = h % 10;
+    if (k < 5) return trees[h % 3];
+    if (k < 7) return (h % 2) ? 'bush_02' : 'bush_01';
+    return (h % 2) ? 'rock_02' : 'rock_01';
+  }
+
+  function build() {
+    var trail = buildTrail(), ground = [], props = [];
+    for (var r = 0; r < ROWS; r++) {
+      for (var c = 0; c < COLS; c++) {
+        ground.push({ c: c, r: r, id: groundFor(c, r, trail) });
+        var p = propFor(c, r);
+        if (p) props.push({ c: c, r: r, id: p });
+      }
+    }
+    return { ground: ground, props: props, trailCount: Object.keys(trail).length };
+  }
+
+  root.WF_MAP = {
+    ASSET_BASE: ASSET_BASE, ASSETS: ASSETS, TILES: TILES, ROWS: ROWS, COLS: COLS,
+    START: START, WARPS: WARPS, TW: 64, TH: 32,
+    tile: tile, walkable: walkable, hash: hash, build: build
+  };
+})(typeof window !== 'undefined' ? window : globalThis);
+</script>
+<script>
+/* Legend of Eldoria - WF-MAP-01 Whispering Forest Map Preview
+   preview.js: standalone isometric renderer for exploration testing.
+
+   - Uses the real WF-ASSET-01 PNGs (pixel-exact, nearest-neighbour, integer scale).
+   - Hero shapes are copied from js/world.js drawHero() (main c797440) and rasterised
+     at art resolution so they share the same pixel density as the PNG assets.
+   - Separate from the main game: does not load save.js / main.js / world.js and
+     never reads or writes localStorage. */
+(function (root) {
+  'use strict';
+  var M = root.WF_MAP;
+  var TW = M.TW, TH = M.TH;
+  var HERO_R = 0.22;            // collision half-size, in tile units
+  var HERO_SPEED = 132;         // art px per second, screen-uniform
+  var DPR = Math.max(1, Math.min(3, root.devicePixelRatio || 1));
+
+  var canvas, ctx, W = 0, H = 0, scale = 2, minScale = 1, maxScale = 6;
+  var images = {}, waterTile = null, groundCanvas = null, GROUND_OX = 0, GROUND_OY = 0;
+  var props = [], layout = null;
+  var hero = { x: M.START.c, y: M.START.r, moving: false };
+  var cam = { x: 0, y: 0 };
+  var input = { kx: 0, ky: 0, jx: 0, jy: 0, path: null };
+  var opts = { grid: false, collision: false, fade: true, heroScale: 1 };
+  var warpArmed = {}, time = 0, last = 0, fps = 0, fpsAcc = 0, fpsN = 0, running = false;
+  var heroCanvas = null, toastTimer = 0, fadeT = 0;
+  var stats = { blockedHits: 0, warps: [], frames: 0 };
+
+  function iso(x, y) { return { x: (x - y) * TW / 2, y: (x + y) * TH / 2 }; }
+  function screenToGrid(dx, dy) { return { c: (dx / 32 + dy / 16) / 2, r: (dy / 16 - dx / 32) / 2 }; }
+
+  // ---------------------------------------------------------------- loading
+  function assetUrl(id) {
+    var a = M.ASSETS[id];
+    if (root.WF_ASSET_URLS && root.WF_ASSET_URLS[id]) return root.WF_ASSET_URLS[id];
+    return M.ASSET_BASE + a.file;
+  }
+  function loadAssets() {
+    var ids = Object.keys(M.ASSETS);
+    return Promise.all(ids.map(function (id) {
+      return new Promise(function (resolve) {
+        var img = new Image();
+        img.onload = function () {
+          var a = M.ASSETS[id];
+          var ok = img.naturalWidth === a.w && img.naturalHeight === a.h;
+          images[id] = img;
+          resolve({ id: id, ok: ok, w: img.naturalWidth, h: img.naturalHeight, reason: ok ? null : 'SIZE_MISMATCH' });
+        };
+        img.onerror = function () { resolve({ id: id, ok: false, reason: 'LOAD_ERROR' }); };
+        img.src = assetUrl(id);
+      });
+    }));
+  }
+
+  // Alpha masks for pixel-accurate tree occlusion. Falls back to the manifest
+  // canvas box if the browser refuses getImageData (e.g. file:// tainting).
+  var masks = {};
+  function buildMasks() {
+    Object.keys(M.ASSETS).forEach(function (id) {
+      var a = M.ASSETS[id]; if (a.kind !== 'tree') return;
+      try {
+        var c = document.createElement('canvas'); c.width = a.w; c.height = a.h;
+        var g = c.getContext('2d'); g.drawImage(images[id], 0, 0);
+        var d = g.getImageData(0, 0, a.w, a.h).data, m = new Uint8Array(a.w * a.h);
+        for (var i = 0; i < m.length; i++) m[i] = d[i * 4 + 3] > 0 ? 1 : 0;
+        masks[id] = m;
+      } catch (e) { masks[id] = null; }
+    });
+  }
+  // Does the opaque part of prop (drawn at x,y) cover any of rect r? Samples every 2 px.
+  function covers(id, x, y, r) {
+    var a = M.ASSETS[id], m = masks[id];
+    var x0 = Math.max(x, r.x), x1 = Math.min(x + a.w, r.x + r.w), y0 = Math.max(y, r.y), y1 = Math.min(y + a.h - 12, r.y + r.h);
+    if (x0 >= x1 || y0 >= y1) return false;
+    if (!m) return true;
+    for (var yy = y0; yy < y1; yy += 2) for (var xx = x0; xx < x1; xx += 2) {
+      if (m[(yy - y) * a.w + (xx - x)]) return true;
+    }
+    return false;
+  }
+
+  // Placeholder water tile: uses the exact alpha mask of grass_tile_01 so seams match.
+  // (WF-ASSET-01 has no water asset; marked as placeholder in the report.)
+  function makeWaterTile() {
+    var c = document.createElement('canvas'); c.width = 64; c.height = 32;
+    var g = c.getContext('2d'); g.drawImage(images.grass_tile_01, 0, 0);
+    g.globalCompositeOperation = 'source-in';
+    g.fillStyle = '#2f5e7a'; g.fillRect(0, 0, 64, 32);
+    g.globalCompositeOperation = 'source-atop';
+    g.fillStyle = '#3d7896'; g.fillRect(0, 10, 64, 12);
+    g.fillStyle = '#7fb7cc';
+    [[20, 12], [21, 12], [22, 12], [38, 18], [39, 18], [40, 18], [30, 15], [31, 15]].forEach(function (p) { g.fillRect(p[0], p[1], 1, 1); });
+    return c;
+  }
+
+  function buildGround() {
+    // Bounds of the 16x16 diamond at art resolution.
+    var minX = -(M.ROWS - 1) * TW / 2 - TW / 2, maxX = (M.COLS - 1) * TW / 2 + TW / 2;
+    var minY = -TH / 2, maxY = (M.COLS - 1 + M.ROWS - 1) * TH / 2 + TH / 2;
+    GROUND_OX = minX; GROUND_OY = minY;
+    groundCanvas = document.createElement('canvas');
+    groundCanvas.width = maxX - minX; groundCanvas.height = maxY - minY;
+    var g = groundCanvas.getContext('2d'); g.imageSmoothingEnabled = false;
+    layout.ground.forEach(function (t) {
+      var p = iso(t.c, t.r);
+      var img = t.id === 'water' ? waterTile : images[t.id];
+      g.drawImage(img, p.x - 32 - minX, p.y - 16 - minY);
+    });
+  }
+
+  // ------------------------------------------------------------ hero sprite
+  // Shapes copied from js/world.js drawHero(); drawn into a small offscreen canvas
+  // at art resolution (k = hero scale) so it matches the PNG pixel density.
+  function renderHero(bob) {
+    var k = opts.heroScale, w = Math.ceil(40 * k), h = Math.ceil(56 * k);
+    if (!heroCanvas) heroCanvas = document.createElement('canvas');
+    if (heroCanvas.width !== w || heroCanvas.height !== h) { heroCanvas.width = w; heroCanvas.height = h; }
+    var c = heroCanvas.getContext('2d');
+    c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, w, h);
+    c.setTransform(k, 0, 0, k, 20 * k, 46 * k); // origin = hero foot point (p.x, p.y)
+    var px = 0, py = 0;
+    c.beginPath(); c.ellipse(px, py + 2, 11, 5, 0, 0, Math.PI * 2); c.fillStyle = 'rgba(0,0,0,0.25)'; c.fill();
+    c.fillStyle = '#2f3e63'; c.fillRect(px - 6, py - 8 - bob * 0.4, 5, 9);
+    c.fillRect(px + 1, py - 8 + bob * 0.4, 5, 9);
+    c.fillStyle = '#3f6fd1'; c.beginPath();
+    c.moveTo(px - 8, py - 8 - bob); c.lineTo(px + 8, py - 8 - bob); c.lineTo(px + 6, py - 26 - bob); c.lineTo(px - 6, py - 26 - bob);
+    c.closePath(); c.fill();
+    c.fillStyle = '#e6b04b'; c.fillRect(px - 8, py - 15 - bob, 16, 3);
+    c.fillStyle = '#f1c9a0'; c.beginPath(); c.arc(px, py - 32 - bob, 8, 0, Math.PI * 2); c.fill();
+    c.fillStyle = '#5a3a1e'; c.beginPath(); c.arc(px, py - 35 - bob, 8, Math.PI, 0); c.fill();
+    c.fillStyle = '#2a1d10'; c.fillRect(px - 3.5, py - 32 - bob, 2, 3); c.fillRect(px + 1.5, py - 32 - bob, 2, 3);
+    c.strokeStyle = '#d7dde6'; c.lineWidth = 3; c.beginPath();
+    c.moveTo(px + 9, py - 14 - bob); c.lineTo(px + 16, py - 30 - bob); c.stroke();
+    return { canvas: heroCanvas, ox: Math.round(20 * k), oy: Math.round(46 * k) };
+  }
+
+  // -------------------------------------------------------------- collision
+  function blockedAt(x, y) { return !M.walkable(Math.round(x), Math.round(y)); }
+  function collides(x, y) {
+    return blockedAt(x - HERO_R, y - HERO_R) || blockedAt(x + HERO_R, y - HERO_R) ||
+           blockedAt(x - HERO_R, y + HERO_R) || blockedAt(x + HERO_R, y + HERO_R);
+  }
+  function moveBy(dc, dr) {
+    var steps = Math.max(1, Math.ceil(Math.max(Math.abs(dc), Math.abs(dr)) / 0.1)), hit = false;
+    for (var i = 0; i < steps; i++) {
+      var nx = hero.x + dc / steps, ny = hero.y + dr / steps;
+      if (!collides(nx, hero.y)) hero.x = nx; else hit = true;
+      if (!collides(hero.x, ny)) hero.y = ny; else hit = true;
+    }
+    if (hit) stats.blockedHits++;
+    return hit;
+  }
+
+  // 8-direction BFS for tap-to-walk; no diagonal corner cutting (same rule as world.js canMove).
+  function canStep(c, r, nc, nr) {
+    if (!M.walkable(nc, nr)) return false;
+    var dc = nc - c, dr = nr - r;
+    if (dc && dr) return M.walkable(c + dc, r) && M.walkable(c, r + dr);
+    return true;
+  }
+  function bfs(sc, sr, tc, tr) {
+    var key = function (c, r) { return r * M.COLS + c; }, prev = {}, seen = {}, q = [{ c: sc, r: sr }];
+    seen[key(sc, sr)] = true;
+    var D = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]];
+    while (q.length) {
+      var p = q.shift();
+      if (p.c === tc && p.r === tr) {
+        var out = [], cur = p;
+        while (cur && !(cur.c === sc && cur.r === sr)) { out.push(cur); cur = prev[key(cur.c, cur.r)]; }
+        return out.reverse();
+      }
+      for (var i = 0; i < 8; i++) {
+        var nc = p.c + D[i][0], nr = p.r + D[i][1], k = key(nc, nr);
+        if (!seen[k] && canStep(p.c, p.r, nc, nr)) { seen[k] = true; prev[k] = p; q.push({ c: nc, r: nr }); }
+      }
+    }
+    return null;
+  }
+
+  // ------------------------------------------------------------------ warps
+  function heroTile() { return { c: Math.round(hero.x), r: Math.round(hero.y) }; }
+  function warpAt(c, r) { return M.WARPS.filter(function (w) { return w.at.c === c && w.at.r === r; })[0]; }
+  function checkWarps() {
+    var t = heroTile(), w = warpAt(t.c, t.r);
+    M.WARPS.forEach(function (x) { if (!(x.at.c === t.c && x.at.r === t.r)) warpArmed[x.id] = true; });
+    if (!w || !warpArmed[w.id]) return;
+    warpArmed[w.id] = false;
+    stats.warps.push(w.id);
+    if (w.kind === 'test') {
+      var dest = M.WARPS.filter(function (x) { return x.id === w.target; })[0];
+      hero.x = dest.at.c; hero.y = dest.at.r; warpArmed[dest.id] = false; input.path = null;
+      snapCamera(); fadeT = 0.35;
+      toast('Warp ทดลอง → ' + dest.label.replace('Warp → ', 'มุม ') + ' (' + dest.at.c + ',' + dest.at.r + ')');
+    } else {
+      input.path = null;
+      toast('ทางออก → Greenvale\n(Preview นี้ไม่เชื่อมกับเกมหลัก)');
+    }
+  }
+
+  // ----------------------------------------------------------------- update
+  function update(dt) {
+    var vx = input.kx + input.jx, vy = input.ky + input.jy, len = Math.hypot(vx, vy);
+    var moving = false;
+    if (len > 0.08) {
+      input.path = null;
+      if (len > 1) { vx /= len; vy /= len; }
+      var g = screenToGrid(vx * HERO_SPEED * dt, vy * HERO_SPEED * dt);
+      moveBy(g.c, g.r); moving = true;
+    } else if (input.path && input.path.length) {
+      var wp = input.path[0], dx = wp.c - hero.x, dy = wp.r - hero.y, d = Math.hypot(dx, dy);
+      var stepGrid = 4.1 * dt; // tiles per second along the path
+      if (d <= stepGrid) { moveBy(dx, dy); input.path.shift(); }
+      else { moveBy(dx / d * stepGrid, dy / d * stepGrid); }
+      moving = true;
+    }
+    hero.moving = moving;
+    checkWarps();
+    var t = camTarget(), f = Math.min(1, dt * 7);
+    cam.x += (t.x - cam.x) * f; cam.y += (t.y - cam.y) * f;
+    if (toastTimer > 0) { toastTimer -= dt; if (toastTimer <= 0) document.getElementById('toast').classList.remove('show'); }
+    if (fadeT > 0) fadeT -= dt;
+  }
+  // Camera follows the hero but is clamped to the map (art-px bounds incl. tree tops),
+  // and centred on an axis when the whole map fits on screen.
+  var BOUNDS = { x0: -528, x1: 528, y0: -150, y1: 520 };
+  function clampAxis(v, half, lo, hi) {
+    if (half * 2 >= hi - lo) return (lo + hi) / 2;
+    return Math.max(lo + half, Math.min(hi - half, v));
+  }
+  function camTarget() {
+    var hp = iso(hero.x, hero.y);
+    return { x: clampAxis(hp.x, W / 2 / scale, BOUNDS.x0, BOUNDS.x1), y: clampAxis(hp.y - 20, H / 2 / scale, BOUNDS.y0, BOUNDS.y1) };
+  }
+  function snapCamera() { var t = camTarget(); cam.x = t.x; cam.y = t.y; }
+
+  // ----------------------------------------------------------------- render
+  function viewOrigin() {
+    // Camera rounded to device pixels so every art pixel lands on whole device pixels.
+    var cx = Math.round(cam.x * scale) / scale, cy = Math.round(cam.y * scale) / scale;
+    return { ox: Math.floor(W / 2) - cx * scale, oy: Math.floor(H / 2) - cy * scale };
+  }
+
+  function drawWarp(w) {
+    var p = iso(w.at.c, w.at.r), pulse = (Math.sin(time * 4.2) + 1) / 2, ring = 13 + pulse * 7;
+    var col = w.kind === 'exit' ? ['rgba(255,211,92,0.22)', '#ffe28a', '#fff1b5'] : ['rgba(120,200,255,0.22)', '#9fdcff', '#d9f2ff'];
+    ctx.save();
+    ctx.globalAlpha = 0.6 + pulse * 0.35;
+    ctx.fillStyle = col[0]; ctx.beginPath(); ctx.ellipse(p.x, p.y, 23 + pulse * 5, 10 + pulse * 2, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = col[1]; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.ellipse(p.x, p.y, ring, ring * 0.48, 0, 0, Math.PI * 2); ctx.stroke();
+    ctx.lineWidth = 1; ctx.beginPath(); ctx.ellipse(p.x, p.y, ring * 0.62, ring * 0.3, 0, 0, Math.PI * 2); ctx.stroke();
+    ctx.restore();
+  }
+  function drawWarpBeam(w) {
+    var p = iso(w.at.c, w.at.r), pulse = (Math.sin(time * 4.2) + 1) / 2;
+    var col = w.kind === 'exit' ? '#fff0ae' : '#d9f2ff';
+    ctx.save();
+    ctx.globalAlpha = 0.45 + pulse * 0.45; ctx.strokeStyle = col; ctx.fillStyle = col; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(p.x, p.y - 8); ctx.lineTo(p.x, p.y - 34 - pulse * 6); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(p.x, p.y - 44 - pulse * 6); ctx.lineTo(p.x - 7, p.y - 33 - pulse * 6); ctx.lineTo(p.x + 7, p.y - 33 - pulse * 6); ctx.closePath(); ctx.fill();
+    ctx.restore();
+  }
+  // Labels are drawn last so trees never hide the warp destination.
+  function drawWarpLabel(w) {
+    var p = iso(w.at.c, w.at.r), pulse = (Math.sin(time * 4.2) + 1) / 2;
+    ctx.save();
+    ctx.globalAlpha = 0.95; ctx.font = 'bold 10px system-ui, sans-serif';
+    var tw = ctx.measureText(w.label).width + 14, by = p.y - 62 - pulse * 6;
+    ctx.fillStyle = 'rgba(20,24,30,0.88)'; ctx.fillRect(Math.round(p.x - tw / 2), Math.round(by - 9), Math.round(tw), 16);
+    ctx.strokeStyle = w.kind === 'exit' ? '#e8c66f' : '#7cc4ec'; ctx.lineWidth = 1;
+    ctx.strokeRect(Math.round(p.x - tw / 2) + 0.5, Math.round(by - 9) + 0.5, Math.round(tw) - 1, 15);
+    ctx.fillStyle = '#fff6d8'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(w.label, p.x, by - 1);
+    ctx.restore();
+  }
+
+  function render() {
+    var v = viewOrigin();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.fillStyle = '#132128'; ctx.fillRect(0, 0, W, H);
+    ctx.setTransform(scale, 0, 0, scale, v.ox, v.oy);
+    ctx.imageSmoothingEnabled = false;
+
+    ctx.drawImage(groundCanvas, GROUND_OX, GROUND_OY);
+    M.WARPS.forEach(drawWarp);
+
+    if (opts.grid) {
+      ctx.strokeStyle = 'rgba(255,255,255,0.18)'; ctx.lineWidth = 1 / scale;
+      for (var r = 0; r < M.ROWS; r++) for (var c = 0; c < M.COLS; c++) {
+        var p = iso(c, r); ctx.beginPath();
+        ctx.moveTo(p.x, p.y - 16); ctx.lineTo(p.x + 32, p.y); ctx.lineTo(p.x, p.y + 16); ctx.lineTo(p.x - 32, p.y); ctx.closePath(); ctx.stroke();
+      }
+    }
+    if (opts.collision) {
+      ctx.fillStyle = 'rgba(255,60,60,0.28)';
+      for (var r2 = 0; r2 < M.ROWS; r2++) for (var c2 = 0; c2 < M.COLS; c2++) {
+        if (M.walkable(c2, r2)) continue;
+        var q = iso(c2, r2); ctx.beginPath();
+        ctx.moveTo(q.x, q.y - 16); ctx.lineTo(q.x + 32, q.y); ctx.lineTo(q.x, q.y + 16); ctx.lineTo(q.x - 32, q.y); ctx.closePath(); ctx.fill();
+      }
+    }
+
+    // Depth-sorted pass: props, hero and warp beams ordered by foot position (c + r).
+    var bob = hero.moving ? Math.abs(Math.sin(time * 14)) * 3 : 0;
+    var hs = renderHero(bob), hp = iso(hero.x, hero.y);
+    var hx = Math.round(hp.x), hy = Math.round(hp.y);
+    var k = opts.heroScale;
+    // Tight body box of the visible hero (head to feet, incl. sword), used for occlusion tests.
+    var heroRect = { x: hx - Math.round(9 * k), y: hy - Math.round(44 * k), w: Math.round(27 * k), h: Math.round(44 * k) };
+    var objs = props.map(function (o) { return { d: o.c + o.r, t: o.c, o: o }; });
+    objs.push({ d: hero.x + hero.y, t: hero.x, hero: true });
+    M.WARPS.forEach(function (w) { objs.push({ d: w.at.c + w.at.r + 0.01, t: w.at.c, warp: w }); });
+    objs.sort(function (a, b) { return (a.d - b.d) || (a.t - b.t); });
+    var heroDepth = hero.x + hero.y, occluders = 0, fadedIds = [];
+    objs.forEach(function (e) {
+      if (e.hero) { ctx.drawImage(hs.canvas, hx - hs.ox, hy - hs.oy); return; }
+      if (e.warp) { drawWarpBeam(e.warp); return; }
+      var o = e.o, a = M.ASSETS[o.id], p = iso(o.c, o.r), x = p.x - a.px, y = p.y - a.py;
+      var fade = false;
+      if (opts.fade && a.kind === 'tree' && e.d > heroDepth) {
+        fade = covers(o.id, x, y, heroRect);
+      }
+      if (fade) { ctx.globalAlpha = 0.5; occluders++; fadedIds.push(o.id + '@' + o.c + ',' + o.r); }
+      ctx.drawImage(images[o.id], x, y);
+      if (fade) ctx.globalAlpha = 1;
+    });
+    stats.occluders = occluders; stats.faded = fadedIds;
+    M.WARPS.forEach(drawWarpLabel);
+
+    if (opts.collision) {
+      ctx.strokeStyle = '#ffeb3b'; ctx.lineWidth = 1 / scale; ctx.beginPath();
+      var cs = [[-HERO_R, -HERO_R], [HERO_R, -HERO_R], [HERO_R, HERO_R], [-HERO_R, HERO_R]].map(function (d) { return iso(hero.x + d[0], hero.y + d[1]); });
+      ctx.moveTo(cs[0].x, cs[0].y); cs.slice(1).forEach(function (p) { ctx.lineTo(p.x, p.y); }); ctx.closePath(); ctx.stroke();
+    }
+    if (input.path && input.path.length) {
+      var dest = input.path[input.path.length - 1], dp = iso(dest.c, dest.r);
+      ctx.strokeStyle = 'rgba(255,255,255,0.75)'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(dp.x, dp.y - 9); ctx.lineTo(dp.x + 18, dp.y); ctx.lineTo(dp.x, dp.y + 9); ctx.lineTo(dp.x - 18, dp.y); ctx.closePath(); ctx.stroke();
+    }
+
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    if (fadeT > 0) { ctx.fillStyle = 'rgba(220,240,255,' + (fadeT / 0.35 * 0.8).toFixed(3) + ')'; ctx.fillRect(0, 0, W, H); }
+  }
+
+  function hud() {
+    var t = heroTile();
+    document.getElementById('pos').textContent = 'c ' + hero.x.toFixed(1) + '  r ' + hero.y.toFixed(1) + '  (' + t.c + ',' + t.r + ')';
+    document.getElementById('fps').textContent = fps + ' fps · ×' + (scale / DPR).toFixed(2);
+  }
+
+  function frame(now) {
+    if (!running) return;
+    var dt = Math.min(0.05, (now - last) / 1000 || 0); last = now; time += dt;
+    update(dt); render();
+    fpsAcc += dt; fpsN++; stats.frames++;
+    if (fpsAcc >= 0.5) { fps = Math.round(fpsN / fpsAcc); fpsAcc = 0; fpsN = 0; hud(); }
+    root.requestAnimationFrame(frame);
+  }
+
+  // ------------------------------------------------------------------ input
+  function resize() {
+    var cw = root.innerWidth, ch = root.innerHeight;
+    canvas.style.width = cw + 'px'; canvas.style.height = ch + 'px';
+    W = Math.round(cw * DPR); H = Math.round(ch * DPR);
+    canvas.width = W; canvas.height = H;
+    ctx.imageSmoothingEnabled = false;
+    // Integer device-pixel scale (keeps pixel art crisp). Default ≈ 1.33 CSS px per art px.
+    minScale = 1; maxScale = Math.max(3, Math.round(DPR * 3));
+    if (!resize.done) { scale = Math.max(2, Math.round(DPR * 4 / 3)); resize.done = true; }
+    scale = Math.max(minScale, Math.min(maxScale, scale));
+    hud();
+  }
+  function setZoom(delta) { scale = Math.max(minScale, Math.min(maxScale, scale + delta)); hud(); }
+
+  function toast(msg) {
+    var el = document.getElementById('toast'); el.textContent = msg; el.classList.add('show'); toastTimer = 2.6;
+  }
+
+  function bindKeys() {
+    var keys = {};
+    var map = { ArrowUp: 'u', KeyW: 'u', ArrowDown: 'd', KeyS: 'd', ArrowLeft: 'l', KeyA: 'l', ArrowRight: 'r', KeyD: 'r' };
+    function sync() { input.kx = (keys.r ? 1 : 0) - (keys.l ? 1 : 0); input.ky = (keys.d ? 1 : 0) - (keys.u ? 1 : 0); }
+    root.addEventListener('keydown', function (e) { var k = map[e.code]; if (k) { keys[k] = true; sync(); e.preventDefault(); } });
+    root.addEventListener('keyup', function (e) { var k = map[e.code]; if (k) { keys[k] = false; sync(); } });
+    root.addEventListener('blur', function () { keys = {}; sync(); });
+  }
+
+  function bindJoystick() {
+    var base = document.getElementById('stick'), knob = document.getElementById('knob'), id = null, R = 46;
+    function center() { var b = base.getBoundingClientRect(); return { x: b.left + b.width / 2, y: b.top + b.height / 2 }; }
+    function set(e) {
+      var c = center(), dx = e.clientX - c.x, dy = e.clientY - c.y, d = Math.hypot(dx, dy);
+      if (d > R) { dx = dx / d * R; dy = dy / d * R; }
+      knob.style.transform = 'translate(' + dx + 'px,' + dy + 'px)';
+      input.jx = dx / R; input.jy = dy / R;
+    }
+    function end(e) {
+      if (e.pointerId !== id) return; id = null; input.jx = 0; input.jy = 0;
+      knob.style.transform = ''; base.classList.remove('active');
+    }
+    base.addEventListener('pointerdown', function (e) {
+      e.preventDefault(); id = e.pointerId; base.setPointerCapture(id); base.classList.add('active'); set(e);
+    });
+    base.addEventListener('pointermove', function (e) { if (e.pointerId === id) { e.preventDefault(); set(e); } });
+    base.addEventListener('pointerup', end); base.addEventListener('pointercancel', end);
+  }
+
+  function bindTap() {
+    var down = null;
+    canvas.addEventListener('pointerdown', function (e) { down = { x: e.clientX, y: e.clientY, id: e.pointerId }; });
+    canvas.addEventListener('pointerup', function (e) {
+      if (!down || down.id !== e.pointerId) return;
+      var moved = Math.hypot(e.clientX - down.x, e.clientY - down.y); down = null;
+      if (moved > 12) return;
+      tapAt(e.clientX, e.clientY);
+    });
+  }
+  function tapAt(clientX, clientY) {
+    var v = viewOrigin();
+    var wx = (clientX * DPR - v.ox) / scale, wy = (clientY * DPR - v.oy) / scale;
+    var g = screenToGrid(wx, wy), tc = Math.round(g.c), tr = Math.round(g.r), t = heroTile();
+    if (!M.walkable(tc, tr)) { toast('เดินไปตรงนั้นไม่ได้ (' + tc + ',' + tr + ')'); return null; }
+    var path = bfs(t.c, t.r, tc, tr);
+    if (!path) { toast('ไม่มีเส้นทาง'); return null; }
+    input.path = path;
+    return path;
+  }
+
+  function bindButtons() {
+    function on(id, fn) { document.getElementById(id).addEventListener('click', function (e) { e.preventDefault(); fn(e.currentTarget); }); }
+    function toggle(id, key) { on(id, function (b) { opts[key] = !opts[key]; b.classList.toggle('on', opts[key]); }); }
+    on('zoomIn', function () { setZoom(1); });
+    on('zoomOut', function () { setZoom(-1); });
+    toggle('btnGrid', 'grid'); toggle('btnCol', 'collision'); toggle('btnFade', 'fade');
+    on('btnHero', function (b) { opts.heroScale = opts.heroScale === 1 ? 1.5 : 1; b.textContent = 'Hero ×' + opts.heroScale; });
+    on('btnHome', function () { hero.x = M.START.c; hero.y = M.START.r; input.path = null; warpArmed = {}; snapCamera(); });
+    document.getElementById('btnFade').classList.toggle('on', opts.fade);
+  }
+
+  // ------------------------------------------------------------------- boot
+  function boot() {
+    canvas = document.getElementById('view');
+    ctx = canvas.getContext('2d', { alpha: false });
+    resize();
+    root.addEventListener('resize', resize);
+    root.addEventListener('orientationchange', function () { setTimeout(resize, 250); });
+    document.addEventListener('gesturestart', function (e) { e.preventDefault(); });
+    var status = document.getElementById('loading');
+    loadAssets().then(function (results) {
+      var bad = results.filter(function (r) { return !r.ok; });
+      api.assetResults = results;
+      if (bad.length) {
+        status.innerHTML = 'โหลด Asset ไม่สำเร็จ ' + bad.length + ' ไฟล์:<br>' + bad.map(function (b) { return b.id + ' (' + b.reason + ')'; }).join('<br>');
+        status.classList.add('error');
+        api.ready = false; api.error = bad;
+        return;
+      }
+      waterTile = makeWaterTile(); buildMasks();
+      layout = M.build(); props = layout.props;
+      buildGround();
+      snapCamera();
+      bindKeys(); bindJoystick(); bindTap(); bindButtons();
+      status.style.display = 'none';
+      api.ready = true;
+      running = true; last = performance.now(); root.requestAnimationFrame(frame);
+    });
+  }
+
+  // Small debug/test API (used by tests/smoke.py; harmless in normal play).
+  var api = {
+    ready: false,
+    state: function () {
+      return { hero: { x: hero.x, y: hero.y }, tile: heroTile(), scale: scale, dpr: DPR, W: W, H: H,
+        props: props.length, trail: layout && layout.trailCount, stats: JSON.parse(JSON.stringify(stats)),
+        path: input.path ? input.path.length : 0, opts: JSON.parse(JSON.stringify(opts)), cam: { x: cam.x, y: cam.y } };
+    },
+    setStick: function (x, y) { input.jx = x; input.jy = y; },
+    teleport: function (c, r) { hero.x = c; hero.y = r; input.path = null; snapCamera(); },
+    tapTile: function (c, r) {
+      var v = viewOrigin(), p = iso(c, r);
+      return tapAt((p.x * scale + v.ox) / DPR, (p.y * scale + v.oy) / DPR);
+    },
+    collides: function (x, y) { return collides(x, y); },
+    setOpt: function (k, val) { opts[k] = val; },
+    setScale: function (s) { scale = s; },
+    tileToScreen: function (c, r) { var v = viewOrigin(), p = iso(c, r); return { x: (p.x * scale + v.ox) / DPR, y: (p.y * scale + v.oy) / DPR }; }
+  };
+  root.WFPreview = api;
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
+})(window);
+</script>
+</body>
+</html>

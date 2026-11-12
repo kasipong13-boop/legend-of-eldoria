@@ -1,0 +1,71 @@
+/* WF-MAP-01 Whispering Forest Map Preview - standalone styles */
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body {
+  margin: 0; height: 100%; overflow: hidden; background: #132128; color: #e9efe6;
+  font: 13px/1.35 system-ui, -apple-system, "Segoe UI", "Noto Sans Thai", sans-serif;
+  overscroll-behavior: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
+}
+canvas#view {
+  position: fixed; inset: 0; display: block; touch-action: none;
+  image-rendering: pixelated; image-rendering: crisp-edges;
+}
+
+.hud {
+  position: fixed; left: calc(10px + env(safe-area-inset-left)); top: calc(8px + env(safe-area-inset-top));
+  right: calc(10px + env(safe-area-inset-right));
+  pointer-events: none; text-shadow: 0 1px 2px #000;
+}
+.hud .title { font-weight: 700; font-size: 14px; color: #f3e7b6; }
+.hud .title span { display: block; font-weight: 400; font-size: 11px; color: #b9c8bd; }
+.hud .meta { font-size: 11px; color: #cfe0d3; margin-top: 2px; font-variant-numeric: tabular-nums; }
+
+.tools, .zoom { position: fixed; display: flex; flex-direction: column; gap: 6px; }
+.tools { right: calc(8px + env(safe-area-inset-right)); top: calc(70px + env(safe-area-inset-top)); }
+.zoom { right: calc(10px + env(safe-area-inset-right)); bottom: calc(30px + env(safe-area-inset-bottom)); gap: 10px; }
+.tools button, .zoom button {
+  min-height: 34px; padding: 4px 9px; border-radius: 9px;
+  border: 1px solid #4b6a5b; background: rgba(18, 32, 28, 0.78); color: #e9efe6;
+  font: 600 11px system-ui, -apple-system, sans-serif; touch-action: manipulation;
+}
+.zoom button { width: 48px; height: 48px; font-size: 22px; line-height: 1; border-radius: 50%; }
+.tools button:active, .zoom button:active { background: rgba(60, 96, 80, 0.9); }
+.tools button.on { border-color: #e8c66f; color: #ffe9a8; }
+
+.stick {
+  position: fixed; left: calc(22px + env(safe-area-inset-left)); bottom: calc(26px + env(safe-area-inset-bottom));
+  width: 128px; height: 128px; border-radius: 50%; touch-action: none;
+  background: radial-gradient(circle, rgba(255,255,255,0.10) 0 55%, rgba(255,255,255,0.04) 56%);
+  border: 2px solid rgba(232, 198, 111, 0.45);
+}
+.stick.active { border-color: rgba(255, 233, 168, 0.9); }
+.knob {
+  position: absolute; left: 50%; top: 50%; width: 54px; height: 54px; margin: -27px 0 0 -27px;
+  border-radius: 50%; background: rgba(232, 198, 111, 0.55); border: 2px solid rgba(255, 240, 190, 0.85);
+  pointer-events: none;
+}
+
+.hint {
+  position: fixed; left: 0; right: 0; bottom: calc(4px + env(safe-area-inset-bottom));
+  text-align: center; font-size: 10px; color: rgba(220, 232, 222, 0.6); pointer-events: none;
+}
+
+.toast {
+  position: fixed; left: 50%; top: 30%; transform: translate(-50%, -8px); opacity: 0;
+  max-width: 82vw; padding: 10px 16px; border-radius: 12px; white-space: pre-line; text-align: center;
+  background: rgba(16, 22, 28, 0.92); border: 1px solid #e8c66f; color: #fff4cf; font-weight: 600;
+  transition: opacity .2s, transform .2s; pointer-events: none;
+}
+.toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+.loading {
+  position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; text-align: center;
+  background: #132128; color: #f3e7b6; font-size: 15px; padding: 24px;
+}
+.loading.error { color: #ff9b8a; }
+
+@media (orientation: landscape) and (max-height: 500px) {
+  .stick { width: 112px; height: 112px; bottom: calc(14px + env(safe-area-inset-bottom)); }
+  .tools { top: calc(8px + env(safe-area-inset-top)); }
+  .zoom { bottom: calc(14px + env(safe-area-inset-bottom)); flex-direction: row; right: calc(110px + env(safe-area-inset-right)); }
+  .hint { display: none; }
+}

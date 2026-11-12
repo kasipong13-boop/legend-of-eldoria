@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#132128">
+  <title>Whispering Forest — Map Preview (WF-MAP-01)</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="preview.css">
+</head>
+<body>
+  <canvas id="view" aria-label="Whispering Forest isometric map preview"></canvas>
+
+  <header class="hud">
+    <div class="title">Whispering Forest <span>WF-MAP-01 · Preview แยกจากเกมหลัก · ไม่บันทึกข้อมูล</span></div>
+    <div class="meta"><span id="pos">—</span> · <span id="fps">—</span></div>
+  </header>
+
+  <nav class="zoom" aria-label="Zoom">
+    <button id="zoomIn" aria-label="ซูมเข้า">+</button>
+    <button id="zoomOut" aria-label="ซูมออก">−</button>
+  </nav>
+  <nav class="tools" aria-label="Preview tools">
+    <button id="btnGrid">Grid</button>
+    <button id="btnCol">Collision</button>
+    <button id="btnFade">Tree fade</button>
+    <button id="btnHero">Hero ×1</button>
+    <button id="btnHome">Start</button>
+  </nav>
+
+  <div id="stick" class="stick" aria-label="Joystick"><div id="knob" class="knob"></div></div>
+  <div class="hint">ลากจอยซ้ายล่างเพื่อเดิน · แตะพื้นเพื่อเดินไปจุดนั้น · PC: WASD / ลูกศร</div>
+
+  <div id="toast" class="toast" role="status"></div>
+  <div id="loading" class="loading">กำลังโหลด PNG จาก WF-ASSET-01…</div>
+
+  <script src="forest-map.js"></script>
+  <script src="preview.js"></script>
+</body>
+</html>
