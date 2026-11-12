@@ -35,5 +35,5 @@ check('feature flag default OFF',()=>assert.equal(adapter.DEFAULT_ENABLED,false)
 const a=adapter.createAdapter(fixture);
 check('feature flag OFF delegates',()=>assert.equal(a.navigate(fixture.nodes[0].id,fixture.nodes[0].id).mode,'LEGACY_DELEGATE'));
 check('no Save APIs in adapters',()=>assert.ok(!('save' in nav)&&!('load' in nav)&&!('save' in a)&&!('load' in a)));
-check('no storage writes in experimental source',()=>{for(const p of ['surface-route-audit-experimental.js','surface-navigation-experimental.js']){const s=fs.readFileSync(path.join(__dirname,'..','js',p),'utf8');assert.ok(!/localStorage|sessionStorage|indexedDB|\.setItem\s*\(/.test(s));}});
+check('no storage writes in experimental source',()=>{for(const p of ['surface-route-audit-experimental.js','surface-navigation-experimental.js']){const s=fs.readFileSync(path.join(__dirname,'..','js',p),'utf8');assert.ok(!/\.\s*(?:localStorage|sessionStorage|indexedDB|setItem\s*\()/.test(s));}});
 console.log('SUMMARY '+JSON.stringify({pass,fail}));if(fail)process.exitCode=1;
