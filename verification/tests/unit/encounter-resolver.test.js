@@ -23,7 +23,7 @@ test('monster occupied cells are traversable',()=>{assert.deepEqual(ids(resolveE
 test('zero distance still includes trigger',()=>{assert.deepEqual(ids(resolveEncounter(input([mob('p0',3,3),mob('w1',2,2)],{maxDistance:0}))),['p0']);});
 test('confirmed diagonal trigger accepted',()=>{const r=resolveEncounter(input([mob('p0',3,4)],{collisionEvidence:{hero:{x:2,y:3,c:2,r:3},trigger:{x:2.7,y:3.7,c:3,r:4},triggerInstanceId:'p0'}}));assert.equal(r.ok,true);assert.deepEqual(ids(r),['p0']);});
 test('unconfirmed diagonal trigger rejected',()=>{assert.equal(resolveEncounter(input([mob('p0',3,4)])).reason,'TRIGGER_NOT_ADJACENT');});
-test('confirmed trigger does not bypass other monster range',()=>{const r=resolveEncounter(input([mob('p0',3,4),mob('w1',2,7)],{triggerCollisionConfirmed:true}));assert.deepEqual(ids(r),['p0']);});
+test('confirmed trigger does not bypass other monster range',()=>{const r=resolveEncounter(input([mob('p0',3,4),mob('w1',2,7)],{collisionEvidence:{hero:{x:2,y:3,c:2,r:3},trigger:{x:2.7,y:3.7,c:3,r:4},triggerInstanceId:'p0'}}));assert.equal(r.ok,true);assert.deepEqual(ids(r),['p0']);});
 test('untrusted confirmation rejected',()=>{assert.equal(resolveEncounter(input([mob('p0',3,3)],{triggerCollisionConfirmed:true})).reason,'UNTRUSTED_COLLISION_CONFIRMATION');});
 
 test('forged distant collision evidence rejected',()=>{const e={hero:{x:2,y:3,c:2,r:3},trigger:{x:6,y:7,c:3,r:4},triggerInstanceId:'p0'};assert.equal(resolveEncounter(input([mob('p0',3,4)],{collisionEvidence:e})).reason,'INVALID_COLLISION_EVIDENCE');});
