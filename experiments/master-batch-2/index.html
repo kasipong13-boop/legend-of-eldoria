@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="th"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>LEGEND OF ELDORIA — Batch 2 Experimental Slice</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#101d1a;color:#f0e8cf;font:15px system-ui}header{padding:12px 14px;background:#20362d}h1{font-size:19px;margin:0}small{color:#c9c9a9}#status{padding:8px 12px;background:#20362d;min-height:44px}canvas{display:block;width:100%;height:min(57dvh,560px);background:#142b21;touch-action:none;image-rendering:pixelated}.controls{display:flex;gap:6px;justify-content:center;flex-wrap:wrap;padding:10px}button{background:#355947;color:white;border:1px solid #75967a;border-radius:10px;min-width:48px;min-height:44px;font-size:16px;padding:8px 12px}button:focus-visible{outline:3px solid #e6d78e}#log{padding:10px 14px;min-height:50px;color:#e8d9a2}#inventory{padding:6px 14px}footer{padding:10px 14px;color:#b6c7b9;font-size:12px}
+</style></head><body>
+<header><h1>LEGEND OF ELDORIA · Vertical Slice</h1><small>ทดลองแยกจากเกมหลัก · ไม่มีการบันทึกหรือใช้เครดิต AI</small></header>
+<div id="status" aria-live="polite"></div><canvas id="world" aria-label="แผนที่ทดลอง Greenvale และ Whispering Forest"></canvas>
+<div class="controls"><button data-dir="0,-1" aria-label="ขึ้น">▲</button><button data-dir="-1,0" aria-label="ซ้าย">◀</button><button data-dir="0,1" aria-label="ลง">▼</button><button data-dir="1,0" aria-label="ขวา">▶</button><button id="interact">พูดคุย / สำรวจ</button><button id="attack">โจมตี</button><button id="heal">พักฟื้น</button><button id="reset">เริ่มใหม่</button></div>
+<div id="inventory"></div><div id="log" role="status" aria-live="polite"></div>
+<footer>ทดลองแบบ session-only: ไม่อ่านหรือเขียน localStorage, Save Engine, Save Schema หรือข้อมูลเกมจริง · ไม่ใช่ Asset PixelLab จริง</footer>
+<script>
+'use strict';
+(function(){
+const cv=document.getElementById('world'),ctx=cv.getContext('2d'),status=document.getElementById('status'),log=document.getElementById('log'),inv=document.getElementById('inventory');
+const SIZE=12, TW=54, TH=28, maps={
+ greenvale:{name:'Greenvale Village',ground:'#568b58',obstacles:[[3,3],[3,4],[4,3],[8,4],[8,5],[9,4]],npc:{x:6,y:5},gate:{x:10,y:6},start:{x:2,y:6}},
+ forest:{name:'Whispering Forest',ground:'#356c4d',obstacles:[[3,2],[4,2],[5,2],[7,3],[8,3],[2,9],[3,9],[9,9]],wolf:{x:8,y:7},gate:{x:1,y:6},start:{x:2,y:6}}
+};
+let state;
+function reset(){state={map:'greenvale',x:2,y:6,hp:30,maxHp:30,gold:10,jelly:0,fang:0,wolfHp:18,wolfAlive:true,battle:false};say('เดินไปหา Merchant ที่ (6,5) หรือเข้าประตูป่าทางขวา');render()}
+function say(s){log.textContent=s}
+function blocked(x,y){const m=maps[state.map];return x<0||y<0||x>=SIZE||y>=SIZE||m.obstacles.some(p=>p[0]===x&&p[1]===y)}
+function adjacent(x,y){return Math.abs(x-state.x)+Math.abs(y-state.y)<=1}
+function move(dx,dy){if(state.battle){say('กำลังต่อสู้ ใช้ปุ่มโจมตี');return}const x=state.x+dx,y=state.y+dy;if(blocked(x,y)){say('ทางนี้เดินไม่ได้');return}state.x=x;state.y=y;const m=maps[state.map];if(x===m.gate.x&&y===m.gate.y){state.map=state.map==='greenvale'?'forest':'greenvale';state.x=maps[state.map].start.x;state.y=maps[state.map].start.y;say('เข้าสู่ '+maps[state.map].name)}else if(state.map==='forest'&&state.wolfAlive&&adjacent(m.wolf.x,m.wolf.y)){state.battle=true;say('Forest Wolf ปรากฏตัว! กดโจมตี')}render()}
+function interact(){if(state.battle){say('ต้องต่อสู้ให้เสร็จก่อน');return}if(state.map==='greenvale'&&adjacent(6,5)){if(state.jelly>0){state.gold+=state.jelly*3;say('Merchant ซื้อ Poring Jelly '+state.jelly+' ชิ้น ได้ '+state.jelly*3+' Gold');state.jelly=0}else if(state.fang>0){state.gold+=state.fang*7;say('Merchant ซื้อ Wolf Fang '+state.fang+' ชิ้น ได้ '+state.fang*7+' Gold');state.fang=0}else{say('Merchant: นำของจากป่ามาขายได้! Jelly 3 Gold / Fang 7 Gold')}}else{say('สำรวจบริเวณนี้ ยังไม่มี NPC ใกล้ตัว')}render()}
+function attack(){if(!state.battle){say('ยังไม่มีศัตรูในระยะต่อสู้');return}state.wolfHp-=7;if(state.wolfHp<=0){state.battle=false;state.wolfAlive=false;state.gold+=4;state.fang+=1;state.jelly+=1;say('ชนะ Forest Wolf! ได้ 4 Gold, Wolf Fang และ Poring Jelly')}else{state.hp=Math.max(0,state.hp-3);if(state.hp===0){state.battle=false;state.map='greenvale';state.x=2;state.y=6;state.hp=state.maxHp;state.wolfHp=18;say('พ่ายแพ้! กลับหมู่บ้าน (Demo ไม่หัก Gold)')}else{say('โจมตี 7 Damage · Wolf ตอบโต้ 3 Damage')}}render()}
+function heal(){if(state.battle){say('พักฟื้นระหว่างต่อสู้ไม่ได้');return}state.hp=state.maxHp;say('พักฟื้น HP เต็ม');render()}
+function iso(x,y){return {x:(x-y)*TW/2,y:(x+y)*TH/2}}
+function draw(){const dpr=Math.min(devicePixelRatio||1,2),r=cv.getBoundingClientRect();cv.width=Math.round(r.width*dpr);cv.height=Math.round(r.height*dpr);ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,r.width,r.height);const scale=Math.min(r.width/680,r.height/400,1.3),ox=r.width/2,oy=20;ctx.save();ctx.translate(ox,oy);ctx.scale(scale,scale);const m=maps[state.map];for(let sum=0;sum<2*SIZE;sum++)for(let y=0;y<SIZE;y++){let x=sum-y;if(x<0||x>=SIZE)continue;const p=iso(x,y),ob=m.obstacles.some(a=>a[0]===x&&a[1]===y);ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(p.x+TW/2,p.y+TH/2);ctx.lineTo(p.x,p.y+TH);ctx.lineTo(p.x-TW/2,p.y+TH/2);ctx.closePath();ctx.fillStyle=ob?'#213d34':(x+y)%2?m.ground:'#477c50';ctx.fill();ctx.strokeStyle='#1e4939';ctx.stroke();if(ob){ctx.fillStyle='#244d3b';ctx.fillRect(p.x-9,p.y-13,18,23);ctx.fillStyle='#4c8050';ctx.beginPath();ctx.arc(p.x,p.y-12,15,0,Math.PI*2);ctx.fill()}if(x===m.gate.x&&y===m.gate.y){ctx.fillStyle='#5dd6e1';ctx.fillRect(p.x-7,p.y-20,14,25)}if(m.npc&&x===m.npc.x&&y===m.npc.y){ctx.fillStyle='#edc568';ctx.fillRect(p.x-7,p.y-15,14,18)}if(m.wolf&&state.wolfAlive&&x===m.wolf.x&&y===m.wolf.y){ctx.fillStyle='#b9b8b1';ctx.fillRect(p.x-10,p.y-14,20,15)}if(x===state.x&&y===state.y){ctx.fillStyle='#f0a65b';ctx.beginPath();ctx.arc(p.x,p.y-10,9,0,Math.PI*2);ctx.fill();ctx.strokeStyle='#fff';ctx.stroke()}}ctx.restore()}
+function render(){status.textContent=maps[state.map].name+' · HP '+state.hp+'/'+state.maxHp+' · Gold '+state.gold+(state.battle?' · BATTLE Wolf HP '+state.wolfHp:'');inv.textContent='Inventory: Poring Jelly ×'+state.jelly+' · Wolf Fang ×'+state.fang;draw()}
+document.querySelectorAll('[data-dir]').forEach(b=>b.addEventListener('click',()=>{const a=b.dataset.dir.split(',').map(Number);move(a[0],a[1])}));
+document.getElementById('interact').addEventListener('click',interact);document.getElementById('attack').addEventListener('click',attack);document.getElementById('heal').addEventListener('click',heal);document.getElementById('reset').addEventListener('click',reset);addEventListener('resize',render);addEventListener('keydown',e=>{const dirs={ArrowUp:[0,-1],ArrowDown:[0,1],ArrowLeft:[-1,0],ArrowRight:[1,0]};if(dirs[e.key]){e.preventDefault();move(...dirs[e.key])}});reset();
+})();
+</script></body></html>
