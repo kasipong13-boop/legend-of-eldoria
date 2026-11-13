@@ -1,3 +1,55 @@
-<!doctype html><html lang="th"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>WF43 R3 Isometric Ground Test</title><style>*{box-sizing:border-box}body{margin:0;background:#12261b;color:#eee;font:14px system-ui}header{padding:12px 15px;background:#203b2a}h1{font-size:17px;margin:0 0 4px}small{color:#d3d7c6}#view{height:62dvh;min-height:330px;position:relative;overflow:hidden;touch-action:none;background:#15271c}canvas{width:100%;height:100%;display:block;image-rendering:pixelated}#status{position:absolute;top:8px;left:8px;background:#102318e8;padding:8px;border-radius:8px;font-size:12px;max-width:92%}.controls{display:flex;justify-content:center;gap:8px;padding:10px 4px}button{background:#315943;color:white;border:1px solid #b7ae82;border-radius:10px;min-width:59px;height:58px;font-size:23px;touch-action:none;user-select:none}button:active{background:#6b8960}footer{padding:10px 16px;color:#cbd4c9;font-size:12px}</style></head><body><header><h1>WF43 R3 — Isometric Ground Test</h1><small>DRAFT_FOR_DIRECTOR_REVIEW · Grass ×3 + Dirt ×2 · Not Final Art</small></header><div id="view"><canvas id="scene"></canvas><div id="status">JavaScript: NOT STARTED</div></div><div class="controls"><button data-x="-1" data-y="0">◀</button><button data-x="0" data-y="-1">▲</button><button data-x="0" data-y="1">▼</button><button data-x="1" data-y="0">▶</button></div><div class="controls"><button id="minus">−</button><button id="reset">Reset</button><button id="plus">+</button></div><footer>Isometric 64×32 tiles · ทดลองเดินด้วยปุ่มกดค้างหรือแตะ · กล้องติดตามตัวละคร · ไม่มี Collision หรือ Save · ไม่ใช่เกมหลัก</footer><script>
-(()=>{'use strict';const canvas=document.getElementById('scene'),ctx=canvas.getContext('2d'),view=document.getElementById('view'),status=document.getElementById('status');let x=10,y=10,z=1,dx=0,dy=0,last=0;const N=21,TW=64,TH=32,tiles=['grass_tile_01','grass_tile_02','grass_tile_03','dirt_path_tile_01','dirt_path_tile_02'],images=[],ready=[];function msg(t){status.textContent=t}window.addEventListener('error',e=>msg('ERROR: '+e.message));tiles.forEach((name,i)=>{let im=new Image();images[i]=im;im.onload=()=>{ready[i]=true;draw()};im.onerror=()=>{ready[i]=false;msg('ASSET FAIL: '+name)};im.src='assets/'+name+'.png'});function resize(){let d=Math.min(window.devicePixelRatio||1,2);canvas.width=Math.round(view.clientWidth*d);canvas.height=Math.round(view.clientHeight*d);draw()}function draw(){const w=canvas.width,h=canvas.height,d=Math.min(window.devicePixelRatio||1,2),s=z*d;ctx.imageSmoothingEnabled=false;ctx.clearRect(0,0,w,h);ctx.fillStyle='#14271a';ctx.fillRect(0,0,w,h);const centerX=w/2-(x-y)*32*s,centerY=h/2-(x+y)*16*s;for(let sum=0;sum<=2*(N-1);sum++){for(let q=0;q<N;q++){let r=sum-q;if(r<0||r>=N)continue;const tx=centerX+(q-r)*32*s,ty=centerY+(q+r)*16*s;const dirt=Math.abs(q-r)<2||Math.abs(q+r-21)<1;const k=dirt?3+(q+r)%2:(q*7+r*11)%3;let im=images[k];if(im&&ready[k])ctx.drawImage(im,Math.round(tx-32*s),Math.round(ty),TW*s,TH*s);else{ctx.fillStyle=dirt?'#775336':'#416f3d';ctx.beginPath();ctx.moveTo(tx,ty);ctx.lineTo(tx+32*s,ty+16*s);ctx.lineTo(tx,ty+32*s);ctx.lineTo(tx-32*s,ty+16*s);ctx.fill()}}}const hx=w/2,hy=h/2+12*s;ctx.fillStyle='#0d1c12aa';ctx.beginPath();ctx.ellipse(hx,hy+5*s,10*s,4*s,0,0,7);ctx.fill();ctx.fillStyle='#d3a14e';ctx.fillRect(hx-5*s,hy-24*s,10*s,9*s);ctx.fillStyle='#ead9bc';ctx.fillRect(hx-6*s,hy-15*s,12*s,12*s);ctx.fillStyle='#40516a';ctx.fillRect(hx-5*s,hy-3*s,4*s,10*s);ctx.fillRect(hx+1*s,hy-3*s,4*s,10*s);const count=ready.filter(Boolean).length;msg('Runtime PASS · Assets '+count+'/5 · Position '+x.toFixed(1)+','+y.toFixed(1)+' · Zoom '+Math.round(z*100)+'%')}function move(a,b){dx=a;dy=b}document.querySelectorAll('[data-x]').forEach(b=>{const a=+b.dataset.x,c=+b.dataset.y;b.addEventListener('pointerdown',e=>{e.preventDefault();move(a,c);b.setPointerCapture(e.pointerId)});['pointerup','pointercancel','lostpointercapture'].forEach(t=>b.addEventListener(t,()=>move(0,0)));b.addEventListener('click',()=>{x=Math.max(0,Math.min(N-1,x+a*.4));y=Math.max(0,Math.min(N-1,y+c*.4));draw()})});document.getElementById('minus').onclick=()=>{z=Math.max(.65,z-.15);draw()};document.getElementById('plus').onclick=()=>{z=Math.min(1.8,z+.15);draw()};document.getElementById('reset').onclick=()=>{x=10;y=10;z=1;draw()};window.addEventListener('resize',resize);function frame(t){let dt=Math.min(50,t-last)/1000;last=t;if(dx||dy){x=Math.max(0,Math.min(N-1,x+dx*3*dt));y=Math.max(0,Math.min(N-1,y+dy*3*dt));draw()}requestAnimationFrame(frame)}resize();requestAnimationFrame(frame)})();
-</script></body></html>
+<!doctype html><html lang="th"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>WF43 R3 Isometric Ground Test</title><style>*{box-sizing:border-box}body{margin:0;background:#12261b;color:#eee;font:14px system-ui}header{padding:12px 15px;background:#203b2a}h1{font-size:17px;margin:0 0 4px}small{color:#d3d7c6}#view{height:62dvh;min-height:330px;position:relative;overflow:hidden;touch-action:none;background:#15271c}canvas{width:100%;height:100%;display:block;image-rendering:pixelated}#status{position:absolute;top:8px;left:8px;background:#102318e8;padding:8px;border-radius:8px;font-size:12px;max-width:92%}.controls{display:flex;justify-content:center;gap:8px;padding:10px 4px}button{background:#315943;color:white;border:1px solid #b7ae82;border-radius:10px;min-width:59px;height:58px;font-size:23px;touch-action:none;user-select:none}button:active{background:#6b8960}footer{padding:10px 16px;color:#cbd4c9;font-size:12px}</style></head><body><header><h1>WF43 R8B — Forest Decoration Test</h1><small>DRAFT_FOR_DIRECTOR_REVIEW · Grass ×3 + Dirt ×2 + Tree ×3 + Bush ×2 + Rock ×2 · Not Final Art</small></header><div id="view"><canvas id="scene"></canvas><div id="status">JavaScript: NOT STARTED</div></div><div class="controls"><button data-x="-1" data-y="0">◀</button><button data-x="0" data-y="-1">▲</button><button data-x="0" data-y="1">▼</button><button data-x="1" data-y="0">▶</button></div><div class="controls"><button id="minus">−</button><button id="reset">Reset</button><button id="plus">+</button></div><footer>Isometric 64×32 tiles · ทดลองเดินด้วยปุ่มกดค้างหรือแตะ · กล้องติดตามตัวละคร · ไม่มี Collision หรือ Save · ไม่ใช่เกมหลัก</footer><script>
+(()=>{'use strict';
+const canvas=document.getElementById('scene'),ctx=canvas.getContext('2d'),view=document.getElementById('view'),status=document.getElementById('status');
+const N=21,TW=64,TH=32,groundNames=['grass_tile_01','grass_tile_02','grass_tile_03','dirt_path_tile_01','dirt_path_tile_02'];
+const decoration=[
+{name:'tree_01',c:3,r:4,p:[64,144]},{name:'tree_02',c:16,r:4,p:[64,144]},{name:'tree_03',c:3,r:16,p:[64,144]},
+{name:'tree_01',c:16,r:16,p:[64,144]},{name:'tree_02',c:6,r:2,p:[64,144]},{name:'tree_03',c:14,r:18,p:[64,144]},
+{name:'bush_01',c:7,r:5,p:[32,39]},{name:'bush_02',c:14,r:7,p:[32,39]},
+{name:'bush_01',c:6,r:14,p:[32,39]},{name:'bush_02',c:14,r:15,p:[32,39]},
+{name:'rock_01',c:5,r:10,p:[32,38]},{name:'rock_02',c:16,r:11,p:[32,38]}];
+const names=groundNames.concat(['tree_01','tree_02','tree_03','bush_01','bush_02','rock_01','rock_02']);
+const images=Object.create(null),loaded=Object.create(null),failed=Object.create(null);
+let x=10,y=10,z=1,dx=0,dy=0,last=0;
+function msg(t){status.textContent=t}
+window.addEventListener('error',e=>msg('ERROR: '+e.message));
+function clamp(v,a,b){return Math.max(a,Math.min(b,v))}
+function iso(c,r){return [(c-r)*TW/2,(c+r)*TH/2]}
+function resize(){const d=Math.min(window.devicePixelRatio||1,2);canvas.width=Math.round(view.clientWidth*d);canvas.height=Math.round(view.clientHeight*d);draw()}
+function draw(){
+const w=canvas.width,h=canvas.height,d=Math.min(window.devicePixelRatio||1,2),s=z*d;
+ctx.imageSmoothingEnabled=false;ctx.clearRect(0,0,w,h);ctx.fillStyle='#14271a';ctx.fillRect(0,0,w,h);
+const [cx,cy]=iso(x,y),ox=w/2-cx*s,oy=h/2-cy*s;
+function position(c,r){const [a,b]=iso(c,r);return [ox+a*s,oy+b*s]}
+for(let sum=0;sum<=2*(N-1);sum++)for(let c=0;c<N;c++){
+const r=sum-c;if(r<0||r>=N)continue;
+const [tx,ty]=position(c,r),dirt=Math.abs(c-r)<2||Math.abs(c+r-21)<1;
+const k=dirt?3+(c+r)%2:(c*7+r*11)%3,name=groundNames[k],im=images[name];
+if(loaded[name])ctx.drawImage(im,Math.round(tx-32*s),Math.round(ty),TW*s,TH*s);
+else{ctx.fillStyle=dirt?'#775336':'#416f3d';ctx.beginPath();ctx.moveTo(tx,ty);ctx.lineTo(tx+32*s,ty+16*s);ctx.lineTo(tx,ty+32*s);ctx.lineTo(tx-32*s,ty+16*s);ctx.fill()}}
+const actors=decoration.map((a,i)=>({...a,order:i,depth:(a.c+a.r)*16,kind:'prop'}));
+actors.push({c:x,r:y,depth:(x+y)*16,order:100,kind:'hero'});
+actors.sort((a,b)=>a.depth-b.depth||a.c-b.c||a.order-b.order);
+for(const a of actors){
+const [px,py]=position(a.c,a.r);
+if(a.kind==='prop'){if(loaded[a.name]){const im=images[a.name];ctx.drawImage(im,Math.round(px-a.p[0]*s),Math.round(py-a.p[1]*s),im.naturalWidth*s,im.naturalHeight*s)}}
+else{
+const hy=py+12*s;
+ctx.fillStyle='#0d1c12aa';ctx.beginPath();ctx.ellipse(px,hy+5*s,10*s,4*s,0,0,Math.PI*2);ctx.fill();
+ctx.fillStyle='#d3a14e';ctx.fillRect(px-5*s,hy-24*s,10*s,9*s);
+ctx.fillStyle='#ead9bc';ctx.fillRect(px-6*s,hy-15*s,12*s,12*s);
+ctx.fillStyle='#40516a';ctx.fillRect(px-5*s,hy-3*s,4*s,10*s);ctx.fillRect(px+1*s,hy-3*s,4*s,10*s);
+}}
+const count=names.filter(n=>loaded[n]).length,fail=names.filter(n=>failed[n]);
+msg((fail.length?'ASSET FAIL: '+fail.join(', '):count===12?'Runtime PASS':'Loading')+' · Assets '+count+'/12 · Position '+x.toFixed(1)+','+y.toFixed(1)+' · Zoom '+Math.round(z*100)+'%');
+}
+names.forEach(name=>{const im=new Image();images[name]=im;im.onload=()=>{loaded[name]=true;draw()};im.onerror=()=>{failed[name]=true;draw()};im.src='assets/'+name+'.png'});
+function move(a,b){dx=a;dy=b}
+document.querySelectorAll('[data-x]').forEach(b=>{const a=+b.dataset.x,c=+b.dataset.y;b.addEventListener('pointerdown',e=>{e.preventDefault();move(a,c);b.setPointerCapture(e.pointerId)});['pointerup','pointercancel','lostpointercapture'].forEach(t=>b.addEventListener(t,()=>move(0,0)));b.addEventListener('click',()=>{x=clamp(x+a*.4,0,N-1);y=clamp(y+c*.4,0,N-1);draw()})});
+document.getElementById('minus').onclick=()=>{z=clamp(z-.15,.65,1.8);draw()};
+document.getElementById('plus').onclick=()=>{z=clamp(z+.15,.65,1.8);draw()};
+document.getElementById('reset').onclick=()=>{x=10;y=10;z=1;draw()};
+window.addEventListener('resize',resize);
+function frame(t){const dt=Math.min(50,Math.max(0,t-last))/1000;last=t;if(dx||dy){x=clamp(x+dx*3*dt,0,N-1);y=clamp(y+dy*3*dt,0,N-1);draw()}requestAnimationFrame(frame)}
+resize();requestAnimationFrame(frame);
+})();</script></body></html>
