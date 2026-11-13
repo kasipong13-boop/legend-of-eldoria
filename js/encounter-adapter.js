@@ -18,7 +18,9 @@ function toEncounterMonster(instance,state,position){
 }
 function toLogicalTile(runtime,walkable){
   if(!runtime||!Number.isFinite(runtime.x)||!Number.isFinite(runtime.y)||typeof walkable!=='function')throw new Error('INVALID_RUNTIME_POSITION');
-  var c=Math.round(runtime.x),r=Math.round(runtime.y);
+  var hasTile=runtime.c!==undefined||runtime.r!==undefined;
+  if(hasTile&&!tile(runtime))throw new Error('INVALID_RUNTIME_TILE');
+  var c=hasTile?runtime.c:Math.round(runtime.x),r=hasTile?runtime.r:Math.round(runtime.y);
   if(!walkable(c,r))throw new Error('RUNTIME_TILE_BLOCKED');
   return {c:c,r:r};
 }
@@ -30,7 +32,7 @@ function createCollisionSnapshot(options){
   if(!(Math.hypot(dx,dy)<1.15))throw new Error('COLLISION_NOT_CONFIRMED');
   var walk=options.map.isWalkable;
   var playerPosition=toLogicalTile(hero,walk),triggerPosition=toLogicalTile(trigger,walk);
-  return {playerPosition:playerPosition,triggerPosition:triggerPosition,triggerInstanceId:options.triggerInstanceId,triggerCollisionConfirmed:true};
+  return {playerPosition:playerPosition,triggerPosition:triggerPosition,triggerInstanceId:options.triggerInstanceId,collisionEvidence:{hero:{x:hero.x,y:hero.y,c:playerPosition.c,r:playerPosition.r},trigger:{x:trigger.x,y:trigger.y,c:triggerPosition.c,r:triggerPosition.r},triggerInstanceId:options.triggerInstanceId}};
 }
 return {createMapAdapter:createMapAdapter,toEncounterMonster:toEncounterMonster,toLogicalTile:toLogicalTile,createCollisionSnapshot:createCollisionSnapshot};
 });

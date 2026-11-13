@@ -16,7 +16,7 @@ test('A07 spawn id retained',()=>{assert.equal(A.toEncounterMonster(inst,{alive:
 test('A08 dead excluded flag',()=>{assert.equal(A.toEncounterMonster(inst,{alive:false,engaged:false}).alive,false);});
 test('A09 engaged excluded flag',()=>{assert.equal(A.toEncounterMonster(inst,{alive:true,engaged:true}).engaged,true);});
 test('A10 runtime tile snapshot',()=>{assert.deepEqual(A.toEncounterMonster(inst,{alive:true,engaged:false},{c:5,r:3}).position,{c:5,r:3});});
-test('A11 diagonal collision confirmed',()=>{const s=A.createCollisionSnapshot({hero:{x:2,y:2},trigger:{x:2.7,y:2.7},map:{isWalkable:walk},triggerInstanceId:'w'});assert.equal(s.triggerCollisionConfirmed,true);});
+test('A11 diagonal collision confirmed',()=>{const s=A.createCollisionSnapshot({hero:{x:2,y:2},trigger:{x:2.7,y:2.7},map:{isWalkable:walk},triggerInstanceId:'w'});assert.equal(s.collisionEvidence.triggerInstanceId,'w');});
 test('A12 between tile collision confirmed',()=>{const s=A.createCollisionSnapshot({hero:{x:2.1,y:2},trigger:{x:2.8,y:2},map:{isWalkable:walk},triggerInstanceId:'w'});assert.deepEqual(s.playerPosition,{c:2,r:2});});
 test('A13 distant collision rejected',()=>{assert.throws(()=>A.createCollisionSnapshot({hero:{x:1,y:1},trigger:{x:5,y:5},map:{isWalkable:walk},triggerInstanceId:'w'}),/COLLISION_NOT_CONFIRMED/);});
 test('A14 invalid monster tile rejected',()=>{assert.throws(()=>A.toEncounterMonster(inst,{alive:true,engaged:false},{c:1.2,r:3}),/INVALID_MONSTER_TILE/);});
@@ -24,3 +24,6 @@ test('A15 deterministic conversion',()=>{assert.deepEqual(A.toLogicalTile({x:2.2
 test('A16 original instance unchanged',()=>{const before=JSON.stringify(inst);const x=A.toEncounterMonster(inst,{alive:true,engaged:false});x.position.c=9;assert.equal(JSON.stringify(inst),before);});
 test('missing lifecycle state rejected',()=>{assert.throws(()=>A.toEncounterMonster(inst,{}),/INVALID_INSTANCE_ADAPTER/);});
 test('blocked rounded tile rejected',()=>{assert.throws(()=>A.toLogicalTile({x:4.2,y:4.2},walk),/RUNTIME_TILE_BLOCKED/);});
+
+test('logical tile prefers world grid over rounding',()=>{assert.deepEqual(A.toLogicalTile({x:3.7,y:2.2,c:3,r:2},walk),{c:3,r:2});});
+test('invalid world grid rejected',()=>{assert.throws(()=>A.toLogicalTile({x:2,y:2,c:2.4,r:2},walk),/INVALID_RUNTIME_TILE/);});

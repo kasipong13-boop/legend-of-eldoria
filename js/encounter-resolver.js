@@ -2,7 +2,7 @@
 (function(root,factory){
   var api=factory();
   if(typeof module==='object'&&module.exports) module.exports=api;
-  if(root){root.Eldoria=root.Eldoria||{};root.Eldoria.EncounterResolver=api;}
+  if(root){root.ELDORIA=root.ELDORIA||{};root.ELDORIA.EncounterResolver=api;}
 })(typeof window!=='undefined'?window:(typeof globalThis!=='undefined'?globalThis:null),function(){
 'use strict';
 var DIRS=[[0,-1],[-1,0],[1,0],[0,1]];
@@ -27,9 +27,20 @@ function resolveEncounter(input){
   var trigger=eligible.find(function(m){return m.instanceId===input.triggerInstanceId;});
   if(!trigger)return fail('TRIGGER_NOT_ELIGIBLE');
   if(!map.isWalkable(trigger.position.c,trigger.position.r))return fail('TRIGGER_NOT_WALKABLE');
-  if(input.triggerCollisionConfirmed!==undefined&&typeof input.triggerCollisionConfirmed!=='boolean')return fail('INVALID_COLLISION_CONFIRMATION');
+  if(input.triggerCollisionConfirmed!==undefined)return fail('UNTRUSTED_COLLISION_CONFIRMATION');
   var delta=Math.abs(trigger.position.c-p.c)+Math.abs(trigger.position.r-p.r);
-  if(delta>1&&input.triggerCollisionConfirmed!==true)return fail('TRIGGER_NOT_ADJACENT');
+  if(input.collisionEvidence!==undefined){
+    var e=input.collisionEvidence;
+    if(!e||!e.hero||!e.trigger||e.triggerInstanceId!==input.triggerInstanceId||
+       !Number.isFinite(e.hero.x)||!Number.isFinite(e.hero.y)||
+       !Number.isFinite(e.trigger.x)||!Number.isFinite(e.trigger.y)||
+       !validPos(e.hero)||!validPos(e.trigger)||
+       e.hero.c!==p.c||e.hero.r!==p.r||
+       e.trigger.c!==trigger.position.c||e.trigger.r!==trigger.position.r||
+       !(Math.hypot(e.hero.x-e.trigger.x,e.hero.y-e.trigger.y)<1.15))
+       return fail('INVALID_COLLISION_EVIDENCE');
+  }
+  if(delta>1&&input.collisionEvidence===undefined)return fail('TRIGGER_NOT_ADJACENT');
   var seen=new Map([[key(p.c,p.r),0]]),queue=[{c:p.c,r:p.r,d:0}];
   for(var q=0;q<queue.length;q++){
     var at=queue[q];if(at.d>=limit)continue;
