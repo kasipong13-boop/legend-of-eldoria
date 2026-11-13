@@ -21,3 +21,7 @@ test('blocked player and trigger rejected',()=>{assert.equal(resolveEncounter(in
 test('limits validated and input unchanged',()=>{const ms=[mob('p0',3,3),mob('w1',2,2)],before=JSON.stringify(ms);assert.equal(resolveEncounter(input(ms,{maxEnemies:6})).reason,'INVALID_LIMITS');resolveEncounter(input(ms));assert.equal(JSON.stringify(ms),before);});
 test('monster occupied cells are traversable',()=>{assert.deepEqual(ids(resolveEncounter(input([mob('p0',3,3),mob('p1',4,3),mob('w2',5,3)]))),['p0','p1','w2']);});
 test('zero distance still includes trigger',()=>{assert.deepEqual(ids(resolveEncounter(input([mob('p0',3,3),mob('w1',2,2)],{maxDistance:0}))),['p0']);});
+test('confirmed diagonal trigger accepted',()=>{const r=resolveEncounter(input([mob('p0',3,4)],{triggerCollisionConfirmed:true}));assert.equal(r.ok,true);assert.deepEqual(ids(r),['p0']);});
+test('unconfirmed diagonal trigger rejected',()=>{assert.equal(resolveEncounter(input([mob('p0',3,4)])).reason,'TRIGGER_NOT_ADJACENT');});
+test('confirmed trigger does not bypass other monster range',()=>{const r=resolveEncounter(input([mob('p0',3,4),mob('w1',2,7)],{triggerCollisionConfirmed:true}));assert.deepEqual(ids(r),['p0']);});
+test('invalid confirmation type rejected',()=>{assert.equal(resolveEncounter(input([mob('p0',3,3)],{triggerCollisionConfirmed:'yes'})).reason,'INVALID_COLLISION_CONFIRMATION');});

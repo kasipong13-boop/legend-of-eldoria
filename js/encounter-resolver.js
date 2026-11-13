@@ -27,8 +27,9 @@ function resolveEncounter(input){
   var trigger=eligible.find(function(m){return m.instanceId===input.triggerInstanceId;});
   if(!trigger)return fail('TRIGGER_NOT_ELIGIBLE');
   if(!map.isWalkable(trigger.position.c,trigger.position.r))return fail('TRIGGER_NOT_WALKABLE');
+  if(input.triggerCollisionConfirmed!==undefined&&typeof input.triggerCollisionConfirmed!=='boolean')return fail('INVALID_COLLISION_CONFIRMATION');
   var delta=Math.abs(trigger.position.c-p.c)+Math.abs(trigger.position.r-p.r);
-  if(delta>1)return fail('TRIGGER_NOT_ADJACENT');
+  if(delta>1&&input.triggerCollisionConfirmed!==true)return fail('TRIGGER_NOT_ADJACENT');
   var seen=new Map([[key(p.c,p.r),0]]),queue=[{c:p.c,r:p.r,d:0}];
   for(var q=0;q<queue.length;q++){
     var at=queue[q];if(at.d>=limit)continue;
