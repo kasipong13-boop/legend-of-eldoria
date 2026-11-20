@@ -28,3 +28,18 @@ test('I02 invalid coordinator result never acquires',()=>{
  assert.equal(lifecycle.acquire({encounterId:'bad',characterId:'c',mapId:map.id,participants:[]}).reason,'INVALID_ENCOUNTER');
  assert.equal(held.size,0);
 });
+
+test('I03 coordinator-derived participants retain isolation during failed release and retry',()=>{
+ const p={c:1,r:1},item={id:'wolf-1',spawnId:'slot-1',monsterId:'forest_wolf',mapId:map.id,position:p};
+ const world={mapId:map.id,hero:{x:1,y:1,...p},trigger:{instanceId:item.id,x:1,y:1,...p}};
+ const coordinator=Coordinator.createBoundary({readWorld:()=>world,readInstances:()=>[item],mapData:MapData,adapter:Adapter,resolver:Resolver});
+ const prepared=coordinator.prepare(item.id);assert.equal(prepared.ok,true,prepared.reason);
+ let failure=true;const held=new Set(),before=JSON.stringify(item);
+ const lifecycle=Lifecycle.createLifecycle({reserve:id=>{held.add(id);return true;},release:id=>{if(failure)return false;held.delete(id);return true;}});
+ const acquired=lifecycle.acquire({encounterId:'e3',characterId:'c3',mapId:prepared.mapId,participants:prepared.participants});
+ assert.equal(acquired.ok,true);
+ assert.equal(lifecycle.start(acquired.token,()=>false).reason,'RELEASE_INCOMPLETE');
+ assert.equal(lifecycle.snapshot().state,'BLOCKED');assert.equal(held.size,1);
+ failure=false;assert.equal(lifecycle.retryRelease(acquired.token).ok,true);
+ assert.equal(held.size,0);assert.equal(JSON.stringify(item),before);
+});
