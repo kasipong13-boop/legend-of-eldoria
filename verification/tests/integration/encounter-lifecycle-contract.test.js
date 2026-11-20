@@ -1,0 +1,30 @@
+'use strict';
+const {test}=require('node:test');
+const assert=require('node:assert/strict');
+const Lifecycle=require('../../../js/encounter-lifecycle');
+const Coordinator=require('../../../js/encounter-coordinator');
+const Adapter=require('../../../js/encounter-adapter');
+const Resolver=require('../../../js/encounter-resolver');
+const MapData=require('../../../js/map-data');
+const map=MapData.get('whispering_forest');
+test('I01 trusted coordinator participants can be reserved without runtime mutations',()=>{
+ const p={c:1,r:1};
+ const item={id:'wolf-1',spawnId:'slot-1',monsterId:'forest_wolf',mapId:map.id,position:p};
+ const world={mapId:map.id,hero:{x:1,y:1,...p},trigger:{instanceId:item.id,x:1,y:1,...p}};
+ const coordinator=Coordinator.createBoundary({readWorld:()=>world,readInstances:()=>[item],mapData:MapData,adapter:Adapter,resolver:Resolver});
+ const prepared=coordinator.prepare(item.id);assert.equal(prepared.ok,true,prepared.reason);
+ const before=JSON.stringify(item),held=new Set();
+ const lifecycle=Lifecycle.createLifecycle({reserve:id=>{if(held.has(id))return false;held.add(id);return true;},release:id=>{held.delete(id);return true;}});
+ const acquired=lifecycle.acquire({encounterId:'enc-1',characterId:'char-1',mapId:prepared.mapId,participants:prepared.participants});
+ assert.equal(acquired.ok,true);assert.deepEqual([...held],[item.id]);assert.equal(JSON.stringify(item),before);
+ assert.equal(lifecycle.start(acquired.token,()=>true).ok,true);
+ assert.equal(lifecycle.settle(acquired.token).ok,true);
+ assert.equal(lifecycle.complete(acquired.token,true).ok,true);
+ assert.equal(held.size,0);assert.equal(JSON.stringify(item),before);
+});
+test('I02 invalid coordinator result never acquires',()=>{
+ const held=new Set();
+ const lifecycle=Lifecycle.createLifecycle({reserve:id=>{held.add(id);return true;},release:id=>{held.delete(id);return true;}});
+ assert.equal(lifecycle.acquire({encounterId:'bad',characterId:'c',mapId:map.id,participants:[]}).reason,'INVALID_ENCOUNTER');
+ assert.equal(held.size,0);
+});
